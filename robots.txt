@@ -1,0 +1,4 @@
+User-agent: *
+Disallow:
+Allow: /
+Sitemap: https://DreamWeave-MP.github.io/DreamWeave-Mod-Template/sitemap.xml

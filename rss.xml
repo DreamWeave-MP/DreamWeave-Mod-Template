@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss xmlns:atom="http://www.w3.org/2005/Atom" version="2.0">
+    <channel>
+      <title>My Mod Repository Name</title>
+      <link>https://DreamWeave-MP.github.io/DreamWeave-Mod-Template</link>
+      <description></description>
+      <generator>Zola</generator>
+      <language>en</language>
+      <atom:link href="https://DreamWeave-MP.github.io/DreamWeave-Mod-Template/rss.xml" rel="self" type="application/rss+xml"/>
+      <lastBuildDate>Mon, 29 Dec 2025 00:00:00 +0000</lastBuildDate>
+      <item>
+          <title>My Simplified Example Mod</title>
+          <pubDate>Mon, 29 Dec 2025 00:00:00 +0000</pubDate>
+          <author>Unknown</author>
+          <link>https://DreamWeave-MP.github.io/DreamWeave-Mod-Template/simplified/</link>
+          <guid>https://DreamWeave-MP.github.io/DreamWeave-Mod-Template/simplified/</guid>
+          <description xml:base="https://DreamWeave-MP.github.io/DreamWeave-Mod-Template/simplified/">&lt;p&gt;This is much better, isn&#x27;t it?&lt;&#x2F;p&gt;</description>
+      </item>
+      <item>
+          <title>My Example Mod</title>
+          <pubDate>Sat, 27 Dec 2025 00:00:00 +0000</pubDate>
+          <author>Unknown</author>
+          <link>https://DreamWeave-MP.github.io/DreamWeave-Mod-Template/home/</link>
+          <guid>https://DreamWeave-MP.github.io/DreamWeave-Mod-Template/home/</guid>
+          <description xml:base="https://DreamWeave-MP.github.io/DreamWeave-Mod-Template/home/">&lt;p&gt;Get started using the mod template by &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;DreamWeave-MP&#x2F;DreamWeave-Mod-Template&#x2F;fork&quot;&gt;forking the repository&lt;&#x2F;a&gt; on GitHub.
+It&#x27;s built with a set of sane defaults for single-page mod sites like the one you&#x27;re reading now.&lt;&#x2F;p&gt;
+&lt;p&gt;Want to host a website for something hosted on another repo? What about an app instead of a mod? No problem.
+This page&#x27;s frontmatter includes defaults for every possible value in your page configuration.&lt;&#x2F;p&gt;
+&lt;p&gt;Here, you define everything from install instructions to page layout and download URLs.&lt;&#x2F;p&gt;</description>
+      </item>
+    </channel>
+</rss>

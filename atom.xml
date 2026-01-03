@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en">
+    <title>My Mod Repository Name</title>
+    <link rel="self" type="application/atom+xml" href="https://DreamWeave-MP.github.io/DreamWeave-Mod-Template/atom.xml"/>
+    <link rel="alternate" type="text/html" href="https://DreamWeave-MP.github.io/DreamWeave-Mod-Template"/>
+    <generator uri="https://www.getzola.org/">Zola</generator>
+    <updated>2025-12-29T00:00:00+00:00</updated>
+    <id>https://DreamWeave-MP.github.io/DreamWeave-Mod-Template/atom.xml</id>
+    <entry xml:lang="en">
+        <title>My Simplified Example Mod</title>
+        <published>2025-12-29T00:00:00+00:00</published>
+        <updated>2025-12-29T00:00:00+00:00</updated>
+        
+        <author>
+          <name>
+            
+              Unknown
+            
+          </name>
+        </author>
+        
+        <link rel="alternate" type="text/html" href="https://DreamWeave-MP.github.io/DreamWeave-Mod-Template/simplified/"/>
+        <id>https://DreamWeave-MP.github.io/DreamWeave-Mod-Template/simplified/</id>
+        
+        <summary type="html">&lt;p&gt;This is much better, isn&#x27;t it?&lt;&#x2F;p&gt;</summary>
+        
+    </entry>
+    <entry xml:lang="en">
+        <title>My Example Mod</title>
+        <published>2025-12-27T00:00:00+00:00</published>
+        <updated>2025-12-27T00:00:00+00:00</updated>
+        
+        <author>
+          <name>
+            
+              Unknown
+            
+          </name>
+        </author>
+        
+        <link rel="alternate" type="text/html" href="https://DreamWeave-MP.github.io/DreamWeave-Mod-Template/home/"/>
+        <id>https://DreamWeave-MP.github.io/DreamWeave-Mod-Template/home/</id>
+        
+        <summary type="html">&lt;p&gt;Get started using the mod template by &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;DreamWeave-MP&#x2F;DreamWeave-Mod-Template&#x2F;fork&quot;&gt;forking the repository&lt;&#x2F;a&gt; on GitHub.
+It&#x27;s built with a set of sane defaults for single-page mod sites like the one you&#x27;re reading now.&lt;&#x2F;p&gt;
+&lt;p&gt;Want to host a website for something hosted on another repo? What about an app instead of a mod? No problem.
+This page&#x27;s frontmatter includes defaults for every possible value in your page configuration.&lt;&#x2F;p&gt;
+&lt;p&gt;Here, you define everything from install instructions to page layout and download URLs.&lt;&#x2F;p&gt;</summary>
+        
+    </entry>
+</feed>
