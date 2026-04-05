@@ -114,6 +114,7 @@ def package_mod(subDir: Path, targetTag: Optional[str]):
         archivePath,
         mode='w',
         compression=zipfile.ZIP_DEFLATED,
+        compresslevel=1
     ) as modArchive:
         for (dirpath, _, filenames) in CurrentDir.walk():
             for file in filenames:
@@ -182,7 +183,7 @@ def get_intermediate_changelog(subDir: str, url: str, all_tags: list[str]) -> st
             intermediate_args, check=True, capture_output=True, text=True)
         if commit_list_process.returncode != 0:
             raise RuntimeError(f'Listing commits failed: {
-                               commitListProcess.stderr}')
+                               commit_list_process.stderr}')
 
         intermediate_commits = commit_list_process.stdout.splitlines()
 
@@ -194,7 +195,7 @@ def get_intermediate_changelog(subDir: str, url: str, all_tags: list[str]) -> st
 
             if commit_list_process.returncode != 0:
                 raise RuntimeError(f'Listing commits failed: {
-                                   commitListProcess.stderr}')
+                                   commit_list_process.stderr}')
 
             latest_commits = commit_list_process.stdout.splitlines()
 
@@ -293,8 +294,14 @@ version: {frontmatter['extra']['version']}
             print(f'Wrote changelog:\n{
                   changelog_str}\nto: /content/{subDir}/changelog.md with tag prefix: {dirStr}')
 
+        processes = []
+
         if inputArguments.build:
             ensure_dist_dir()
             packageProcess = Process(
                 target=package_mod, args=(subDir, inputArguments.tag))
             packageProcess.start()
+            processes.append(packageProcess)
+
+        for p in processes:
+            p.join()
