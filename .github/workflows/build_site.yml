@@ -4,6 +4,16 @@ on:
     tags: '*'
     branches:
       - main
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
 name: Build and deploy GH Pages
 jobs:
   build-site:
@@ -19,10 +29,21 @@ jobs:
         run: |
           ./buildSite --repository ${{ github.repository }} --changelog
 
-      - name: build_and_deploy
-        uses: shalzz/zola-deploy-action@v0.22.1
-        env:
-          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build Zola + upload Pages artifact
+        uses: getzola/github-pages@066755243e69f508fd1a74739fbf1a65f656c790
+        with:
+          zola_version: v0.22.1
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
 
   release_cleanup:
     uses: DreamWeave-MP/StroggForge/.github/workflows/createRelease.yml@v6
