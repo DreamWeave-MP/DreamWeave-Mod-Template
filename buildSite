@@ -114,7 +114,6 @@ def package_mod(subDir: Path, targetTag: Optional[str]):
         archivePath,
         mode='w',
         compression=zipfile.ZIP_DEFLATED,
-        compresslevel=1
     ) as modArchive:
         for (dirpath, _, filenames) in CurrentDir.walk():
             for file in filenames:
