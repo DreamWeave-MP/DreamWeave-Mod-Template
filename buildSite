@@ -132,9 +132,9 @@ def get_latest_changelog(subDir: str, latest_tag: str, url: str) -> str:
         "git",
         "log",
         "--pretty=format:'%h %s'",
-        f"{latest_tag}...HEAD",
+        f"{latest_tag}..HEAD",
         "--",
-        f"../*/{subDir}/*",
+        f"{subDir}/*",
     ]
     commitListProcess = subprocess.run(
         latest_args, check=True, capture_output=True, text=True
@@ -145,6 +145,9 @@ def get_latest_changelog(subDir: str, latest_tag: str, url: str) -> str:
                            commitListProcess.stderr}")
 
     intermediate_commits = commitListProcess.stdout.splitlines()
+    if not intermediate_commits:
+        return ''
+
     changelog_str = f'<details open><summary class="no-underline">Latest:</summary>'
 
     for commit in intermediate_commits:
@@ -164,15 +167,10 @@ def get_latest_changelog(subDir: str, latest_tag: str, url: str) -> str:
 
 
 def get_intermediate_changelog(subDir: str, url: str, all_tags: list[str]) -> str:
-    """Return the formatted changelog for commits after the latest tag."""
+    """Return changelog sections for each tagged version and the initial release."""
 
-    num_tags = len(all_tags)
     latest_tag = all_tags[0]
-    previous_tag = all_tags[1]
-
     changelog_str = ""
-
-    pprint(all_tags)
 
     for tag in all_tags:
         previous_tag = tag
@@ -189,40 +187,19 @@ def get_intermediate_changelog(subDir: str, url: str, all_tags: list[str]) -> st
             "--pretty=format:'%h %s'",
             f"{previous_tag}..{latest_tag}",
             "--",
-            f"../{subDir}/*",
+            f"{subDir}/*",
         ]
 
         commit_list_process = subprocess.run(
             intermediate_args, check=True, capture_output=True, text=True
         )
         if commit_list_process.returncode != 0:
-            raise RuntimeError(f"Listing commits failed: {
-                               commit_list_process.stderr}")
+            raise RuntimeError(f"Listing commits failed: {commit_list_process.stderr}")
 
         intermediate_commits = commit_list_process.stdout.splitlines()
 
-        if len(intermediate_commits) == 0 and latest_tag != all_tags[0]:
-            latest_args = [
-                "git",
-                "log",
-                "--pretty=format:'%h %s'",
-                f"{latest_tag}",
-                "--",
-                f"../{subDir}/*",
-            ]
-            commit_list_process = subprocess.run(
-                intermediate_args, check=True, capture_output=True, text=True
-            )
-
-            if commit_list_process.returncode != 0:
-                raise RuntimeError(f"Listing commits failed: {
-                                   commit_list_process.stderr}")
-
-            latest_commits = commit_list_process.stdout.splitlines()
-
         if len(intermediate_commits) > 0:
-            changelog_str += f'<details><summary class="no-underline">Version {
-                latest_tag.split('-')[1]}:</summary>'
+            changelog_str += f'<details><summary class="no-underline">Version {latest_tag.split("-")[1]}:</summary>'
 
             for commit in intermediate_commits:
                 formatted = commit.split()
@@ -238,6 +215,27 @@ def get_intermediate_changelog(subDir: str, url: str, all_tags: list[str]) -> st
             changelog_str += "</details>\n"
 
         latest_tag = previous_tag
+
+    # Include commits that predate the oldest tag as the initial release
+    oldest_tag = all_tags[-1]
+    initial_args = [ 'git', 'log', "--pretty=format:'%h %s'", oldest_tag, '--', f'{subDir}/*', ]
+    initial_process = subprocess.run(initial_args, check=True, capture_output=True, text=True)
+    if initial_process.returncode != 0:
+        raise RuntimeError(f'Listing commits failed: {initial_process.stderr}')
+
+    initial_commits = initial_process.stdout.splitlines()
+    if initial_commits:
+        changelog_str += f'<details><summary class="no-underline">Version {oldest_tag.split("-")[1]}:</summary>'
+
+        for commit in initial_commits:
+            formatted = commit.split()
+            if len(formatted) < 2:
+                raise RuntimeError(f'Incorrect Commit format: {commit}')
+
+            commitHash, commitMessage = formatted[0].strip("'"), ' '.join(formatted[1:]).strip("'")
+            changelog_str += f'<a href="{url}/commit/{commitHash}">{commitHash} - {commitMessage}</a><br><br>\n'
+
+        changelog_str += '</details>\n'
 
     return changelog_str
 
@@ -274,9 +272,6 @@ if __name__ == "__main__":
                 )
             url = f"https://github.com/{inputArguments.repository}"
 
-            # Read all titles from root index page frontmatters, slugified
-            # Use the title in the format $TITLE(un-slugified) Changelog
-            # Read all git tags for (slugified) title
             frontmatter = parse_front_matter(CurrentDir / subDir / "index.md")
 
             changelog_str = f"""---
@@ -291,8 +286,10 @@ version: {frontmatter['extra']['version']}
                     "Git is not installed, so I cannot make a changelog!"
                 )
 
+            # Tags are named after the slugified page title, not the directory name
+            title_slug = slugify(frontmatter["title"], True)
             tagListProcess = subprocess.run(
-                ["git", "tag", "--list", f"{dirStr}-*", "--sort=-creatordate"],
+                ["git", "tag", "--list", f"{title_slug}-*", "--sort=-creatordate"],
                 check=True,
                 capture_output=True,
                 text=True,
@@ -306,11 +303,8 @@ version: {frontmatter['extra']['version']}
 
             num_releases = len(modReleases)
             if num_releases > 0:
-                changelog_str += get_latest_changelog(
-                    dirStr, modReleases[0], url)
-            if num_releases > 1:
-                changelog_str += get_intermediate_changelog(
-                    dirStr, url, modReleases)
+                changelog_str += get_latest_changelog(dirStr, modReleases[0], url)
+                changelog_str += get_intermediate_changelog(dirStr, url, modReleases)
 
             changelogPath = subDir / "changelog.md"
             changelogPath.write_text(changelog_str)
