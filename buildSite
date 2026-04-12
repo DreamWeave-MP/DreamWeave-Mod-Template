@@ -5,6 +5,7 @@
 # Mod to package.
 # If no arguments are given, then, all mods are packaged as LZMA zip
 import argparse
+import json
 import os
 import re
 import shutil
@@ -15,7 +16,6 @@ import zipfile
 
 from multiprocessing import Process
 from pathlib import Path
-from pprint import pp as pprint
 from typing import Optional
 
 CurrentDir, ParentDir = Path("."), Path("..")
@@ -123,6 +123,91 @@ def package_mod(subDir: Path, targetTag: Optional[str]):
 def get_subdirectories() -> list[Path]:
     """Returns subdirectories of the current working directory."""
     return [subDir for subDir in CurrentDir.iterdir() if subDir.is_dir()]
+
+
+def _strip_comments(lst: list) -> list:
+    """Remove comment strings (those starting with '#') from install_info lists."""
+    return [x for x in (lst or []) if not str(x).startswith("#")]
+
+
+def _strip_comment_keys(d: dict) -> dict:
+    """Remove comment keys (those starting with '#') from install_info dicts."""
+    return {k: v for k, v in (d or {}).items() if not str(k).startswith("#")}
+
+
+def build_manifest_entry(
+    subDir: Path, frontmatter: dict, site_config: dict, release_tag: str
+) -> dict:
+    """Build a single mod entry for the modManifest from page frontmatter."""
+    extra = frontmatter.get("extra", {})
+    title = frontmatter["title"]
+    slug = slugify(title, True)
+    version = str(extra["version"])
+    game = extra.get("game", "morrowind")
+
+    # Determine source provider and construct typed download links.
+    # offsite_host.provider defaults to 'github' for backward compatibility
+    # with existing frontmatter that only specifies owner/repo.
+    offsite = extra.get("offsite_host")
+    provider = offsite.get("provider", "github") if offsite else "github"
+
+    if provider == "github":
+        owner = offsite["owner"] if offsite else site_config["extra"]["github_username"]
+        repo = offsite["repo"] if offsite else site_config["extra"]["github_project"]
+        source = {"provider": "github", "owner": owner, "repo": repo}
+        archive_url = f"https://github.com/{owner}/{repo}/releases/download/{release_tag}/{slug}.zip"
+        downloads = [
+            {"type": "modl", "url": f"modl://{game}/?url={archive_url}"},
+            {"type": "archive", "url": archive_url},
+        ]
+    elif provider == "gitlab":
+        owner = offsite["owner"]
+        repo = offsite["repo"]
+        instance = offsite.get("instance", "https://gitlab.com")
+        source = {"provider": "gitlab", "owner": owner, "repo": repo}
+        if instance != "https://gitlab.com":
+            source["instance"] = instance
+        archive_url = f"{instance}/{owner}/{repo}/-/releases/{version}/downloads/{slug}.zip"
+        downloads = [{"type": "archive", "url": archive_url}]
+    elif provider == "momw":
+        momw_slug = offsite["slug"]
+        source = {"provider": "momw", "slug": momw_slug}
+        downloads = [{"type": "momw", "url": f"momw://modding-openmw.com/mods/{momw_slug}/json"}]
+    elif provider == "url":
+        url = offsite["url"]
+        source = {"provider": "url", "url": url}
+        downloads = [{"type": "archive", "url": url}]
+    else:
+        raise RuntimeError(f"Unknown offsite_host provider: {provider}")
+
+    # All install_info fields are always present; empty if not set in frontmatter.
+    # Comment strings (starting with '#') are documentation for the site install
+    # widget and are stripped here.
+    raw = extra.get("install_info") or {}
+    install_info = {
+        "data_directories": _strip_comments(raw.get("data_directories", [])),
+        "content_files": _strip_comments(raw.get("content_files", [])),
+        "fallback_entries": _strip_comment_keys(raw.get("fallback_entries", {})),
+        "config": _strip_comments(raw.get("config", [])),
+    }
+
+    entry: dict = {
+        "title": title,
+        "slug": slug,
+        "version": version,
+        "game": game,
+        "source": source,
+        "downloads": downloads,
+        "install_info": install_info,
+    }
+
+    # Nexus fields are omitted entirely when absent rather than set to null.
+    if "nexus_id" in extra:
+        entry["nexus_id"] = extra["nexus_id"]
+    if "nexus_group_id" in extra:
+        entry["nexus_group_id"] = str(extra["nexus_group_id"])
+
+    return entry
 
 
 def get_latest_changelog(subDir: str, latest_tag: str, url: str) -> str:
@@ -250,6 +335,11 @@ BuildArgParser.add_argument("-b", "--build", action="store_true")
 BuildArgParser.add_argument("-c", "--changelog", action="store_true")
 BuildArgParser.add_argument("-t", "--tag")
 BuildArgParser.add_argument("-r", "--repository")
+BuildArgParser.add_argument(
+    "--release",
+    default="development",
+    help="Full release tag for manifest naming and download URL construction (e.g. 'development' or 'my_mod-1.0')",
+)
 
 if __name__ == "__main__":
     inputArguments = BuildArgParser.parse_args()
@@ -258,6 +348,9 @@ if __name__ == "__main__":
     excludeDirs = siteConfig["extra"]["excluded_dirs"]
 
     os.chdir(Path("content/"))
+
+    manifest_mods = []
+    processes = []
 
     for subDir in get_subdirectories():
         dirStr = str(subDir)
@@ -296,8 +389,7 @@ version: {frontmatter['extra']['version']}
             )
 
             if tagListProcess.returncode != 0:
-                raise RuntimeError(f"Listing tags failed: {
-                                   tagListProcess.stderr}")
+                raise RuntimeError(f"Listing tags failed: {tagListProcess.stderr}")
 
             modReleases = tagListProcess.stdout.splitlines()
 
@@ -309,19 +401,39 @@ version: {frontmatter['extra']['version']}
             changelogPath = subDir / "changelog.md"
             changelogPath.write_text(changelog_str)
             print(
-                f"Wrote changelog:\n{
-                    changelog_str}\nto: /content/{subDir}/changelog.md with tag prefix: {dirStr}"
+                f"Wrote changelog:\n{changelog_str}\nto: /content/{subDir}/changelog.md with tag prefix: {dirStr}"
             )
-
-        processes = []
 
         if inputArguments.build:
             ensure_dist_dir()
+
+            frontmatter = parse_front_matter(CurrentDir / subDir / "index.md")
+            if frontmatter is not None:
+                # Apply the same tag filter as package_mod so a single-mod
+                # tagged build only produces a single-mod manifest.
+                title_slug = slugify(frontmatter["title"], True)
+                if not inputArguments.tag or title_slug == inputArguments.tag.split("-")[0]:
+                    manifest_mods.append(
+                        build_manifest_entry(subDir, frontmatter, siteConfig, inputArguments.release)
+                    )
+
             packageProcess = Process(
                 target=package_mod, args=(subDir, inputArguments.tag)
             )
             packageProcess.start()
             processes.append(packageProcess)
 
-        for p in processes:
-            p.join()
+    for p in processes:
+        p.join()
+
+    if inputArguments.build and manifest_mods:
+        project = siteConfig["extra"]["github_project"]
+        manifest = {
+            "schema_version": "1",
+            "project": project,
+            "tag": inputArguments.release,
+            "mods": manifest_mods,
+        }
+        manifest_path = Path(ParentDir / "dist") / f"{project}-{inputArguments.release}.modManifest"
+        manifest_path.write_text(json.dumps(manifest, indent=2))
+        print(f"Wrote manifest to {manifest_path}")
