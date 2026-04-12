@@ -57,17 +57,43 @@ extra:
   game: morrowind
 
   # If your mod is also hosted on NexusMods, put the id here to link
-  # Back to the nexus page. Optonal.
+  # back to the nexus page. Used for metadata lookups (images, description) —
+  # not for direct downloads. Optional.
   nexus_id: 57511
 
-  # Use this field if you're hosting from another castle.
-# Both `owner` and `repo` are required, but `giscus` is not.
+  # NexusMods file group ID for automated uploads via the v3 API.
+  # Obtain it from the "API Info" option in the Files tab of your mod page.
+  # Optional — omit if you don't want automated Nexus uploads.
+  #nexus_group_id: "abc123"
+
+  # Use this field if your mod is hosted on a different repository.
+  # `provider` determines the host type; defaults to `github` if omitted.
+  # `giscus` is optional and overrides the site-wide comment config for this page.
+  #
+  # GitHub (provider defaults to 'github' when omitted):
   #offsite_host:
-    #owner: DreamWeave-MP
-    #repo: S3LightFixes
-    #giscus:
-      #repo_id: R_kgDONYe6SQ
-      #category_id: DIC_kwDONYe6Sc4C0Jkq
+  #  owner: DreamWeave-MP
+  #  repo: S3LightFixes
+  #  giscus:
+  #    repo_id: R_kgDONYe6SQ
+  #    category_id: DIC_kwDONYe6Sc4C0Jkq
+  #
+  # GitLab (instance is optional, defaults to https://gitlab.com):
+  #offsite_host:
+  #  provider: gitlab
+  #  owner: momw-mods
+  #  repo: some-mod
+  #  instance: https://gitlab.com
+  #
+  # Modding-OpenMW (MOMW):
+  #offsite_host:
+  #  provider: momw
+  #  slug: go-home
+  #
+  # Arbitrary URL:
+  #offsite_host:
+  #  provider: url
+  #  url: https://example.com/mods/my-mod/
 
   # If true, only show the frontmatter description on index pages
   # If you want to hide the summary text completely
