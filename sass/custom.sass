@@ -2,6 +2,33 @@
   .custom-divider
     display: none
 
+html
+  scrollbar-color: var(--accent) var(--background)
+  scrollbar-width: thin
+
+html::-webkit-scrollbar
+  width: 10px
+
+html::-webkit-scrollbar-track
+  background: var(--background)
+
+html::-webkit-scrollbar-thumb
+  background: var(--accent)
+  border: 2px solid var(--background)
+  border-radius: 999px
+
+html::-webkit-scrollbar-thumb:hover
+  background: var(--accent-alpha-70)
+
+html::-webkit-scrollbar-thumb:active
+  background: var(--accent)
+
+html::-webkit-scrollbar-button
+  display: none
+
+html::-webkit-scrollbar-corner
+  background: transparent
+
 // ul.toc
 //   list-style-image: url("../img/s3-list-item.png")
 
