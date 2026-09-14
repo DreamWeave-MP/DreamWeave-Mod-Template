@@ -67,3 +67,27 @@ Your frontmatter may be yaml, using `---`, or TOML, using `+++` before and after
 For more info, and guides on expanding the site yourself, check out [Zola's Docs](https://www.getzola.org/documentation/getting-started/overview/).
 
 Thanks for checking out the DreamWeave Mod Template. Please consider sponsoring DreamWeave on [Ko-Fi](https://ko-fi.com/magicaldave)
+
+## API documentation pages
+
+The Mod Template has an opt-in documentation layout for API references, framework guides, and other code-heavy pages. Put docs in a Zola section and select the docs templates in its frontmatter:
+
+```yaml
+template: docs/section.html
+page_template: docs/page.html
+
+extra:
+  api_docs: true
+  docs_root: true
+  docs_project_name: My Project
+  docs_short_title: My Project Docs
+  docs_project_path: '@/home/index.md'
+  docs_repository_url: https://github.com/OWNER/REPOSITORY/tree/main/content/home
+  docs_sidebar_label: Documentation
+```
+
+Declare the consumer metadata once on the documentation root. Child pages and sections inherit the selected docs templates through `page_template`; they do not need to repeat the project name, root URL, or search scope. Zola accepts YAML frontmatter as shown above as well as TOML.
+
+API docs get a recursive collapsible project sidebar, a current-page table of contents, breadcrumbs, responsive three-column layout, and copy buttons for fenced code blocks. Guide pages are task-first: lead with the goal and a working example, then explain variations, pitfalls, and related reference. API reference pages are lookup-first: lead with the symbol or item name, signature, and one-sentence summary, then document behavior, parameters, returns, caveats, examples, and related items.
+
+Use `{{ api_signature(value="module.function(argument)") }}` for a highlighted API signature. Use `{% usage_note(title="Compatibility") %}This behavior is optional.{% end %}` for a bordered note.
