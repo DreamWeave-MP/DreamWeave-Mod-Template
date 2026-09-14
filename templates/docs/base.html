@@ -14,8 +14,7 @@
         {% set_global docs_current_title = section.title %}
         {% set_global docs_current_description = section.description %}
         {% set_global docs_current_toc = section.toc %}
-    {% endif %}
-
+{% endif %}
     {% set_global docs_root_path = "" %}
     {% for ancestor_path in docs_active_paths %}
         {% set candidate = get_section(path=ancestor_path, metadata_only=true) %}
