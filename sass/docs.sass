@@ -114,22 +114,10 @@
   &::-webkit-scrollbar-corner
     background: transparent
 
-.docs-sidebar__panel,
 .docs-toc__panel
   > summary
     color: var(--accent)
     font-weight: bold
-
-.docs-sidebar__panel
-  > summary
-    padding-bottom: .75em
-
-  > summary::marker
-    content: none
-
-  > summary
-    list-style: none
-    cursor: default
 
 .docs-sidebar ul
   list-style: none
@@ -147,9 +135,6 @@
 
 .docs-sidebar details[open] > summary::before
   content: "▾"
-
-.docs-sidebar__panel > summary::before
-  content: none
 
 .docs-sidebar li
   margin: .15em 0
@@ -180,11 +165,23 @@
 
 .docs-sidebar summary.is-current,
 .docs-sidebar summary.is-ancestor
-  color: var(--accent)
+  color: var(--color)
   opacity: 1
 
 .docs-sidebar__section > details > ul
   padding-left: 1em
+
+.docs-sidebar__group-label
+  display: block
+  padding: .3em .6em
+  color: var(--color)
+  font-size: inherit
+  font-weight: bold
+  letter-spacing: normal
+  opacity: .82
+
+.docs-sidebar__group > details > ul
+  padding-left: .7em
 
 .docs-sidebar__section
   margin-top: .35em
@@ -457,7 +454,6 @@
   .docs-toc
     margin-bottom: 2em
 
-  .docs-sidebar__panel > summary,
   .docs-toc__panel > summary
     cursor: pointer
 
@@ -482,15 +478,6 @@
     max-height: none
     overflow-y: visible
     overflow-x: hidden
-
-  .docs-sidebar__panel > summary::before
-    content: "▸"
-    display: inline-block
-    width: 1em
-    color: var(--accent-alpha-70)
-
-  .docs-sidebar__panel[open] > summary::before
-    content: "▾"
 
 @media (max-width: 683px)
   .container:has(.docs-shell)
