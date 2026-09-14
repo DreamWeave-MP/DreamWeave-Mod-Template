@@ -6,7 +6,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
   docsShell.querySelectorAll('.docs-article pre').forEach(function(block) {
     const code = block.querySelector('code');
-    if (!code) {
+    if (!code || block.parentElement.classList.contains('docs-code-block')) {
       return;
     }
 
@@ -44,7 +44,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
       }
 
-      button.textContent = copied ? 'Copied' : 'Copy failed';
+      button.textContent = copied ? 'Copied!' : 'Copy failed';
       button.setAttribute('aria-label', copied ? 'Code copied to clipboard' : 'Copying code failed');
       window.setTimeout(function() {
         button.textContent = 'Copy';
