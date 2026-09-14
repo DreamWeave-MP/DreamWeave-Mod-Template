@@ -17,7 +17,7 @@
         {%- else -%}
             {%- set element_name = "body" -%}
         {%- endif -%}
-        @font-face{font-family:{{ config.extra.font_override }};src:url('/fonts/{{ config.extra.font_override }}.woff2')format('woff2');font-display:swap;}
+        @font-face{font-family:{{ config.extra.font_override }};src:url('{{ get_url(path="fonts/" ~ config.extra.font_override ~ ".woff2") }}')format('woff2');font-display:swap;}
         {{- element_name | safe -}}{font-family:{{ config.extra.font_override }};}
     </style>
     {% endif %}
