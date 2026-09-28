@@ -1,4 +1,4 @@
-local world = require('openmw.world')
+local world = require 'openmw.world'
 
 local pausedUntil = 0
 

@@ -12,7 +12,7 @@ can sleep until the time it cares about instead of checking every frame.
 <!-- more -->
 
 ```lua
-local I = require('openmw.interfaces')
+local I = require 'openmw.interfaces'
 
 I.Tallow.every('dusk', function()
   print('The lamps are lit.')

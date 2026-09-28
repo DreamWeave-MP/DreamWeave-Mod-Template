@@ -1,5 +1,5 @@
-local core = require('openmw.core')
-local I = require('openmw.interfaces')
+local I = require 'openmw.interfaces'
+local core = require 'openmw.core'
 
 local stormFactor = 0.45
 local rainFactor = 0.7
@@ -15,7 +15,10 @@ end
 return {
   engineHandlers = {
     onActive = function()
-      I.Tallow.every('dusk', function() core.sendGlobalEvent('CandlelightRefresh', { factor = weatherFactor() }) end)
+      I.Tallow.every(
+        'dusk',
+        function() core.sendGlobalEvent('CandlelightRefresh', { factor = weatherFactor() }) end
+      )
     end,
   },
 }

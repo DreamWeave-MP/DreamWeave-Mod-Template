@@ -13,7 +13,7 @@ Sent to the player script whenever Candlelight changes a light's brightness. `br
 multiplier applied to the record's radius and color, from `0` to `1`.
 
 ```lua
-local core = require('openmw.core')
+local core = require 'openmw.core'
 
 return {
   eventHandlers = {
