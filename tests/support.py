@@ -52,8 +52,10 @@ class Scratch:
         self.root = Path(self.directory.name)
         for part in TEMPLATE_PARTS:
             source = REPOSITORY / part
-            if source.is_dir():
-                shutil.copytree(source, self.root / part, ignore=shutil.ignore_patterns("__pycache__", "dreamweave", "dreamweave.json", "processed_images"))
+            if part == "static":
+                shutil.copytree(source, self.root / part, ignore=shutil.ignore_patterns("dreamweave", "dreamweave.json", "processed_images"))
+            elif source.is_dir():
+                shutil.copytree(source, self.root / part, ignore=shutil.ignore_patterns("__pycache__"))
             else:
                 shutil.copy2(source, self.root / part)
         (self.root / "config.toml").write_text(SITE_CONFIG)
