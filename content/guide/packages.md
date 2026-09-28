@@ -91,7 +91,8 @@ StroggForge's library workflow runs as one of the site's jobs: it tests the crat
 macOS and Linux, runs Clippy and `cargo audit`, and dry-runs the publish on every push. A crate
 keeps the tags crates are released under, the bare version: declare the release in `[[releases]]`,
 then push `2.0.1`, and the workflow publishes that version to crates.io, then rebuilds the site to
-list it.
+list it. A declared version with no tag of its own counts as released when a newer version is
+tagged, so the changelog can list crates published before the repository tagged its releases.
 
 Nothing is archived and nothing goes in `mod.lock`. crates.io serves and hashes each version, so
 the manifest lists no releases and names the crate in `links.crate` instead. The page offers
