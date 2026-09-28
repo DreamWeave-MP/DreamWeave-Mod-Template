@@ -58,6 +58,7 @@ served from the project's own site, and it is the only authority for those claim
 |---|---|
 | `./buildSite` | Validation, packaging, recording releases, the protocol documents. It runs only in CI; authors never need Python |
 | Zola | Rendering pages from `mod.toml` and `mod.lock`, the search index, resizing images, the offline documentation render |
+| StroggForge's Rust workflow | Testing, building, signing and scanning programs, once per platform, when a project is `format = "binary"` |
 | The workflow | Running the above on every push and tag, publishing releases, deploying Pages |
 | Client software (CHIMERA and others) | Discovery, trust policy, dependency resolution, choosing releases, downloading, verifying, installing |
 | St4sh and other indexes | Crawling, caching, search, curation, mirroring. Not identity, not release data |

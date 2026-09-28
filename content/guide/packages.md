@@ -1,14 +1,15 @@
 +++
 title = "Packages"
-description = "Flat, BAIN and FOMOD archives, components, what ships, and why archives are not compressed."
+description = "Flat, BAIN and FOMOD archives, programs built per platform, components, what ships, and why archives are not compressed."
 weight = 40
 
 [extra]
 kind = "guide"
 +++
 
-Every project is packaged as one zip, named after its slug. What differs between projects is how
-the inside is laid out and how much of that layout a player gets to choose from.
+A mod is packaged as one zip, named after its slug. What differs between mods is how the inside is
+laid out and how much of that layout a player gets to choose from. A modding tool written in Rust is
+a program instead: one zip per platform, built from source. [Programs](#programs) covers those.
 
 ## Formats
 
@@ -17,6 +18,7 @@ the inside is laid out and how much of that layout a player gets to choose from.
 | `flat` (default) | One data directory at the root | Extract and point `data=` at it; any mod manager |
 | `bain` | Numbered top-level directories, one per component | Wrye Bash picks sub-packages; OpenMW gets a `data=` line per directory you want |
 | `fomod` | The `bain` tree plus a generated `fomod/` installer | MO2 and Vortex run the installer; Wrye Bash and hand installs still see the tree |
+| `binary` | A program for one platform, and the files it ships with | Nobody installs it: unzip and run. See [Programs](#programs) |
 
 Most mods are `flat`. S3maphore, with a core and seventeen optional playlist packs, is `bain`.
 Choose `fomod` when players install through MO2 or Vortex and there are real choices to make: the
@@ -24,6 +26,42 @@ installer is generated from your components, so it cannot disagree with the page
 
 OMOD is not offered. It is an Oblivion Mod Manager format with a binary config record and
 imperative install scripts, and a DreamWeave package does not run scripts.
+
+## Programs
+
+A project can be a program: a compiler, a converter, a patcher. Its archives are not zipped from
+`content/<project>`; they are built from the repository's Rust source, one per platform, by
+[StroggForge](https://github.com/DreamWeave-MP/StroggForge)'s Rust workflow, which tests, signs and
+virus-scans them on the way.
+
+```toml
+type = "tool"
+
+[package]
+format = "binary"
+binary = "morrobroom"                                  # the Cargo binary
+include = ["README.md", "LICENSE", "resources"]        # packed beside it, from the repository root
+
+[[platforms]]
+os = "windows"
+arch = "x86_64"
+
+[[platforms]]
+os = "linux"
+arch = "x86_64"
+```
+
+The site's workflow notices the binary project and calls the Rust workflow as one of its jobs. Its
+archives come back into the same run, named `morrobroom-Windows-X64.zip` and so on, and are the
+files the release records and publishes, byte for byte. Releases work exactly as for a mod: declare
+the version, push `<slug>-<version>`, and CI builds, records and publishes it, now with one artifact
+per platform. The project page offers a download per platform, marks the visitor's own, and says how
+to run the program instead of how to install data.
+
+The Rust project lives at the repository root, beside the site. `[[platforms]]` lists what the
+Rust workflow builds: Windows and Linux on x86_64, macOS on both Intel and Apple silicon. Each entry
+must come back from the build, or the release is refused. There are no components, no FOMOD and no
+`Documentation/` in a program's archives: `include` is how its documentation travels with it.
 
 ## Components
 
