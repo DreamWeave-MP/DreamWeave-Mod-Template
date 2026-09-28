@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% import "macros/dw.html" as dw_macros %}
+
+{%- block content %}
+<header class="dw-hero">
+    <div class="dw-shell">
+        <p class="dw-kicker"><span>Distribution metadata</span><span>schema_version {{ dw.schema_version | default(value="?") }}</span></p>
+        <h1 class="dw-hero__title">{{ page.title }}</h1>
+        {%- if page.description %}<p class="dw-hero__summary">{{ page.description }}</p>{% endif %}
+    </div>
+</header>
+<div class="dw-shell">
+    {%- if not dw or dw.offline %}
+    <div class="dw-callout dw-callout--warning"><p class="dw-callout__title">Nothing generated</p><p>Run <code>./buildSite build</code> (or <code>./buildSite serve</code>) to generate the manifests this page reports on.</p></div>
+    {%- else %}
+    <div class="dw-prose">{{ page.content | safe }}</div>
+
+    <div class="dw-endpoints">
+        <section class="dw-panel">
+            <h2 class="dw-panel__title">Discovery <span class="dw-status dw-status--pass">linked from every page</span></h2>
+            <div class="dw-panel__body"><a href="{{ dw.index_url | safe }}">{{ dw.index_url }}</a></div>
+        </section>
+        <section class="dw-panel">
+            <h2 class="dw-panel__title">Schemas</h2>
+            <div class="dw-panel__body">
+                <a href="{{ get_url(path='schemas/modManifest-2.schema.json', trailing_slash=false) | safe }}">modManifest-2.schema.json</a><br>
+                <a href="{{ get_url(path='schemas/dreamweave-index-2.schema.json', trailing_slash=false) | safe }}">dreamweave-index-2.schema.json</a>
+            </div>
+        </section>
+        <section class="dw-panel">
+            <h2 class="dw-panel__title">This build</h2>
+            <div class="dw-panel__body">
+                {{ dw.generator }}<br>
+                commit {{ dw.revision | truncate(length=12, end="") }}<br>
+                {% if dw.archives_built %}archives built and hashed{% else %}preview: development archives not built{% endif %}
+            </div>
+        </section>
+    </div>
+
+    {%- for page_path in dw.order %}
+    {%- set project = dw.projects[page_path] %}
+    <section class="dw-network-project" id="{{ project.slug }}" aria-labelledby="{{ project.slug }}-title">
+        <div class="dw-section__head">
+            <h2 id="{{ project.slug }}-title"><a href="{{ get_url(path=page_path) | safe }}">{{ project.name }}</a></h2>
+            <p class="dw-id">{{ project.id }}</p>
+        </div>
+
+        {%- if project.checks is defined %}
+        {%- set failures = project.checks | filter(attribute="state", value="fail") %}
+        <p>{% if failures | length == 0 %}{{ dw_macros::status(state="pass", label="Ready for the network") }}{% else %}{{ dw_macros::status(state="fail", label="Not ready") }}{% endif %}</p>
+        <ul class="dw-checks">
+        {%- for check in project.checks %}
+            <li>{{ dw_macros::status(state=check.state) }}<span class="dw-checks__label">{{ check.label }}</span><span class="dw-checks__detail">{{ check.detail }}</span></li>
+        {%- endfor %}
+        </ul>
+        {%- endif %}
+
+        <h3>Manifest</h3>
+        <dl class="dw-record">
+            <dt>URL</dt><dd><a href="{{ project.manifest_url | safe }}">{{ project.manifest_url }}</a></dd>
+            {%- if project.manifest_sha256 is defined %}<dt>SHA-256</dt><dd class="dw-digest">{{ project.manifest_sha256 }}</dd>{% endif %}
+            <dt>Slug</dt><dd><code>{{ project.slug }}</code> · tags are <code>{{ project.slug }}-&lt;version&gt;</code></dd>
+            <dt>Runtimes</dt><dd>{% for runtime, requirement in project.runtimes %}{{ dw_macros::runtime_label(runtime=runtime) }} {{ requirement }}{% if not loop.last %}, {% endif %}{% else %}none declared{% endfor %}</dd>
+            <dt>Provides</dt><dd>{% for capability in project.provides %}<code>{{ capability }}</code> {% else %}nothing{% endfor %}</dd>
+        </dl>
+
+        {%- if project.releases is defined and project.releases | length > 0 %}
+        <h3>Releases and artifacts</h3>
+        <div class="dw-table-scroll"><table>
+            <thead><tr><th scope="col">Version</th><th scope="col">Channel</th><th scope="col">Status</th><th scope="col">Artifact</th><th scope="col">Size</th><th scope="col">SHA-256</th><th scope="col">Sources</th></tr></thead>
+            <tbody>
+            {%- for release in project.releases %}
+            {%- for artifact in release.artifacts %}
+                <tr>
+                    <td><code>{{ release.version }}</code></td>
+                    <td>{{ release.channel }}</td>
+                    <td>{{ release.status }}</td>
+                    <td><code>{{ artifact.filename }}</code></td>
+                    <td>{{ artifact.size }}</td>
+                    <td class="dw-digest">{{ artifact.digests.sha256 }}</td>
+                    <td>{% for source in artifact.sources %}<a href="{{ source.url | safe }}">{{ source.kind }}</a>{% if not loop.last %}, {% endif %}{% endfor %}</td>
+                </tr>
+            {%- endfor %}
+            {%- endfor %}
+            </tbody>
+        </table></div>
+        {%- endif %}
+
+        {%- set rels = project.relationships %}
+        {%- if rels.requires | length + rels.recommends | length + rels.conflicts | length + rels.compatible | length + rels.replaces | length > 0 %}
+        <h3>Relationships</h3>
+        <div class="dw-table-scroll"><table>
+            <thead><tr><th scope="col">Kind</th><th scope="col">Target</th><th scope="col">Id or capability</th><th scope="col">Version</th></tr></thead>
+            <tbody>
+            {%- for kind in ["requires", "recommends", "conflicts", "compatible", "replaces"] %}
+            {%- for item in rels[kind] %}
+                <tr><td>{{ kind }}</td><td>{{ item.display_name }}</td><td class="dw-digest">{{ item.project | default(value=item.capability | default(value="none")) }}</td><td>{{ item.version | default(value="any") }}</td></tr>
+            {%- endfor %}
+            {%- endfor %}
+            </tbody>
+        </table></div>
+        {%- endif %}
+    </section>
+    {%- endfor %}
+    {%- endif %}
+</div>
+{%- endblock content %}

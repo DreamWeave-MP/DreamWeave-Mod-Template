@@ -118,6 +118,8 @@ def diagnostic_checks(repository: Repository, project: Project, state, manifest:
     channels = manifest["channels"]
     if channels:
         check("channels", "Channels", "pass", ", ".join(f"{channel} → {head['version']}" for channel, head in channels.items()))
+    elif project.package_development and not archives_built:
+        check("channels", "Channels", "info", "the development channel appears once ./buildSite build packages it")
     else:
         check("channels", "Channels", "fail", "no channel has an available release")
 
