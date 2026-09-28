@@ -230,6 +230,19 @@ class RepositoryRules(unittest.TestCase):
         self.scratch.write("content/old/index.md", '+++\ntitle = "Old"\n[extra]\nversion = "0.5"\n+++\n')
         self.assertError("has V4 project frontmatter")
 
+    def test_a_scratch_check_never_writes_to_the_real_runs_summary(self):
+        summary = self.scratch.root.parent / f"{self.scratch.root.name}-summary.md"
+        summary.write_text("")
+        os.environ["GITHUB_STEP_SUMMARY"] = str(summary)
+        try:
+            self.scratch.write("content/old/index.md", '+++\ntitle = "Old"\n[extra]\nversion = "0.5"\n+++\n')
+            self.scratch.commit("V4 page")
+            build_site(self.scratch.root, "check", check=False)
+            self.assertEqual(summary.read_text(), "", "the scratch site's suggestions reached the summary of the run executing the tests")
+        finally:
+            os.environ.pop("GITHUB_STEP_SUMMARY", None)
+            summary.unlink()
+
     def test_the_check_suggests_a_mod_toml_for_each_v4_page(self):
         self.scratch.write("content/old/index.md", '+++\ntitle = "Old Lamp"\n[extra]\nversion = "0.6"\n[extra.install_info]\ncontent_files = ["Old.omwscripts"]\n+++\nBody.\n')
         self.scratch.write("content/old/Old.omwscripts", "PLAYER: scripts/old.lua\n")

@@ -11,11 +11,19 @@ from pathlib import Path
 REPOSITORY = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPOSITORY / "tools"))
 
-# The tests build throwaway repositories, never the one CI is running in. Without this, the runner's
-# GITHUB_REPOSITORY trips the repository-mismatch check in every scratch build, and GITHUB_ACTIONS turns
-# the comment lookup's expected warnings into annotations on the workflow run.
-for runner_variable in ("GITHUB_ACTIONS", "GITHUB_REPOSITORY", "GITHUB_REF", "DREAMWEAVE_BASE_URL", "DREAMWEAVE_DEVELOPMENT_REF"):
-    os.environ.pop(runner_variable, None)
+# The tests build throwaway repositories, never the one CI is running in. A runner's GITHUB_*
+# variables describe that repository, and some are channels back into the run: GITHUB_STEP_SUMMARY,
+# GITHUB_OUTPUT, GITHUB_ENV. Left in place, GITHUB_REPOSITORY trips the repository check in every
+# scratch build, GITHUB_ACTIONS turns expected warnings into annotations, and a scratch site's
+# migration suggestions land in the real run's summary.
+RUNNER_PREFIXES = ("GITHUB_", "DREAMWEAVE_")
+for runner_variable in [name for name in os.environ if name.startswith(RUNNER_PREFIXES)]:
+    os.environ.pop(runner_variable)
+
+
+def scratch_environment() -> dict[str, str]:
+    """The environment for commands run in a scratch repository, whatever a test has set since."""
+    return {name: value for name, value in os.environ.items() if not name.startswith(RUNNER_PREFIXES)}
 
 TEMPLATE_PARTS = ("templates", "sass", "static", "buildSite", "tools")
 SITE_CONFIG = """
@@ -55,7 +63,7 @@ def git(root: Path, *arguments: str) -> str:
 
 
 def build_site(root: Path, *arguments: str, check: bool = True) -> subprocess.CompletedProcess:
-    process = subprocess.run([sys.executable, str(root / "buildSite"), *arguments], cwd=root, capture_output=True, text=True)
+    process = subprocess.run([sys.executable, str(root / "buildSite"), *arguments], cwd=root, capture_output=True, text=True, env=scratch_environment())
     if check and process.returncode != 0:
         raise AssertionError(f"buildSite {' '.join(arguments)} failed:\n{process.stdout}\n{process.stderr}")
     return process
