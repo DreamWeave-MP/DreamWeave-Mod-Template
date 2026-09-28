@@ -7,9 +7,10 @@
 {%- if paginator %}{% set listed = paginator.pages %}{% else %}{% set listed = section.pages %}{% endif %}
 <header class="dw-hero">
     <div class="dw-shell">
-        <p class="dw-kicker"><span>Catalog</span>{% if paginator %}<span>{{ paginator.total_pages }} page{{ paginator.total_pages | pluralize }}</span>{% endif %}<span>{{ section.pages | length }} project{{ section.pages | length | pluralize }}</span></p>
-        <h1 class="dw-hero__title">{{ section.title | default(value=config.title) }}</h1>
-        {%- if section.description or config.description %}<p class="dw-hero__summary">{{ section.description | default(value=config.description) }}</p>{% endif %}
+        {%- if paginator %}{% set listed_total = paginator.total_pages %}{% else %}{% set listed_total = section.pages | length %}{% endif %}
+        <p class="dw-kicker"><span>Catalog</span><span>{{ listed_total }} project{{ listed_total | pluralize }}</span>{% if paginator and paginator.number_pagers > 1 %}<span>page {{ paginator.current_index }} of {{ paginator.number_pagers }}</span>{% endif %}</p>
+        <h1 class="dw-hero__title">{% if section.title %}{{ section.title }}{% else %}{{ config.title }}{% endif %}</h1>
+        {%- if section.description or config.description %}<p class="dw-hero__summary">{% if section.description %}{{ section.description }}{% else %}{{ config.description }}{% endif %}</p>{% endif %}
     </div>
 </header>
 <div class="dw-shell">

@@ -227,8 +227,8 @@ class ReleaseLifecycle(unittest.TestCase):
         self.assertEqual(index["projects"][0]["manifest_sha256"], hashlib.sha256((self.root / f"public/dreamweave/projects/{LANTERN_ID}.json").read_bytes()).hexdigest())
 
     def test_author_text_is_escaped(self):
-        hostile = '</script><script>alert(1)</script>'
-        index = (self.root / "content/lantern/index.md").read_text().replace('title = "Lantern"', f"title = '{hostile}'")
+        hostile = "O'Brien's </script><script>alert(1)</script>"
+        index = (self.root / "content/lantern/index.md").read_text().replace('title = "Lantern"', f"title = {json.dumps(hostile)}")
         (self.root / "content/lantern/index.md").write_text(index)
         mod_toml = (self.root / "content/lantern/mod.toml").read_text().replace('summary = "First."', 'summary = "<img src=x onerror=alert(2)>"')
         (self.root / "content/lantern/mod.toml").write_text(mod_toml)
@@ -238,6 +238,8 @@ class ReleaseLifecycle(unittest.TestCase):
         page = (self.root / "public/lantern/index.html").read_text()
         self.assertNotIn("<script>alert(1)", page)
         self.assertNotIn("<img src=x onerror", page)
+        self.assertNotIn("&amp;#x27;", page, "text must be escaped once, not twice")
+        self.assertIn("O&#x27;Brien", page)
         install_model = re.search(r'<script type="application/json" data-install-model>(.*?)</script>', page, re.S).group(1)
         self.assertNotIn("<", install_model)
         self.assertEqual(json.loads(install_model)["name"], hostile)

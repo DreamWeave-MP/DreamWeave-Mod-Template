@@ -88,7 +88,7 @@
                 <figure class="dw-gallery__item">
                 {%- if item.kind == "image" %}
                     {%- set full_image = page.permalink ~ item.file %}
-                    <a href="{{ full_image | safe }}" data-lightbox="{{ project.slug }}" data-caption="{{ item.caption | default(value=item.alt) }}" data-alt="{{ item.alt }}">
+                    <a href="{{ full_image | safe }}" data-lightbox="{{ project.slug }}" data-caption="{% if item.caption %}{{ item.caption }}{% else %}{{ item.alt }}{% endif %}" data-alt="{{ item.alt }}">
                         {{ dw_macros::media_image(project=project, item=item, width=640) }}
                     </a>
                 {%- else %}
@@ -101,7 +101,7 @@
                         {%- endif %}
                     </a>
                 {%- endif %}
-                    <figcaption>{% if item.category %}<span class="dw-gallery__category">{{ item.category }}</span>{% endif %}{{ item.caption | default(value=item.alt) }}</figcaption>
+                    <figcaption>{% if item.category %}<span class="dw-gallery__category">{{ item.category }}</span>{% endif %}{% if item.caption %}{{ item.caption }}{% else %}{{ item.alt }}{% endif %}</figcaption>
                 </figure>
                 </li>
             {%- endfor %}

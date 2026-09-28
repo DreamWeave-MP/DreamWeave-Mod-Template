@@ -6,11 +6,11 @@
 {%- set palette = config.extra.palette | default(value="purple") -%}
 {%- if page -%}
   {%- set document_title = page.title ~ " · " ~ config.title -%}
-  {%- set document_description = page.description | default(value=config.description) -%}
+  {%- if page.description %}{% set document_description = page.description %}{% else %}{% set document_description = config.description %}{% endif -%}
   {%- set document_url = page.permalink -%}
 {%- elif section -%}
   {%- if section.relative_path == "_index.md" -%}{%- set document_title = config.title -%}{%- else -%}{%- set document_title = section.title ~ " · " ~ config.title -%}{%- endif -%}
-  {%- set document_description = section.description | default(value=config.description) -%}
+  {%- if section.description %}{% set document_description = section.description %}{% else %}{% set document_description = config.description %}{% endif -%}
   {%- set document_url = section.permalink -%}
 {%- else -%}
   {%- set document_title = config.title -%}
@@ -59,7 +59,7 @@
 <header class="dw-header">
     <div class="dw-shell dw-header__inner">
         <a class="dw-brand" href="{{ config.extra.logo_home_link | default(value=config.base_url ~ '/') | safe }}">
-            <span class="dw-brand__mark" aria-hidden="true"></span>{{ config.extra.logo_text | default(value=config.title) }}
+            <span class="dw-brand__mark" aria-hidden="true"></span>{% if config.extra.logo_text %}{{ config.extra.logo_text }}{% else %}{{ config.title }}{% endif %}
         </a>
         <nav class="dw-nav" aria-label="Site">
             {%- for item in config.extra.menu_items | default(value=[]) %}
@@ -96,7 +96,7 @@
 {%- block footer %}
 <footer class="dw-footer">
     <div class="dw-shell dw-footer__inner">
-        <span>{{ config.extra.footer_text | default(value=config.title) }}</span>
+        <span>{% if config.extra.footer_text %}{{ config.extra.footer_text }}{% else %}{{ config.title }}{% endif %}</span>
         <nav class="dw-footer__links" aria-label="Footer">
             {%- if not dw_offline %}
             <a href="{{ get_url(path='dreamweave.json', trailing_slash=false) | safe }}">dreamweave.json</a>
