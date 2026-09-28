@@ -120,3 +120,7 @@ contents, search scoped to the docs, and copy buttons on code. Link the docs fro
 `[links] documentation = "@/home/docs/_index.md"` and they get a header button. They also ship
 inside the archive, rendered, under `Documentation/`. Set `kind = "guide"` or `kind = "api"` in a
 page's `[extra]` to label it.
+
+A docs section lists its pages and subsections as cards under its own text. When that text already
+links them, in an order and with context the cards cannot give, set `hide_child_cards = true` in the
+section's `[extra]`. The sidebar still lists everything.
