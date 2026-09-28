@@ -54,6 +54,13 @@ EXAMPLE_PROJECT_IDS = {
 }
 TEMPLATE_REPOSITORY = "DreamWeave-MP/DreamWeave-Mod-Template"
 
+# The GitHub release (and tag) the development build is published under. The template's own
+# repository once had immutable releases turned on while it published `development`, and GitHub
+# never lets a tag name used by an immutable release be used again. So the template publishes
+# under another name, and every site made from it keeps `development`.
+DEVELOPMENT_RELEASE = "development"
+TEMPLATE_DEVELOPMENT_RELEASE = "dev-build"
+
 
 @dataclass
 class Relationship:
@@ -240,6 +247,10 @@ class SiteConfig:
     @property
     def repository_url(self) -> str:
         return f"https://github.com/{self.repository}"
+
+    @property
+    def development_release(self) -> str:
+        return TEMPLATE_DEVELOPMENT_RELEASE if self.repository.lower() == TEMPLATE_REPOSITORY.lower() else DEVELOPMENT_RELEASE
 
 
 def load_site_config(root: Path, problems: Problems) -> SiteConfig:

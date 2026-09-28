@@ -30,6 +30,8 @@ VIEW_FILE = GENERATED_ROOT / "view.json"
 INDEX_FILE = Path("static") / "dreamweave.json"
 DIST = Path("dist")
 RELEASE_RECORD = DIST / "release.json"
+# The GitHub release the workflow publishes dist/ to: the tag, or the development release.
+GITHUB_RELEASE = DIST / "github-release"
 
 # Everything an archive's bytes can depend on: the payload, and everything the offline documentation
 # render reads. A stray note at the repository root is not one of them.
@@ -318,6 +320,7 @@ def build_release(repository: Repository, tag: str) -> Path:
     write_nexus_uploads(repository, project, version, artifact)
     write_release_notes(repository, project, version, artifact)
     write_signing_list(repository, [(project, artifact)])
+    (repository.root / GITHUB_RELEASE).write_text(tag + "\n", encoding="utf-8")
     return path
 
 
@@ -375,6 +378,8 @@ def build_development(repository: Repository, include_archives: bool) -> dict[st
     targets = [project for project in repository.projects if project.package_development]
     versions = {project.id: development_version(repository, project, release_state(repository, project)) for project in targets}
     artifacts: dict[str, dict] = {}
+    (repository.root / GITHUB_RELEASE).parent.mkdir(parents=True, exist_ok=True)
+    (repository.root / GITHUB_RELEASE).write_text(repository.site.development_release + "\n", encoding="utf-8")
     if not include_archives or not targets:
         return artifacts
 
@@ -473,8 +478,9 @@ def write_site(repository: Repository, development_artifacts: dict[str, dict], a
         if project.package_development and project.id in development_artifacts:
             version = development_version(repository, project, state)
             locked = records.LockedRelease(version=version, locked_from=repository.head, artifacts=[development_artifacts[project.id]], semantics=records.release_semantics(project))
-            development = records.PublishedRelease(declared=None, locked=locked, tag="development", revision=repository.head, channel=DEVELOPMENT_CHANNEL, date=gitrepo.commit_time(repository.head)[:10])
-            releases.append(records.release_document(project, repository.site, development, "development", os.environ.get("DREAMWEAVE_DEVELOPMENT_REF", "refs/heads/main")))
+            release_name = repository.site.development_release
+            development = records.PublishedRelease(declared=None, locked=locked, tag=release_name, revision=repository.head, channel=DEVELOPMENT_CHANNEL, date=gitrepo.commit_time(repository.head)[:10])
+            releases.append(records.release_document(project, repository.site, development, release_name, os.environ.get("DREAMWEAVE_DEVELOPMENT_REF", "refs/heads/main")))
 
         manifest = records.project_manifest(project, repository.site, base_url, releases)
         manifest_text = records.dumps(manifest)

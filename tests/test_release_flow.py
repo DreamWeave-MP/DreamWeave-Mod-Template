@@ -121,6 +121,19 @@ class ReleaseLifecycle(unittest.TestCase):
         self.assertEqual(artifact["sources"][0]["url"], "https://github.com/someone/cool-mods/releases/download/development/lantern.zip")
         self.assertEqual(artifact["digests"]["sha256"], hashlib.sha256((self.root / "dist/lantern.zip").read_bytes()).hexdigest())
 
+    def test_the_template_publishes_development_builds_as_dev_build(self):
+        # `development` is burned in the template's own repository: it was once an immutable release.
+        build_site(self.root, "build")
+        self.assertEqual((self.root / "dist/github-release").read_text(), "development\n")
+        config = self.root / "config.toml"
+        config.write_text(config.read_text().replace('github_username = "someone"', 'github_username = "DreamWeave-MP"').replace('github_project = "cool-mods"', 'github_project = "DreamWeave-Mod-Template"'))
+        self.scratch.commit("Pretend to be the template")
+        build_site(self.root, "build")
+        self.assertEqual((self.root / "dist/github-release").read_text(), "dev-build\n")
+        development = self.manifest()["releases"][0]
+        self.assertEqual(development["source"]["release"], "dev-build")
+        self.assertEqual(development["artifacts"][0]["sources"][0]["url"], "https://github.com/DreamWeave-MP/DreamWeave-Mod-Template/releases/download/dev-build/lantern.zip")
+
     def test_a_pushed_tag_is_built_recorded_and_published(self):
         revision = self.release()
         built = hashlib.sha256((self.root / "dist/lantern.zip").read_bytes()).hexdigest()
@@ -131,6 +144,7 @@ class ReleaseLifecycle(unittest.TestCase):
         self.assertEqual(locked["locked_from"], revision)
         self.assertEqual(locked["artifacts"][0]["digests"]["sha256"], built)
         self.assertIn("## Lantern 1.0.0", (self.root / "dist/release-notes.md").read_text())
+        self.assertEqual((self.root / "dist/github-release").read_text(), "lantern-1.0.0\n")
         self.assertIn("Documentation/changelog/index.html", zipfile.ZipFile(self.root / "dist/lantern.zip").namelist())
 
         git(self.root, "checkout", "-q", "lantern-1.0.0")

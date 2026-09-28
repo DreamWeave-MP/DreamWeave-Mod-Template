@@ -3,8 +3,8 @@ name: Build, release and publish
 # Authors never run ./buildSite; this workflow does, on every push.
 #
 # Pull requests and pushes to other branches: validate, test, build the site. Nothing is published.
-# Pushes to the default branch (whatever it is called): all of that, then a fresh `development`
-# release and the site. Release tags (<slug>-<version>): build that release from the tag, record it
+# Pushes to the default branch (whatever it is called): all of that, then a fresh development
+# release (`development`; `dev-build` in the template's own repository) and the site. Release tags (<slug>-<version>): build that release from the tag, record it
 # in the project's mod.lock on the default branch (the only commit this workflow ever makes),
 # publish its archive, then start a default-branch run so the site lists it.
 #
@@ -254,19 +254,15 @@ jobs:
           path: dist/
           if-no-files-found: ignore
 
-  release-cleanup:
-    name: Recreate the GitHub release
+  # dist/github-release names the GitHub release: the tag, or the development release, which
+  # ./buildSite names (`development`, or `dev-build` in the template's own repository). Releases
+  # are created as drafts and published once their files are attached, so a release is never
+  # seen without its archives. Immutable releases work for tags; the development release is
+  # replaced on every build, which an immutable release forbids.
+  upload-release:
+    name: Publish the GitHub release
     needs: [release, site]
     if: ${{ !cancelled() && github.event_name != 'pull_request' && (github.ref_type == 'tag' && needs.release.result == 'success' || github.ref_name == github.event.repository.default_branch && needs.site.result == 'success') }}
-    permissions:
-      contents: write
-    uses: DreamWeave-MP/StroggForge/.github/workflows/createRelease.yml@v40
-    secrets: inherit
-
-  upload-release:
-    name: Upload archives
-    needs: [release, site, release-cleanup]
-    if: ${{ !cancelled() && needs.release-cleanup.result == 'success' }}
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -276,27 +272,44 @@ jobs:
           name: ${{ github.ref_type == 'tag' && 'release' || 'development' }}
           path: dist/
 
-      - name: Upload archives and signatures
+      - name: Publish archives and signatures
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASE: ${{ needs.release-cleanup.outputs.release_name }}
           REPOSITORY: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
+          release=$(cat dist/github-release)
           shopt -s nullglob
           files=(dist/*.zip dist/*.sigstore.json)
-          if [ ${#files[@]} -eq 0 ]; then
-            echo "No archives to upload."
+
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            # Created once. A re-run's archives match the record, so replacing them changes nothing.
+            if gh release view "$release" --repo "$REPOSITORY" >/dev/null 2>&1; then
+              gh release upload "$release" "${files[@]}" --clobber --repo "$REPOSITORY"
+              gh release edit "$release" --notes-file dist/release-notes.md --repo "$REPOSITORY"
+            else
+              title=$(jq -r '"\(.name) \(.release.version)"' dist/release.json)
+              gh release create "$release" --verify-tag --draft --title "$title" --notes-file dist/release-notes.md --repo "$REPOSITORY"
+              gh release upload "$release" "${files[@]}" --repo "$REPOSITORY"
+              gh release edit "$release" --draft=false --repo "$REPOSITORY"
+            fi
             exit 0
           fi
-          gh release upload "$RELEASE" "${files[@]}" --clobber --repo "$REPOSITORY"
 
-      - name: Use the release's own notes
-        if: github.ref_type == 'tag'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASE: ${{ needs.release-cleanup.outputs.release_name }}
-          REPOSITORY: ${{ github.repository }}
-        run: gh release edit "$RELEASE" --notes-file dist/release-notes.md --repo "$REPOSITORY"
+          # The development release follows the default branch: replace it, and move its tag.
+          if gh release view "$release" --repo "$REPOSITORY" >/dev/null 2>&1; then
+            gh release delete "$release" --yes --repo "$REPOSITORY"
+          fi
+          gh api -X DELETE "repos/$REPOSITORY/git/refs/tags/$release" >/dev/null 2>&1 || true
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No project publishes a development build."
+            exit 0
+          fi
+          gh release create "$release" --prerelease --draft --target "$GITHUB_SHA" --title "Development build" \
+            --notes "The default branch at $GITHUB_SHA, built by $RUN_URL. It may be ahead of the last release, and it may be broken." \
+            --repo "$REPOSITORY"
+          gh release upload "$release" "${files[@]}" --repo "$REPOSITORY"
+          gh release edit "$release" --draft=false --repo "$REPOSITORY"
 
   deploy:
     name: Deploy to GitHub Pages
