@@ -103,6 +103,12 @@ def load_repository(root: Path, check_payloads: bool = True) -> Repository:
                 f"id {project.id} belongs to the template's example project {EXAMPLE_PROJECT_IDS[project.id]}. "
                 f"Every project needs its own identity: replace it with a fresh one, like {uuid.uuid4()}",
             )
+        if (root / project.directory / "changelog.md").is_file():
+            problems.error(
+                f"{project.directory}/changelog.md",
+                f"collides with the changelog page CI generates at /{project.page_path}changelog/. V3 wrote this file "
+                "from commit messages; the changelog now comes from [[releases]] in mod.toml. Delete it",
+            )
         for item in project.media:
             if item.file:
                 check_media_file(root, project, item.file, problems)

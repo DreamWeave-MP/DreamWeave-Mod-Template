@@ -36,11 +36,14 @@ The shortcodes existing pages call, `install_instructions`, `credits`, `usage_no
 ## Step by step
 
 **1. Bring in the template.** Copy V4's `templates/`, `sass/`, `static/js/`, `static/docs/`,
-`static/schemas/`, `static/img/mark.svg`, `tools/`, `buildSite` and `.github/workflows/build_site.yml`
-into your repository, delete `themes/terminimal`, and merge `config.toml` by hand: keep your
-`base_url`, `title`, `github_username`, `github_project` and `ignored_content`; replace
-`accent_color` with `palette`; delete what the table above says is gone. Keep your own shortcodes
-and `data/`.
+`static/schemas/`, `static/img/`, `tools/`, `tests/`, `buildSite`, `.gitignore` and
+`.github/workflows/build_site.yml` into your repository, and `content/network.md` if you want the
+network page. Delete `themes/terminimal`, V3's `sass/custom.sass`, `mods.sass` and `search.sass`,
+its `static/js/` scripts, and the `changelog.md` V3 generated in each project directory. Merge
+`config.toml` by hand: keep your `base_url`, `title`, `github_username`, `github_project` and
+`ignored_content`; replace `accent_color` with `palette`; delete what the table above says is gone.
+Keep your own shortcodes and `data/`, and move your own styles into `sass/brand.sass`, rewritten
+against the `--dw-` tokens.
 
 **2. Push, and let CI suggest a mod.toml per project.** The check fails on every V3 page, and the
 same run writes a suggestion for each: in the run's summary, and in its `mod-toml-suggestions`

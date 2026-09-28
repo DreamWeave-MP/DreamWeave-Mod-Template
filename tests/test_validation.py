@@ -203,6 +203,10 @@ class RepositoryRules(unittest.TestCase):
         self.assertTrue(any("id 0b8f1c2d-3e4a-4b5c-8d6e-7f8091a2b3c4 is already used by content/" in error for error in errors), errors)
         self.assertTrue(any("slug 'lantern' is already used by content/" in error for error in errors), errors)
 
+    def test_a_v3_changelog_file_is_refused(self):
+        self.scratch.add_project("lantern", LANTERN, files={**LANTERN_FILES, "changelog.md": "+++\ntitle = \"Changelog\"\n+++\n"})
+        self.assertError("collides with the changelog page CI generates at /lantern/changelog/")
+
     def test_example_ids_cannot_be_reused(self):
         self.scratch.add_project("lantern", LANTERN.replace("0b8f1c2d-3e4a-4b5c-8d6e-7f8091a2b3c4", "4d0c9f6e-2b1a-4c8e-9f3a-7e5d1b2c6a90"), files=LANTERN_FILES)
         self.assertError("belongs to the template's example project")
