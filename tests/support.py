@@ -1,5 +1,6 @@
 """Shared test helpers: a throwaway copy of this template with its own git history."""
 
+import os
 import shutil
 import subprocess
 import sys
@@ -9,6 +10,12 @@ from pathlib import Path
 
 REPOSITORY = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPOSITORY / "tools"))
+
+# The tests build throwaway repositories, never the one CI is running in. Without this, the runner's
+# GITHUB_REPOSITORY trips the repository-mismatch check in every scratch build, and GITHUB_ACTIONS turns
+# the comment lookup's expected warnings into annotations on the workflow run.
+for runner_variable in ("GITHUB_ACTIONS", "GITHUB_REPOSITORY", "GITHUB_REF", "DREAMWEAVE_BASE_URL", "DREAMWEAVE_DEVELOPMENT_REF"):
+    os.environ.pop(runner_variable, None)
 
 TEMPLATE_PARTS = ("templates", "sass", "static", "buildSite", "tools")
 SITE_CONFIG = """
