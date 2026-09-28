@@ -190,7 +190,14 @@ def release_state(repository: Repository, project: Project) -> ReleaseState:
 
 
 def development_version(repository: Repository, project: Project, state: ReleaseState) -> Version:
-    base = max((release.locked.version for release in state.published), default=None)
+    """The newest tagged release, published or not, plus the commits since its tag.
+
+    Tags without a lock still say what players may already have installed, so a development build
+    must sort above them even though the manifest cannot list them.
+    """
+    tagged = [release.locked.version for release in state.published]
+    tagged += [release.version for release in project.releases if str(release.version) in state.unlocked_tags]
+    base = max(tagged, key=lambda version: version.precedence_key(), default=None)
     since = project.release_tag(base) if base is not None else None
     count = gitrepo.count_commits(repository.head, since, project.directory)
     if base is None:
