@@ -142,13 +142,13 @@
 .dw-strip
   display: grid
   grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr))
-  gap: 1px
   margin: 1.1rem 0
-  border: 1px solid var(--dw-line)
-  background: var(--dw-line)
+  padding: 0 1px 1px 0
 
   > div
     min-width: 0
+    margin: 0 -1px -1px 0
+    border: 1px solid var(--dw-line)
     border-left: 3px solid var(--dw-accent-strong)
     padding: .55em .8em
     background: var(--dw-bg-1)
