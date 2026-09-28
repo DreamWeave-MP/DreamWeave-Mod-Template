@@ -205,6 +205,11 @@ class RepositoryRules(unittest.TestCase):
         os.environ["GITHUB_REPOSITORY"] = "someone-else/their-mods"
         self.assertError("this workflow is running in someone-else/their-mods")
 
+    def test_repository_names_follow_github_rules(self):
+        config = (self.scratch.root / "config.toml").read_text().replace('github_project = "cool-mods"', 'github_project = "cool mods<script>"')
+        (self.scratch.root / "config.toml").write_text(config)
+        self.assertError("is not a GitHub repository name")
+
     def test_v3_pages_without_mod_toml_are_rejected(self):
         self.scratch.write("content/old/index.md", '+++\ntitle = "Old"\n[extra]\nversion = "0.5"\n+++\n')
         self.assertError("has V3 project frontmatter")

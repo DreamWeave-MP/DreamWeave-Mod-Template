@@ -55,6 +55,7 @@ def repository_root() -> Path:
 
 def run_build(root: Path, skip_archives: bool) -> None:
     repository = build.load_repository(root)
+    repository.comments()
     repository.problems.raise_if_any()
     build.clean_dist(root)
     build.write_changelog_stubs(repository)
@@ -107,6 +108,7 @@ def main(arguments: list[str]) -> int:
     try:
         if options.command == "check":
             repository = build.load_repository(root)
+            repository.comments()
             for note in repository.problems.notes:
                 print(f"note: {note}")
             repository.problems.raise_if_any()

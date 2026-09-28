@@ -2,6 +2,9 @@
 title = "Network"
 description = "What this site publishes for DreamWeave clients, indexes and mirrors, and whether each project is ready."
 template = "dreamweave/network.html"
+
+[extra]
+comments = false
 +++
 
 Every page on this site links to `dreamweave.json`, the discovery index. The index names each

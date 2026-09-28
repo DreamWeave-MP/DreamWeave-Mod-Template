@@ -68,12 +68,16 @@ menu_items = [
 # font_override = "oxanium"
 # font_override_titles_only = true
 
-# ---------------------------------------------------------------------------------------
-# Optional services. Both are OFF until you configure your own accounts. A site built from
-# this template never talks to DreamWeave's comment threads or analytics.
-
-# Comments through GitHub Discussions. Get the values from https://giscus.app for YOUR repository.
-# giscus = { repo = "OWNER/REPO", repo_id = "", category = "General", category_id = "", theme = "dark_dimmed" }
-
-# Page-view counts from https://www.goatcounter.com, with YOUR code.
+# Page-view counts from https://www.goatcounter.com with your own site code. Off until you set it;
+# a site built from this template never reports to DreamWeave's analytics.
 # goatcounter = "your-code"
+
+# Comments: GitHub Discussions on this site's own repository (github_username/github_project),
+# embedded with giscus and loaded live in the reader's browser. They appear once the repository has
+# Discussions enabled and https://github.com/apps/giscus installed; until then the build says so and
+# leaves them out. There are no ids to paste: the build looks them up for your repository.
+[extra.comments]
+enabled = true
+category = "General"
+# reactions = true        # emoji reactions on the thread's first post
+# theme = "dark_dimmed"   # any giscus theme; default is DreamWeave's, in your palette

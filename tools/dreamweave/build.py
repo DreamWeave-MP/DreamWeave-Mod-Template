@@ -6,7 +6,7 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import fomod, gitrepo, offline, records
+from . import comments, fomod, gitrepo, offline, records
 from .archive import ArchiveEntry, ArchiveResult, write_archive
 from .model import (
     DEVELOPMENT_CHANNEL,
@@ -42,6 +42,14 @@ class Repository:
     locks: dict[str, list[records.LockedRelease]]
     head: str
     problems: Problems = field(default_factory=Problems)
+    comments_setting: comments.CommentsSetting | None = None
+    resolved_comments: dict | None = None
+
+    def comments(self) -> dict:
+        """The embed settings for comments, looked up once per run. See comments.py."""
+        if self.resolved_comments is None:
+            self.resolved_comments = comments.resolve_comments(self.site, self.comments_setting, self.problems)
+        return self.resolved_comments
 
     def project_by_slug(self, slug: str) -> Project:
         for project in self.projects:
@@ -101,7 +109,8 @@ def load_repository(root: Path, check_payloads: bool = True) -> Repository:
     for project in projects:
         check_release_order(project, locks[project.id], problems)
 
-    repository = Repository(root=root, site=site, projects=projects, locks=locks, head=head, problems=problems)
+    comments_setting = comments.read_comments_setting(site, problems)
+    repository = Repository(root=root, site=site, projects=projects, locks=locks, head=head, problems=problems, comments_setting=comments_setting)
     if check_payloads:
         for project in projects:
             collect_payload(project, None, repository.nested_directories(project), problems, root)
@@ -406,7 +415,7 @@ def write_changelog_stubs(repository: Repository) -> None:
     for project in repository.projects:
         path = repository.root / project.directory / "_changelog.md"
         path.write_text(
-            f'+++\ntitle = {json.dumps(project.name + " changelog")}\nslug = "changelog"\ntemplate = "mod/changelog.html"\n\n[extra]\nproject = {json.dumps(project.page_path)}\n+++\n',
+            f'+++\ntitle = {json.dumps(project.name + " changelog")}\nslug = "changelog"\ntemplate = "mod/changelog.html"\n\n[extra]\nproject = {json.dumps(project.page_path)}\ncomments = false\n+++\n',
             encoding="utf-8",
         )
 

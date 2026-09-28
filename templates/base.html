@@ -87,11 +87,7 @@
 {%- block content %}{% endblock content %}
 </main>
 {%- block comments %}
-{%- if config.extra.giscus is defined and config.extra.giscus.repo and not dw_offline and page and not page.extra.no_comments | default(value=false) %}
-<section class="dw-shell dw-section" aria-label="Comments">
-    <script src="https://giscus.app/client.js" data-repo="{{ config.extra.giscus.repo }}" data-repo-id="{{ config.extra.giscus.repo_id }}" data-category="{{ config.extra.giscus.category | default(value='General') }}" data-category-id="{{ config.extra.giscus.category_id }}" data-mapping="pathname" data-strict="1" data-reactions-enabled="0" data-emit-metadata="0" data-input-position="top" data-theme="{{ config.extra.giscus.theme | default(value='dark_dimmed') }}" data-lang="en" data-loading="lazy" crossorigin="anonymous" async></script>
-</section>
-{%- endif %}
+{%- if page and page.extra.comments | default(value=true) %}{% include "comments.html" %}{% endif %}
 {%- endblock comments %}
 {%- block footer %}
 <footer class="dw-footer">

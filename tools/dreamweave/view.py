@@ -253,6 +253,7 @@ def build_view(repository: Repository, base_url: str, offline_mode: bool, packag
         return view
 
     view["index_url"] = f"{base_url}/{INDEX_FILE.name}"
+    view["comments"] = repository.comments()
     view["archives_built"] = archives_built
     view["revision"] = repository.head
     return view

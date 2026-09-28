@@ -19,6 +19,8 @@ MOD_TOML = "mod.toml"
 MOD_LOCK = "mod.lock"
 
 SLUG_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_]*$")
+GITHUB_OWNER_PATTERN = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$")
+GITHUB_REPOSITORY_PATTERN = re.compile(r"^[A-Za-z0-9._-]{1,100}$")
 DIRECTORY_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
 COMPONENT_ID_PATTERN = TOKEN_PATTERN
 CAPABILITY_PATTERN = re.compile(r"^[a-z0-9][a-z0-9.-]*(:[a-z0-9][a-z0-9.-]*)?$")
@@ -246,6 +248,8 @@ def load_site_config(root: Path, problems: Problems) -> SiteConfig:
     name = extra.get("github_project")
     if not isinstance(owner, str) or not owner or not isinstance(name, str) or not name:
         problems.error("config.toml [extra]", "github_username and github_project must name the repository that publishes this site")
+    elif not GITHUB_OWNER_PATTERN.match(owner) or not GITHUB_REPOSITORY_PATTERN.match(name):
+        problems.error("config.toml [extra]", f"{owner}/{name} is not a GitHub repository name")
     return SiteConfig(
         title=config.get("title", ""),
         base_url=config.get("base_url", "").rstrip("/"),

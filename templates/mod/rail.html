@@ -41,6 +41,7 @@
                 {%- if project.declared_releases | length > 0 %}<li><a href="{{ changelog_url | safe }}"><span>Changelog</span><small>{{ project.declared_releases | length }}</small></a></li>{% endif %}
                 <li><a href="{{ project.links.source | safe }}"><span>Source</span></a></li>
                 <li><a href="{{ project.links.issues | safe }}"><span>Report a problem</span></a></li>
+                {%- if not dw_offline and dw.comments is defined and dw.comments.state == "on" %}<li><a href="#comments"><span>Discussion</span></a></li>{% endif %}
                 {%- if project.links.support is defined %}<li><a href="{{ project.links.support | safe }}"><span>Support</span></a></li>{% endif %}
                 {%- if project.nexusmods %}<li><a href="https://www.nexusmods.com/{{ project.nexusmods.game }}/mods/{{ project.nexusmods.mod_id }}"><span>Nexus Mods</span><small>{{ project.nexusmods.mod_id }}</small></a></li>{% endif %}
                 {%- if project.links.donate is defined %}<li><a href="{{ project.links.donate | safe }}"><span>Support the author</span></a></li>{% endif %}

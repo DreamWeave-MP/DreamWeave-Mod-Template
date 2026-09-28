@@ -28,6 +28,16 @@
                 <a href="{{ get_url(path='schemas/dreamweave-release-payload-2.schema.json', trailing_slash=false) | safe }}">dreamweave-release-payload-2.schema.json</a>
             </div>
         </section>
+        {%- if dw.comments is defined %}
+        <section class="dw-panel">
+            <h2 class="dw-panel__title">Comments {% if dw.comments.state == "on" %}<span class="dw-status dw-status--pass">on</span>{% elif dw.comments.state == "off" %}<span class="dw-status dw-status--info">off</span>{% else %}<span class="dw-status dw-status--warn">{{ dw.comments.state }}</span>{% endif %}</h2>
+            <div class="dw-panel__body">
+                {%- if dw.comments.state == "on" %}GitHub Discussions on {{ dw.comments.repo }}, category {{ dw.comments.category }}
+                {%- elif dw.comments.state == "off" %}Not configured. See [extra.comments] in config.toml.
+                {%- else %}{{ dw.comments.message }}{% endif %}
+            </div>
+        </section>
+        {%- endif %}
         <section class="dw-panel">
             <h2 class="dw-panel__title">This build</h2>
             <div class="dw-panel__body">
