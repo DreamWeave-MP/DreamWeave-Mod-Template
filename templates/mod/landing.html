@@ -40,7 +40,9 @@
                 {%- if project.openmw and project.openmw.lua_api is defined %}
                 <div><dt>Lua API</dt><dd>{{ project.openmw.lua_api }}</dd></div>
                 {%- endif %}
+                {%- if "install" in sections or "components" in sections %}
                 <div><dt>Package</dt><dd>{{ dw_macros::format_label(format=project.format) }}{% if not project.implicit_component %} <small>{{ project.components | length }} components</small>{% endif %}</dd></div>
+                {%- endif %}
                 {%- if project.license %}
                 <div><dt>License</dt><dd>{{ project.license }}</dd></div>
                 {%- endif %}
