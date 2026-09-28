@@ -1,0 +1,128 @@
++++
+title = "Packages"
+description = "Flat, BAIN and FOMOD archives, components, what ships, and why archives are not compressed."
+weight = 40
+
+[extra]
+kind = "guide"
++++
+
+Every project is packaged as one zip, named after its slug. What differs between projects is how
+the inside is laid out and how much of that layout a player gets to choose from.
+
+## Formats
+
+| `format` | Inside the archive | Who installs it how |
+|---|---|---|
+| `flat` (default) | One data directory at the root | Extract and point `data=` at it; any mod manager |
+| `bain` | Numbered top-level directories, one per component | Wrye Bash picks sub-packages; OpenMW gets a `data=` line per directory you want |
+| `fomod` | The `bain` tree plus a generated `fomod/` installer | MO2 and Vortex run the installer; Wrye Bash and hand installs still see the tree |
+
+Most mods are `flat`. S3maphore, with a core and seventeen optional playlist packs, is `bain`.
+Choose `fomod` when players install through MO2 or Vortex and there are real choices to make: the
+installer is generated from your components, so it cannot disagree with the page.
+
+OMOD is not offered. It is an Oblivion Mod Manager format with a binary config record and
+imperative install scripts, and a DreamWeave package does not run scripts.
+
+## Components
+
+A `bain` or `fomod` project declares its components:
+
+```toml
+[package]
+format = "fomod"
+
+[[components]]
+id = "core"
+name = "Core"
+path = "00 Core"
+required = true
+
+[components.openmw]
+content_files = ["Candlelight.omwscripts"]
+
+[[groups]]
+id = "flames"
+name = "Flame textures"
+select = "exactly-one"
+
+[[components]]
+id = "flames-2k"
+name = "Flames, 2K"
+path = "20 Flames 2K"
+group = "flames"
+default = true
+
+[[components]]
+id = "flames-4k"
+name = "Flames, 4K"
+path = "21 Flames 4K"
+group = "flames"
+```
+
+`path` is a top-level directory. Number them (`00 Core`, `10 Optional`) the way BAIN packages
+always have; it keeps the order obvious in every tool. A component's `data_directories` default to
+the component itself.
+
+Relationships between components are declarative and small: `required`, `default`, `group` with a
+`select` rule, `requires` and `conflicts` between components, and `suggested_with` to recommend a
+component when another project is installed. There is no scripting and there will not be. A
+package describes what to install; it does not run code on your machine to decide.
+
+The validator refuses combinations that cannot be installed: a required component inside a group,
+two required components that conflict, an `exactly-one` group without exactly one default, a
+component that requires one that does not exist.
+
+## What ships
+
+Everything committed under the project directory ships, including `index.md`, `mod.toml` and the
+docs sources. Documentation belongs with the mod. Only `mod.lock` stays out, because it records the
+archive's own hash.
+
+The tooling adds three things:
+
+{% tree() %}
+my_mod.zip/
+  00 Core/  your components, or your one data directory
+  docs/  your documentation sources
+  index.md
+  mod.toml
+  Documentation/  this page and its docs, rendered, readable offline
+  fomod/  the generated installer, format = "fomod" only
+  dreamweave.release.json  what this archive is, for tools
+{% end %}
+
+`Documentation/` is the project's page, changelog and docs, rendered as they are on the site, with
+every link inside the project turned into a relative file path and every stylesheet, font and image
+they use copied next to them. Open `Documentation/index.html` from a zip on a plane and it works.
+Links to other parts of the site stay absolute and work when you are online. Turn it off with
+`[package] documentation = false`.
+
+`dreamweave.release.json` is the release's install and compatibility data plus the project id, so a
+loose archive can say what it is. The manifest is authoritative if they ever disagree.
+
+The payload check refuses what would break installs: symlinks, submodules, files whose paths differ
+only by case (one file on Windows and in OpenMW's VFS), Windows-reserved names, names ending in a
+dot or space, and your own files at `Documentation/`, `fomod/` or `dreamweave.release.json`.
+
+## Reproducible archives
+
+The same commit always produces the same bytes, on any machine, which is what lets a release's hash
+be written down before the release exists.
+
+- Files come from git blobs, not the working tree: no line-ending conversion, no untracked junk.
+- Entries are sorted by path and dated 1980-01-01.
+- Permissions come from git's executable bit, recorded as Unix 0644 or 0755.
+- Names are UTF-8, and every header byte is written by the template, not by whichever `zipfile`
+  version is installed.
+- Nothing is compressed.
+
+That last one is a trade. Deflate output differs between zlib and zlib-ng, and Fedora, among others,
+ships zlib-ng, so a compressed archive built on a laptop cannot be checked against one built in CI.
+On S3maphore, whose weight is audio, deflate saved 5%. Texture packs lose more; if that ever matters
+more than reproducibility, compression can come back behind a CI-only lock, and the protocol does
+not care either way: a client unzips what it verified.
+
+Documentation is rendered by Zola, so `lock` insists on the same Zola version CI uses, which
+`./buildSite zola-version` prints.

@@ -1,0 +1,20 @@
+{
+  "id": "network",
+  "title": "Truth at the origin, everyone else reads it",
+  "description": "The project's own site is the only authority. Clients, indexes and mirrors are readers.",
+  "mode": "flow",
+  "direction": "vertical",
+  "nodes": [
+    { "id": "repository", "kind": "source", "title": "Project repository", "detail": "index.md, mod.toml, mod.lock and the mod's files, reviewed in git." },
+    { "id": "site", "kind": "result", "title": "Static mod site", "detail": "The page people read, plus dreamweave.json and one manifest per project." },
+    { "id": "clients", "kind": "service", "role": "support", "title": "Clients", "detail": "CHIMERA or anything else: discover, pick a release, verify, install." },
+    { "id": "indexes", "kind": "service", "role": "support", "title": "Indexes", "detail": "St4sh or a community list: crawl, cache, search. Never the only copy." },
+    { "id": "mirrors", "kind": "cache", "role": "support", "title": "Mirrors and caches", "detail": "Serve bytes by SHA-256. Never trusted, always verified." }
+  ],
+  "edges": [
+    { "from": "repository", "to": "site", "label": "./buildSite build and Zola" },
+    { "from": "site", "to": "clients", "kind": "support", "label": "direct discovery" },
+    { "from": "site", "to": "indexes", "kind": "support", "label": "crawl dreamweave.json" },
+    { "from": "clients", "to": "mirrors", "kind": "support", "label": "download by digest" }
+  ]
+}
