@@ -392,7 +392,7 @@ def write_site(repository: Repository, development_artifacts: dict[str, dict], a
             version = development_version(repository, project, state)
             locked = records.LockedRelease(version=version, locked_from=repository.head, artifacts=[development_artifacts[project.id]], semantics=records.release_semantics(project))
             development = records.PublishedRelease(declared=None, locked=locked, tag="development", revision=repository.head, channel=DEVELOPMENT_CHANNEL, date=gitrepo.commit_time(repository.head)[:10])
-            releases.append(records.release_document(project, repository.site, development, "development", os.environ.get("GITHUB_REF", "refs/heads/main")))
+            releases.append(records.release_document(project, repository.site, development, "development", os.environ.get("DREAMWEAVE_DEVELOPMENT_REF", "refs/heads/main")))
 
         manifest = records.project_manifest(project, repository.site, base_url, releases)
         manifest_text = records.dumps(manifest)
