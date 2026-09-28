@@ -45,10 +45,16 @@ class ReleaseLifecycle(unittest.TestCase):
     def manifest(self) -> dict:
         return load(self.root, f"static/dreamweave/projects/{LANTERN_ID}.json")
 
-    def lock_and_tag(self, version: str = "1.0.0") -> str:
-        build_site(self.root, "lock", "lantern", "--version", version)
-        revision = self.scratch.commit(f"RELEASE: Lantern {version}")
-        git(self.root, "tag", f"lantern-{version}")
+    def release(self, version: str = "1.0.0") -> str:
+        """What CI does when a tag is pushed: build at the tag, then record it on the default branch."""
+        tag = f"lantern-{version}"
+        git(self.root, "tag", "-f", tag)
+        revision = git(self.root, "rev-parse", "HEAD")
+        git(self.root, "checkout", "-q", tag)
+        build_site(self.root, "release", tag)
+        git(self.root, "checkout", "-q", "main")
+        build_site(self.root, "record")
+        self.scratch.commit(f"RELEASE: Lantern {version}")
         return revision
 
     def test_before_any_release_only_the_development_channel_exists(self):
@@ -62,19 +68,23 @@ class ReleaseLifecycle(unittest.TestCase):
         self.assertEqual(artifact["sources"][0]["url"], "https://github.com/someone/cool-mods/releases/download/development/lantern.zip")
         self.assertEqual(artifact["digests"]["sha256"], hashlib.sha256((self.root / "dist/lantern.zip").read_bytes()).hexdigest())
 
-    def test_lock_tag_verify_publish(self):
-        revision = self.lock_and_tag()
+    def test_a_pushed_tag_is_built_recorded_and_published(self):
+        revision = self.release()
+        built = hashlib.sha256((self.root / "dist/lantern.zip").read_bytes()).hexdigest()
         lock = load(self.root, "content/lantern/mod.lock")
         self.assertEqual(lock["project"], LANTERN_ID)
         locked = lock["releases"][0]
         self.assertEqual(locked["version"], "1.0.0")
+        self.assertEqual(locked["locked_from"], revision)
+        self.assertEqual(locked["artifacts"][0]["digests"]["sha256"], built)
+        self.assertIn("## Lantern 1.0.0", (self.root / "dist/release-notes.md").read_text())
+        self.assertIn("Documentation/changelog/index.html", zipfile.ZipFile(self.root / "dist/lantern.zip").namelist())
 
         git(self.root, "checkout", "-q", "lantern-1.0.0")
-        output = build_site(self.root, "verify", "lantern-1.0.0").stdout
-        self.assertIn("reproduces mod.lock", output)
-        rebuilt = hashlib.sha256((self.root / "dist/lantern.zip").read_bytes()).hexdigest()
-        self.assertEqual(rebuilt, locked["artifacts"][0]["digests"]["sha256"])
+        build_site(self.root, "release", "lantern-1.0.0")
         git(self.root, "checkout", "-q", "main")
+        self.assertIn("matches its record", build_site(self.root, "record").stdout, "re-running a tag's job is harmless")
+        self.assertEqual(git(self.root, "status", "--porcelain"), "")
 
         build_site(self.root, "build")
         manifest = self.manifest()
@@ -105,7 +115,7 @@ class ReleaseLifecycle(unittest.TestCase):
         self.assertIn("server_side = true", (self.root / "content/lantern/mod.toml").read_text())
 
     def test_a_lock_that_belongs_to_another_project_is_refused(self):
-        self.lock_and_tag()
+        self.release()
         lock_path = self.root / "content/lantern/mod.lock"
         lock = json.loads(lock_path.read_text())
         lock["project"] = "11111111-2222-4333-8444-555555555555"
@@ -117,29 +127,46 @@ class ReleaseLifecycle(unittest.TestCase):
     def test_the_repository_documents_match_their_schemas(self):
         if jsonschema is None:
             self.skipTest("jsonschema is not installed")
-        self.lock_and_tag()
+        self.release()
         build_site(self.root, "build")
         self.assertIn("match their schemas", build_site(self.root, "schemas").stdout)
 
-    def test_a_tag_that_does_not_reproduce_its_lock_is_refused(self):
-        build_site(self.root, "lock", "lantern")
-        self.scratch.commit("RELEASE: Lantern 1.0.0")
+    def test_a_published_release_never_changes(self):
+        self.release()
         self.scratch.write("content/lantern/scripts/lantern/player.lua", "return { changed = true }\n")
-        self.scratch.commit("Sneak a change in after locking")
-        git(self.root, "tag", "lantern-1.0.0")
-        process = build_site(self.root, "verify", "lantern-1.0.0", check=False)
+        self.scratch.commit("Change the mod after releasing it")
+        git(self.root, "tag", "-f", "lantern-1.0.0")
+        git(self.root, "checkout", "-q", "lantern-1.0.0")
+        build_site(self.root, "release", "lantern-1.0.0")
+        git(self.root, "checkout", "-q", "main")
+        process = build_site(self.root, "record", check=False)
         self.assertNotEqual(process.returncode, 0)
-        self.assertIn("does not reproduce its lock", process.stdout + process.stderr)
+        self.assertIn("is not the release already recorded", process.stderr)
+        self.assertIn("Declare the next version", process.stderr)
 
-    def test_lock_refuses_uncommitted_work_and_published_tags(self):
-        self.scratch.write("content/lantern/scripts/lantern/extra.lua", "return {}\n")
-        process = build_site(self.root, "lock", "lantern", check=False)
-        self.assertIn("Commit or stash your changes first", process.stdout + process.stderr)
+    def test_a_tag_needs_a_project_and_a_declared_release(self):
+        git(self.root, "tag", "lantern-2.0.0")
+        git(self.root, "tag", "lamp-1.0.0")
+        git(self.root, "checkout", "-q", "lantern-2.0.0")
+        process = build_site(self.root, "release", "lantern-2.0.0", check=False)
+        self.assertIn("has no [[releases]] entry for 2.0.0", process.stderr)
+        process = build_site(self.root, "release", "lamp-1.0.0", check=False)
+        self.assertIn("does not name a project", process.stderr)
+        self.assertIn("lantern-<version>", process.stderr)
+        git(self.root, "checkout", "-q", "main")
 
-        (self.root / "content/lantern/scripts/lantern/extra.lua").unlink()
-        git(self.root, "tag", "lantern-1.0.0")
-        process = build_site(self.root, "lock", "lantern", check=False)
-        self.assertIn("already exists", process.stdout + process.stderr)
+    def test_a_release_is_recorded_only_where_it_is_declared(self):
+        git(self.root, "checkout", "-q", "-b", "next")
+        mod_toml = (self.root / "content/lantern/mod.toml").read_text()
+        (self.root / "content/lantern/mod.toml").write_text(mod_toml + '\n[[releases]]\nversion = "1.1.0"\ndate = 2026-02-01\n')
+        self.scratch.commit("Declare 1.1.0 on a branch")
+        git(self.root, "tag", "lantern-1.1.0")
+        build_site(self.root, "release", "lantern-1.1.0")
+        git(self.root, "checkout", "-q", "main")
+        process = build_site(self.root, "record", check=False)
+        self.assertIn("does not declare 1.1.0", process.stderr)
+        self.assertIn("Merge the tagged commit", process.stderr)
+        self.assertFalse((self.root / "content/lantern/mod.lock").exists())
 
     def test_packaging_is_byte_reproducible(self):
         build_site(self.root, "build")
@@ -149,11 +176,11 @@ class ReleaseLifecycle(unittest.TestCase):
         self.assertEqual(first, (self.root / "dist/lantern.zip").read_bytes())
 
     def test_yanked_releases_stay_listed_but_leave_the_channel(self):
-        self.lock_and_tag("1.0.0")
+        self.release("1.0.0")
         mod_toml = (self.root / "content/lantern/mod.toml").read_text()
         (self.root / "content/lantern/mod.toml").write_text(mod_toml + '\n[[releases]]\nversion = "1.1.0"\ndate = 2026-02-01\n')
         self.scratch.commit("Declare 1.1.0")
-        self.lock_and_tag("1.1.0")
+        self.release("1.1.0")
         mod_toml = (self.root / "content/lantern/mod.toml").read_text()
         (self.root / "content/lantern/mod.toml").write_text(mod_toml.replace('version = "1.1.0"\n', 'version = "1.1.0"\nyanked = "Deletes saves."\nreplacement = "1.0.0"\n'))
         self.scratch.commit("Yank 1.1.0")

@@ -1,7 +1,7 @@
 """Release records, the lock file, and the published JSON documents.
 
 A release has two halves. Its install and compatibility semantics and its artifacts are frozen
-in mod.lock when it is locked, because they describe bytes that already exist. Its date,
+in mod.lock when CI publishes it, because they describe bytes that already exist. Its date,
 channel, notes and yank state stay in mod.toml, because those are statements about the release
 that an author may need to correct later.
 """
@@ -165,7 +165,7 @@ def read_lock(project: Project, root: Path, problems: Problems) -> list[LockedRe
     try:
         document = json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as error:
-        problems.error(where, f"is not valid JSON ({error}); it is written by ./buildSite lock")
+        problems.error(where, f"is not valid JSON ({error}); CI writes it when a release tag is pushed")
         return []
 
     if document.get("schema_version") != SCHEMA_VERSION or document.get("document") != "lock":
@@ -177,28 +177,9 @@ def read_lock(project: Project, root: Path, problems: Problems) -> list[LockedRe
 
     releases = []
     for index, record in enumerate(document.get("releases", [])):
-        record_where = f"{where} releases[{index}]"
-        try:
-            version = Version.parse(record.get("version"), project.versioning)
-        except VersionError as error:
-            problems.error(record_where, str(error))
-            continue
-        artifacts = record.get("artifacts")
-        if not isinstance(artifacts, list) or not artifacts:
-            problems.error(record_where, "has no artifacts")
-            continue
-        for artifact in artifacts:
-            digest = (artifact.get("digests") or {}).get("sha256", "")
-            if not (isinstance(digest, str) and len(digest) == 64 and all(character in "0123456789abcdef" for character in digest)):
-                problems.error(record_where, f"artifact {artifact.get('id')!r} has a malformed sha256 digest {digest!r}")
-            if not isinstance(artifact.get("size"), int) or artifact["size"] <= 0:
-                problems.error(record_where, f"artifact {artifact.get('id')!r} has no valid size")
-        missing = [key for key in SEMANTIC_KEYS if key not in record]
-        if missing:
-            problems.error(record_where, f"is missing {', '.join(missing)}")
-            continue
-        semantics = {key: record[key] for key in (*SEMANTIC_KEYS, "critical_extensions") if key in record}
-        releases.append(LockedRelease(version=version, locked_from=record.get("locked_from", ""), artifacts=artifacts, semantics=semantics))
+        release = parse_locked_release(record, project, f"{where} releases[{index}]", problems)
+        if release:
+            releases.append(release)
 
     versions = [release.version for release in releases]
     for version in versions:
@@ -211,13 +192,37 @@ def read_lock(project: Project, root: Path, problems: Problems) -> list[LockedRe
     return releases
 
 
+def parse_locked_release(record: dict, project: Project, where: str, problems: Problems) -> LockedRelease | None:
+    try:
+        version = Version.parse(record.get("version"), project.versioning)
+    except VersionError as error:
+        problems.error(where, str(error))
+        return None
+    artifacts = record.get("artifacts")
+    if not isinstance(artifacts, list) or not artifacts:
+        problems.error(where, "has no artifacts")
+        return None
+    for artifact in artifacts:
+        digest = (artifact.get("digests") or {}).get("sha256", "")
+        if not (isinstance(digest, str) and len(digest) == 64 and all(character in "0123456789abcdef" for character in digest)):
+            problems.error(where, f"artifact {artifact.get('id')!r} has a malformed sha256 digest {digest!r}")
+        if not isinstance(artifact.get("size"), int) or artifact["size"] <= 0:
+            problems.error(where, f"artifact {artifact.get('id')!r} has no valid size")
+    missing = [key for key in SEMANTIC_KEYS if key not in record]
+    if missing:
+        problems.error(where, f"is missing {', '.join(missing)}")
+        return None
+    semantics = {key: record[key] for key in (*SEMANTIC_KEYS, "critical_extensions") if key in record}
+    return LockedRelease(version=version, locked_from=record.get("locked_from", ""), artifacts=artifacts, semantics=semantics)
+
+
 def write_lock(project: Project, root: Path, releases: list[LockedRelease]) -> Path:
     ordered = sorted(releases, key=lambda release: release.version.precedence_key())
     document = {
         "schema_version": SCHEMA_VERSION,
         "document": "lock",
         "project": project.id,
-        "note": "Written by ./buildSite lock. Records what each published release contains; edit only to amend a published release on purpose.",
+        "note": "Written by CI when a release tag is pushed: what each published release's archive contains. Do not edit.",
         "releases": [release.to_document() for release in ordered],
     }
     path = root / project.directory / MOD_LOCK

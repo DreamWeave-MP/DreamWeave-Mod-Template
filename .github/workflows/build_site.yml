@@ -1,16 +1,20 @@
 name: Build, release and publish
 
+# Authors never run ./buildSite; this workflow does, on every push.
+#
 # Pull requests and pushes to other branches: validate, test, build the site. Nothing is published.
 # Pushes to the default branch (whatever it is called): all of that, then a fresh `development`
-# release and the site. Tags (<slug>-<version>): rebuild that release, refuse it unless it matches
-# mod.lock, publish its archive, then rebuild the site from the default branch so it appears there.
+# release and the site. Release tags (<slug>-<version>): build that release from the tag, record it
+# in the project's mod.lock on the default branch (the only commit this workflow ever makes),
+# publish its archive, then start a default-branch run so the site lists it.
 #
 # The file name matters: Sigstore signatures name this workflow as the identity that signed.
 
 on:
   push:
     branches: ['**']
-    tags: ['*']
+    # Release tags only: a version always starts with a digit, and slugs cannot contain '-'.
+    tags: ['*-[0-9]*']
   pull_request:
   workflow_dispatch:
 
@@ -54,14 +58,14 @@ jobs:
       - name: Run the template's tests
         run: python -m unittest discover -s tests -v
 
-  release-archive:
-    name: Rebuild and verify the tagged release
+  release:
+    name: Build and record the tagged release
     if: github.ref_type == 'tag'
     needs: check
     runs-on: ubuntu-24.04
     permissions:
-      contents: read
-      id-token: write
+      contents: write # the mod.lock commit on the default branch
+      id-token: write # Sigstore
     outputs:
       nexus: ${{ steps.nexus.outputs.uploads }}
     steps:
@@ -84,10 +88,10 @@ jobs:
         with:
           tool: zola@${{ steps.zola.outputs.version }}
 
-      - name: Rebuild the release and compare it with mod.lock
+      - name: Build the release from the tag
         env:
           TAG: ${{ github.ref_name }}
-        run: ./buildSite verify "$TAG"
+        run: ./buildSite release "$TAG"
 
       - name: Check whether anything asks to be signed
         id: signing
@@ -105,6 +109,33 @@ jobs:
             cosign sign-blob --yes --bundle "$archive.sigstore.json" "$archive"
           done < sign.txt
 
+      # A release already recorded must match its record, so re-running this job is harmless and a
+      # moved tag cannot replace a published archive. Another tag's run may push first; each
+      # attempt starts again from the branch's newest commit.
+      - name: Record the release in mod.lock on the default branch
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          message=$(jq -r '"RELEASE: \(.name) \(.release.version)"' dist/release.json)
+          for attempt in 1 2 3 4 5; do
+            git fetch --quiet origin "+refs/heads/$DEFAULT_BRANCH:refs/remotes/origin/$DEFAULT_BRANCH"
+            git checkout --quiet --force --detach "origin/$DEFAULT_BRANCH"
+            ./buildSite record
+            git add --all -- '*mod.lock'
+            if git diff --cached --quiet; then
+              exit 0
+            fi
+            git commit --quiet -m "$message"
+            if git push --quiet origin "HEAD:refs/heads/$DEFAULT_BRANCH"; then
+              exit 0
+            fi
+            sleep $((attempt * 5))
+          done
+          echo "::error::Could not push the release record to $DEFAULT_BRANCH. If the branch is protected, allow GitHub Actions to push to it."
+          exit 1
+
       - name: Read the Nexus Mods uploads
         id: nexus
         run: echo "uploads=$(cat dist/nexus.json)" >> "$GITHUB_OUTPUT"
@@ -115,20 +146,20 @@ jobs:
           path: dist/
           if-no-files-found: error
 
+  # Tag runs skip this: they finish by starting a default-branch run, which builds the site and
+  # the development archives from a commit that includes the new record.
   site:
     name: Build the site
-    needs: [check, release-archive]
-    if: ${{ !cancelled() && needs.check.result == 'success' && needs.release-archive.result != 'failure' }}
+    needs: check
+    if: github.ref_type != 'tag'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
       pages: read
       id-token: write
     steps:
-      # The site always describes the default branch, even when a tag triggered the run.
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.ref_type == 'tag' && github.event.repository.default_branch || '' }}
           fetch-depth: 0
 
       - uses: actions/setup-python@v5
@@ -148,7 +179,7 @@ jobs:
 
       - name: Find the published site's URL
         id: pages
-        if: github.event_name != 'pull_request' && (github.ref_type == 'tag' || github.ref_name == github.event.repository.default_branch)
+        if: github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch
         uses: actions/configure-pages@v5
 
       - name: Choose the base URL
@@ -184,9 +215,9 @@ jobs:
       - name: Check whether anything asks to be signed
         id: signing
         env:
-          PUBLISHING: ${{ github.event_name != 'pull_request' && (github.ref_type == 'tag' || github.ref_name == github.event.repository.default_branch) }}
+          PUBLISHING: ${{ github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch }}
         run: |
-          if [ -s dist/sign.txt ] && [ "$PUBLISHING" = true ] && [ "$GITHUB_REF_TYPE" = branch ]; then
+          if [ -s dist/sign.txt ] && [ "$PUBLISHING" = true ]; then
             echo "needed=true" >> "$GITHUB_OUTPUT"
           else
             echo "needed=false" >> "$GITHUB_OUTPUT"
@@ -204,12 +235,12 @@ jobs:
           done < sign.txt
 
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
-        if: github.event_name != 'pull_request' && (github.ref_type == 'tag' || github.ref_name == github.event.repository.default_branch)
+        if: github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch
         with:
           path: public/
 
       - uses: actions/upload-artifact@v7
-        if: github.event_name != 'pull_request' && (github.ref_type == 'tag' || github.ref_name == github.event.repository.default_branch) && github.ref_type == 'branch'
+        if: github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch
         with:
           name: development
           path: dist/
@@ -217,8 +248,8 @@ jobs:
 
   release-cleanup:
     name: Recreate the GitHub release
-    needs: [release-archive, site]
-    if: ${{ !cancelled() && github.event_name != 'pull_request' && (github.ref_type == 'tag' || github.ref_name == github.event.repository.default_branch) && needs.site.result == 'success' && needs.release-archive.result != 'failure' }}
+    needs: [release, site]
+    if: ${{ !cancelled() && github.event_name != 'pull_request' && (github.ref_type == 'tag' && needs.release.result == 'success' || github.ref_name == github.event.repository.default_branch && needs.site.result == 'success') }}
     permissions:
       contents: write
     uses: DreamWeave-MP/StroggForge/.github/workflows/createRelease.yml@v40
@@ -226,7 +257,7 @@ jobs:
 
   upload-release:
     name: Upload archives
-    needs: [release-archive, site, release-cleanup]
+    needs: [release, site, release-cleanup]
     if: ${{ !cancelled() && needs.release-cleanup.result == 'success' }}
     runs-on: ubuntu-24.04
     permissions:
@@ -262,7 +293,7 @@ jobs:
   deploy:
     name: Deploy to GitHub Pages
     needs: [site, upload-release]
-    if: ${{ !cancelled() && github.event_name != 'pull_request' && (github.ref_type == 'tag' || github.ref_name == github.event.repository.default_branch) && needs.site.result == 'success' && needs.upload-release.result == 'success' }}
+    if: ${{ !cancelled() && github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch && needs.site.result == 'success' && needs.upload-release.result == 'success' }}
     runs-on: ubuntu-24.04
     permissions:
       pages: write
@@ -275,14 +306,32 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v5
 
+  # GITHUB_TOKEN's pushes start no runs, so the record commit alone would never reach the site.
+  # A dispatched run on the default branch shares its concurrency group with pushes there, so it
+  # waits its turn rather than racing them.
+  refresh-site:
+    name: Rebuild the site with the new release
+    needs: upload-release
+    if: ${{ !cancelled() && github.ref_type == 'tag' && needs.upload-release.result == 'success' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: write
+    steps:
+      - name: Start a default-branch run
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          REPOSITORY: ${{ github.repository }}
+        run: gh workflow run build_site.yml --ref "$DEFAULT_BRANCH" --repo "$REPOSITORY"
+
   nexus-upload:
     name: Upload to Nexus Mods
-    needs: [release-archive, upload-release]
-    if: ${{ github.ref_type == 'tag' && needs.upload-release.result == 'success' && needs.release-archive.outputs.nexus != '[]' }}
+    needs: [release, upload-release]
+    if: ${{ github.ref_type == 'tag' && needs.upload-release.result == 'success' && needs.release.outputs.nexus != '[]' }}
     runs-on: ubuntu-24.04
     strategy:
       matrix:
-        upload: ${{ fromJson(needs.release-archive.outputs.nexus) }}
+        upload: ${{ fromJson(needs.release.outputs.nexus) }}
     steps:
       - uses: actions/download-artifact@v8
         with:

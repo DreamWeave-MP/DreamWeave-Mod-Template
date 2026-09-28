@@ -143,6 +143,10 @@ class Table:
             return None
 
     def uuid(self, key: str, default: object = MISSING) -> str | None:
+        if default is MISSING and key not in self.data:
+            self.seen.add(key)
+            self.problems.error(self.child_where(key), f'is required. Here is a fresh one to paste: {key} = "{uuid.uuid4()}"')
+            return None
         value = self.string(key, default)
         if value is None or value is default:
             return value
@@ -171,7 +175,7 @@ def check_uuid(value: str, where: str, problems: Problems) -> str | None:
     try:
         parsed = uuid.UUID(value)
     except ValueError:
-        problems.error(where, f"{value!r} is not a UUID. Generate one with ./buildSite new-id")
+        problems.error(where, f"{value!r} is not a UUID. Use a fresh random one, like {uuid.uuid4()}")
         return None
     if str(parsed) != value:
         problems.error(where, f"write the UUID in canonical lowercase form: {parsed}")

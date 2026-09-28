@@ -86,8 +86,7 @@ def declared_release_views(project: Project, state, offline_mode: bool, packaged
             version = str(release.version)
             view["state"] = (
                 "published" if version in published
-                else "pending" if version in state.pending
-                else "unverified" if version in state.unlocked_tags
+                else "unverified" if version in state.unverified
                 else "planned"
             )
         views.append(view)
@@ -108,13 +107,11 @@ def diagnostic_checks(repository: Repository, project: Project, state, manifest:
     if stable:
         check("releases", "Published releases", "pass", ", ".join(str(release.locked.version) for release in stable))
     else:
-        check("releases", "Published releases", "warn", "nothing is locked and tagged yet; clients only see the development channel")
-    if state.pending:
-        check("pending", "Locked, not tagged", "info", f"{', '.join(state.pending)}: push the tag to publish")
-    if state.unlocked_tags:
-        check("unverified", "Tagged without a lock", "warn", f"{', '.join(state.unlocked_tags)}: published before DreamWeave 4 or without ./buildSite lock; excluded from the manifest because nothing records their hashes")
+        check("releases", "Published releases", "warn", "no release tag has been pushed yet; clients only see the development channel")
+    if state.unverified:
+        check("unverified", "Tagged, never recorded", "warn", f"{', '.join(state.unverified)}: tagged before this template recorded releases; excluded from the manifest because nothing records their hashes")
     if state.planned:
-        check("planned", "Declared, not locked", "info", ", ".join(state.planned))
+        check("planned", "Declared, not tagged", "info", f"{', '.join(state.planned)}: push the tag <slug>-<version> to publish")
 
     channels = manifest["channels"]
     if channels:

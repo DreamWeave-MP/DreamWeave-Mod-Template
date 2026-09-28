@@ -1,6 +1,7 @@
 """mod.toml and repository validation: every rule that protects the protocol, and its message."""
 
 import os
+import re
 import unittest
 from pathlib import Path
 
@@ -44,6 +45,12 @@ class ProjectRules(unittest.TestCase):
         self.assertError('id = "my-cool-mod"\nslug = "lantern"\n', "is not a UUID")
         self.assertError('id = "0B8F1C2D-3E4A-4B5C-8D6E-7F8091A2B3C4"\nslug = "lantern"\n', "canonical lowercase")
         self.assertError('id = "00000000-0000-0000-0000-000000000000"\nslug = "lantern"\n', "nil and max")
+
+    def test_a_missing_or_copied_id_comes_with_a_fresh_one(self):
+        # Authors never run the tooling, so the error itself hands them an identity to paste.
+        errors = self.errors_for('slug = "lantern"\n')
+        self.assertTrue(any(re.search(r'id = "[0-9a-f-]{36}"', error) for error in errors), errors)
+        self.assertError('id = "my-cool-mod"\nslug = "lantern"\n', "Use a fresh random one, like")
 
     def test_slugs_cannot_contain_hyphens(self):
         self.assertError(MINIMAL.replace('"lantern"', '"cool-lantern"'), "release tags are <slug>-<version>")

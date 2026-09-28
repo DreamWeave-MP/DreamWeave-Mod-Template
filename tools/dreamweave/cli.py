@@ -1,18 +1,15 @@
-"""./buildSite: check, build, lock, verify and preview a DreamWeave mod site."""
+"""./buildSite: the CI side of a DreamWeave mod site. Authors never run it: they edit, preview with
+`zola serve`, commit, push, and push a tag to release. The workflow runs everything here."""
 
 import argparse
 import os
 import subprocess
 import sys
 import time
-import uuid
 from pathlib import Path
 
 from . import build, gitrepo, migrate, offline, sitecheck
 from .problems import InvalidRepository
-
-COMMANDS = ("check", "build", "lock", "verify", "serve", "new-id", "zola-version")
-
 
 def command_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -27,12 +24,11 @@ def command_parser() -> argparse.ArgumentParser:
     build_parser = commands.add_parser("build", help="package development builds and write the site's protocol files")
     build_parser.add_argument("--skip-archives", action="store_true", help="skip packaging (faster preview; development hashes are omitted)")
 
-    lock_parser = commands.add_parser("lock", help="record a release's archive hash in mod.lock before tagging it")
-    lock_parser.add_argument("slug", help="the project's slug from mod.toml")
-    lock_parser.add_argument("--version", help="the release to lock (default: the newest unlocked [[releases]] entry)")
+    release_parser = commands.add_parser("release", help="with a tag checked out: build that release into dist/, with its record for mod.lock")
+    release_parser.add_argument("tag", help="<slug>-<version>")
 
-    verify_parser = commands.add_parser("verify", help="CI: rebuild a tagged release and fail unless it matches mod.lock")
-    verify_parser.add_argument("tag", help="<slug>-<version>")
+    record_parser = commands.add_parser("record", help="on the default branch: add the record `release` wrote to its project's mod.lock")
+    record_parser.add_argument("--from", dest="source", default=str(build.RELEASE_RECORD), help=f"the record to add (default: {build.RELEASE_RECORD})")
 
     links_parser = commands.add_parser("links", help="check the built site's local links, assets and anchors")
     links_parser.add_argument("--public", default="public", help="the built site (default: public)")
@@ -44,7 +40,6 @@ def command_parser() -> argparse.ArgumentParser:
     migrate_parser = commands.add_parser("migrate", help="print a suggested mod.toml for a V3 page (writes nothing)")
     migrate_parser.add_argument("directory", help="the page's directory, e.g. content/my_mod")
 
-    commands.add_parser("new-id", help="print a fresh project id (a random UUID)")
     commands.add_parser("zola-version", help="print the Zola version archives are rendered with")
     return parser
 
@@ -90,9 +85,6 @@ def run_serve(root: Path) -> None:
 
 def main(arguments: list[str]) -> int:
     options = command_parser().parse_args(arguments)
-    if options.command == "new-id":
-        print(uuid.uuid4())
-        return 0
     if options.command == "zola-version":
         print(offline.ZOLA_VERSION)
         return 0
@@ -115,17 +107,15 @@ def main(arguments: list[str]) -> int:
             print(f"OK: {len(repository.projects)} project(s).")
         elif options.command == "build":
             run_build(root, options.skip_archives)
-        elif options.command == "lock":
-            repository = build.load_repository(root)
-            repository.problems.raise_if_any()
-            build.lock_release(repository, options.slug, options.version)
-            refreshed = build.load_repository(root, check_payloads=False)
-            build.write_site(refreshed, {}, archives_built=False)
-        elif options.command == "verify":
+        elif options.command == "release":
             repository = build.load_repository(root)
             repository.problems.raise_if_any()
             build.clean_dist(root)
-            build.verify_tag(repository, options.tag)
+            build.build_release(repository, options.tag)
+        elif options.command == "record":
+            repository = build.load_repository(root, check_payloads=False)
+            repository.problems.raise_if_any()
+            build.record_release(repository, root / options.source)
         elif options.command == "links":
             import tomllib
             base_url = options.base_url or os.environ.get("DREAMWEAVE_BASE_URL") or tomllib.loads((root / "config.toml").read_text())["base_url"]
