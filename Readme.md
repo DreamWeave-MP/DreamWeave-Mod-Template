@@ -1,93 +1,100 @@
-# Welcome to the DreamWeave Mod Template!
+# DreamWeave Mod Template
 
-The Mod Template is designed to be an easy-to-use, batteries-included means for you to self-host your mods and applications.
-It's built on Zola, relying on its powerful templating and macros to provide a wide variety of community interaction and distribution features you won't find elsewhere.
+A mod page, its documentation, installable archives, and the metadata tools need to find, verify
+and install the mod, all from one repository and servable from any static host.
 
-## What it offers:
+You write two files per mod. The template validates them, packages byte-reproducible archives,
+publishes releases, and builds a site that people read and DreamWeave clients (CHIMERA, St4sh,
+anything that follows [the protocol](https://dreamweave-mp.github.io/DreamWeave-Mod-Template/guide/protocol/))
+read without scraping it.
 
-- Optional Giscus integration for comments
-- Optional RSS/Atom feed generation for readers to subscribe
-- Optional Auto-generated install instructions (install_instructions shortcode)
-- Optional pre-formatted credits sections (credits shortcode)
-- Optional Search with elasticlunr.js
-- Optional page view counts provided by GoatCounter
-- Automatic packaging and uploading for all mods
-- Mod manager download buttons for [ModdingLinked MO2](https://www.nexusmods.com/site/mods/874) or [umo](https://modding-openmw.gitlab.io/umo/) using the modl:// spec
-- Various color palettes & styles
-- Unlimited taxonomy types to sort your site however you want.
+## Start
 
-## Okay, How Do I Use It?
+1. Click **Use this template** (not Fork) and create your repository. Set
+   **Settings → Pages → Source** to **GitHub Actions**.
+2. In `config.toml`, set `github_username` and `github_project` to your repository.
+3. Run `./buildSite new-id` and put the result in `content/home/mod.toml` as `id`. Set `slug` to a
+   short name like `my_mod`: it names your archive and your release tags.
+4. Replace Candlelight's files in `content/home` with your mod, and rewrite `content/home/index.md`:
+   `title` is the mod's name, `description` its summary, the body its page.
+5. Preview with `./buildSite serve`, then commit and push. The workflow publishes the page and a
+   development build.
+6. Release: add a `[[releases]]` entry, then
 
-First, decide if you want a single-page site or not. The template's optimized out of the box for single-page sites, but you can host everything on a single site if you want.
+   ```sh
+   ./buildSite lock my_mod
+   git add content/home/mod.lock && git commit -m "RELEASE: My Mod 1.0.0"
+   git tag my_mod-1.0.0 && git push --atomic origin HEAD my_mod-1.0.0
+   ```
 
-Then, fork this repository on GitHub. Clone it onto your computer, and open `config.toml`. This document contains all the global configuration values for your site, defining where it's hosted, whether to use feeds and search, etc.
-It's crucial you open this file and set the correct values for your site, or it will break - badly.
+[Start here](https://dreamweave-mp.github.io/DreamWeave-Mod-Template/guide/start-here/) walks
+through it properly. You need git and Python 3.11+ with PyYAML (`pip install -r tools/requirements.txt`),
+plus [Zola](https://www.getzola.org/) to preview. No Node, no Rust, no accounts.
 
-### The Mandatory Stuff
-First, set the base_url. The default one is `https://DreamWeave-MP.github.io/DreamWeave-Mod-Template`. It should look like this: `https://OWNER_USERNAME.github.io/REPO_NAME`, where `OWNER_USERNAME` is either the account or the organization that owns the repo.
+## What you get
 
-Now, scroll down to `[extra]` and set github_username and github_project appropriately. Don't leave yet!
+- **A mod page** with compatibility, requirements, conflicts, components, screenshots with a
+  keyboard-driven viewer, install instructions generated per package format including the exact
+  `openmw.cfg` lines, a changelog, and credits. Sections with nothing to say do not appear.
+- **Archives that ship their documentation**: the page and its docs rendered as offline HTML in
+  `Documentation/`, next to your mod's files. Flat, BAIN, or BAIN with a generated FOMOD installer.
+- **Releases you can verify**: an archive's SHA-256 is recorded in `mod.lock` before its tag exists,
+  and CI refuses to publish a tag whose archive comes out different.
+- **A place on the network**: `dreamweave.json` and a manifest per project, linked from every page,
+  describing identity, releases, artifacts, sources, dependencies and install data. Mirrors serve
+  bytes by hash; they never become the authority.
+- **Documentation sections** with a recursive sidebar, breadcrumbs, a page table of contents,
+  scoped search and copy buttons.
+- **One mod or a catalog of them.** Delete one line and the front page becomes a paginated catalog;
+  every project keeps its own id, releases and tags.
+- **Nothing phoning home.** No analytics, comments, web fonts or CDN unless you configure them.
+  Every page works without JavaScript.
 
-`giscus` is used to set up comments for your page. This is optional if you use it, but you ***really*** need to change or delete it, because it will point to the mod template's comment section out of the box.
+## Commands
 
-`goatcounter_username` is mandatory to enable goatcounter. PLEASE also set this up for yourself or disable it entirely, since your page visits will be tracked by DreamWeave's goatcounter instance if you don't. Of course, you're more than welcome to let us track your page views if you want.
+| Command | Does |
+|---|---|
+| `./buildSite check` | Validate every project, including its files against `mod.toml` |
+| `./buildSite serve` | Write preview data, run `zola serve`, regenerate when `mod.toml` changes |
+| `./buildSite build` | Package development builds and write the protocol files, as CI does |
+| `./buildSite lock <slug>` | Record the next release's archive hash before tagging it |
+| `./buildSite verify <tag>` | Rebuild a tagged release and fail unless it matches `mod.lock` (CI) |
+| `./buildSite links` | Check the built site's local links and anchors |
+| `./buildSite migrate <dir>` | Print a `mod.toml` for a V3 page |
+| `./buildSite new-id` | Print a fresh project id |
 
-Finally, if you want a multi-page site, set `segment_versions = true`. This will ensure your git releases have properly set versions for each different thing you publish.
+## Where things live
 
-Then, open `content/_index.md`. It'll look like this:
-```markdown
-+++
+| Path | What |
+|---|---|
+| `content/<project>/index.md` | The mod's name, summary and page |
+| `content/<project>/mod.toml` | Everything structured about the mod |
+| `content/<project>/mod.lock` | What each published release contains (written by `lock`) |
+| `content/<project>/…` | The mod itself and its docs; all of it ships |
+| `config.toml` | The site: URL, title, repository, palette, header links |
+| `sass/brand.sass` | Your branding; the template never touches it |
+| `templates/`, `sass/`, `static/` | The template's presentation |
+| `tools/dreamweave/` | The build tool `./buildSite` runs |
+| `static/schemas/` | JSON Schemas for everything the site publishes |
+| `tests/` | The template's own tests: `python3 -m unittest discover -s tests` |
 
-# For multi-page sites, simply delete or comment out this config option
-redirect_to = "home"
-sort_by = "title"
+## Documentation
 
-+++
-```
+The [guide](https://dreamweave-mp.github.io/DreamWeave-Mod-Template/guide/) covers
+[project pages](https://dreamweave-mp.github.io/DreamWeave-Mod-Template/guide/project-pages/),
+[every mod.toml key](https://dreamweave-mp.github.io/DreamWeave-Mod-Template/guide/mod-toml/),
+[releases](https://dreamweave-mp.github.io/DreamWeave-Mod-Template/guide/releases/),
+[packages](https://dreamweave-mp.github.io/DreamWeave-Mod-Template/guide/packages/),
+[dependencies](https://dreamweave-mp.github.io/DreamWeave-Mod-Template/guide/dependencies/),
+[customizing](https://dreamweave-mp.github.io/DreamWeave-Mod-Template/guide/customizing/),
+[migrating from V3](https://dreamweave-mp.github.io/DreamWeave-Mod-Template/guide/migration/),
+and the [architecture](https://dreamweave-mp.github.io/DreamWeave-Mod-Template/guide/architecture/).
+It is also in this repository under `content/guide/`; delete it from your copy if you like.
 
-Delete this line: `redirect_to = "home"`. Now, your homepage will be browseable. You now have a multi-page site!
+## License
 
-Go back to the top.
+The template is AGPL-3.0 (see `LICENSE`). The bundled fonts carry their own licenses, in the
+`LICENSE-*Font.txt` and `README-GalBasicFont.txt` files. Your mod's license is yours: set `license`
+in its `mod.toml`.
 
-### The Fun Stuff
-
-Decide what you want your `title`, and `logo_text` to be. These will be shown on all pages. The `generate_feeds` option determines whether to generate RSS and atom feeds, and enabling `build_search_index` will make your site searchable.
-
-If you want to use additional *taxonomies*, for sorting your pages and posts, you may do so under the `taxonomies` section. By default, the only built-in taxonomy is `tags`, effectively for sorting mods by category.
-
-By default, the top bar is disabled, but you can re-enable it by uncommenting `menu_items` and adding your own entries to it.
-
-## The Rest
-
-Now your site's up and running. You've got the basics down! There's a bit more for you to learn, though.
-Check out `content/home/index.md` and `content/simplified/index.md`. Here you'll see examples of what your pages can look like (and also more documentation on how to use the mod template).
-You *need* to build frontmatter for every mod. That's the section between `---` or `+++`. `simplified/index.md` contains the most minimal frontmatter possible, whereas `home/index.md` contains all possible fields.
-Your frontmatter may be yaml, using `---`, or TOML, using `+++` before and after your frontmatter.
-
-For more info, and guides on expanding the site yourself, check out [Zola's Docs](https://www.getzola.org/documentation/getting-started/overview/).
-
-Thanks for checking out the DreamWeave Mod Template. Please consider sponsoring DreamWeave on [Ko-Fi](https://ko-fi.com/magicaldave)
-
-## API documentation pages
-
-The Mod Template has an opt-in documentation layout for API references, framework guides, and other code-heavy pages. Put docs in a Zola section and select the docs templates in its frontmatter:
-
-```yaml
-template: docs/section.html
-page_template: docs/page.html
-
-extra:
-  api_docs: true
-  docs_root: true
-  docs_project_name: My Project
-  docs_short_title: My Project Docs
-  docs_project_path: '@/home/index.md'
-  docs_repository_url: https://github.com/OWNER/REPOSITORY/tree/main/content/home
-  docs_sidebar_label: Documentation
-```
-
-Declare the consumer metadata once on the documentation root. Child pages and sections inherit the selected docs templates through `page_template`; they do not need to repeat the project name, root URL, or search scope. Zola accepts YAML frontmatter as shown above as well as TOML.
-
-API docs get a recursive collapsible project sidebar, a current-page table of contents, breadcrumbs, responsive three-column layout, and copy buttons for fenced code blocks. Guide pages are task-first: lead with the goal and a working example, then explain variations, pitfalls, and related reference. API reference pages are lookup-first: lead with the symbol or item name, signature, and one-sentence summary, then document behavior, parameters, returns, caveats, examples, and related items.
-
-Use `{{ api_signature(value="module.function(argument)") }}` for a highlighted API signature. Use `{% usage_note(title="Compatibility") %}This behavior is optional.{% end %}` for a bordered note.
+If this saves you time, consider sponsoring DreamWeave on [Ko-fi](https://ko-fi.com/magicaldave).
