@@ -1,0 +1,71 @@
+{
+  "schema_version": "2",
+  "document": "lock",
+  "project": "9b7e3f21-6c4d-4a8b-b1e2-3f5a7c9d0e14",
+  "note": "Written by CI when a release tag is pushed: what each published release's archive contains. Do not edit.",
+  "releases": [
+    {
+      "version": "1.0.0",
+      "locked_from": "fe1e6300296ca6069b265f63dd7c79e895bd36aa",
+      "artifacts": [
+        {
+          "id": "flat",
+          "format": "flat",
+          "filename": "tallow.zip",
+          "media_type": "application/zip",
+          "size": 70330,
+          "digests": {
+            "sha256": "f69b6343092ca16ff689adec17e9d754d21e05c97fa840fd07e52c852feddfd9"
+          },
+          "layout": {
+            "release_document": "dreamweave.release.json",
+            "documentation": "Documentation/index.html"
+          }
+        }
+      ],
+      "runtimes": {
+        "openmw": ">=0.49"
+      },
+      "platforms": [],
+      "provides": [],
+      "relationships": [],
+      "components": [
+        {
+          "id": "main",
+          "name": "Tallow",
+          "path": ".",
+          "required": true,
+          "default": true,
+          "requires": [],
+          "conflicts": [],
+          "suggested_with": []
+        }
+      ],
+      "groups": [],
+      "extensions": {
+        "openmw": {
+          "components": {
+            "main": {
+              "data_directories": [
+                "."
+              ],
+              "content_files": [
+                "Tallow.omwscripts"
+              ],
+              "groundcover_files": [],
+              "fallback_archives": [],
+              "fallback_entries": {},
+              "config": false,
+              "requires_content": []
+            }
+          },
+          "requires_content": [],
+          "settings": []
+        }
+      },
+      "critical_extensions": [
+        "openmw"
+      ]
+    }
+  ]
+}
