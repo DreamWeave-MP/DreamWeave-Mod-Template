@@ -66,7 +66,10 @@
             <ul class="dw-linklist">
                 <li><a href="{{ project.manifest_url | safe }}"><span>Project manifest</span><small>json</small></a></li>
                 <li><a href="{{ get_url(path='dreamweave.json', trailing_slash=false) | safe }}"><span>Site index</span><small>json</small></a></li>
+                {%- set network_page = load_data(path="content/network.md", format="plain", required=false) %}
+                {%- if network_page %}
                 <li><a href="{{ get_url(path='@/network.md') | safe }}#{{ project.slug }}"><span>Distribution metadata</span><small>checks</small></a></li>
+                {%- endif %}
             </ul>
         </div>
     </section>
