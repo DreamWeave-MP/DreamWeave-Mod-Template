@@ -22,7 +22,7 @@
 {%- block offline_banner %}
 {%- if dw_offline and dw and page.colocated_path and page.colocated_path in dw.projects %}
 {%- set banner_project = dw.projects[page.colocated_path] %}
-<div class="dw-offline"><div class="dw-shell">Offline documentation for {{ page.title }}{% if banner_project.packaged_version %} {{ banner_project.packaged_version }}{% endif %}, shipped inside the archive. The live page is <a href="{{ page.permalink | safe }}">{{ page.permalink }}</a>.</div></div>
+<div class="dw-offline"><div class="dw-shell">Offline documentation for {{ page.title }}{% if banner_project.packaged_version %} {{ banner_project.packaged_version }}{% endif %}, shipped inside the archive. The live page is <a href="{{ page.permalink | safe }}" data-dw-online>{{ page.permalink }}</a>.</div></div>
 {%- endif %}
 {%- endblock offline_banner %}
 

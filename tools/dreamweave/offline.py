@@ -23,6 +23,8 @@ from urllib.parse import unquote, urlsplit
 DOCUMENTATION_ROOT = "Documentation"
 SITE_ASSET_ROOT = "_site"
 ZOLA_VERSION = "0.22.1"
+TAG_PATTERN = re.compile(r"<[a-zA-Z][^>]*>")
+ONLINE_MARKER = "data-dw-online"
 ATTRIBUTE_PATTERN = re.compile(r'(?P<name>\b(?:href|src|poster))="(?P<value>[^"]*)"')
 SRCSET_PATTERN = re.compile(r'\bsrcset="(?P<value>[^"]*)"')
 CSS_URL_PATTERN = re.compile(r"url\((?P<quote>['\"]?)(?P<value>[^'\")]+)(?P=quote)\)")
@@ -196,9 +198,15 @@ class DocumentationCrawler:
             self.files[f"{DOCUMENTATION_ROOT}/{self.archive_path(site_path)}"] = data
         return self.files
 
+    def rewrite_tag(self, tag: str, site_path: str) -> str:
+        """Localize one start tag's URLs. A tag marked data-dw-online keeps pointing at the live site."""
+        if ONLINE_MARKER in tag:
+            return tag
+        tag = ATTRIBUTE_PATTERN.sub(lambda match: f'{match.group("name")}="{escape_attribute(self.localize(match.group("value"), site_path))}"', tag)
+        return SRCSET_PATTERN.sub(lambda match: f'srcset="{escape_attribute(self.rewrite_srcset(html_module.unescape(match.group("value")), site_path))}"', tag)
+
     def rewrite_html(self, html: str, site_path: str) -> str:
-        html = ATTRIBUTE_PATTERN.sub(lambda match: f'{match.group("name")}="{escape_attribute(self.localize(match.group("value"), site_path))}"', html)
-        html = SRCSET_PATTERN.sub(lambda match: f'srcset="{escape_attribute(self.rewrite_srcset(html_module.unescape(match.group("value")), site_path))}"', html)
+        html = TAG_PATTERN.sub(lambda match: self.rewrite_tag(match.group(0), site_path), html)
         return CSS_URL_PATTERN.sub(lambda match: f"url({match.group('quote')}{self.localize(match.group('value'), site_path)}{match.group('quote')})", html)
 
     def rewrite_srcset(self, value: str, site_path: str) -> str:
