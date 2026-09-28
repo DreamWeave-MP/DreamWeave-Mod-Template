@@ -34,8 +34,6 @@ def command_parser() -> argparse.ArgumentParser:
 
     commands.add_parser("schemas", help="validate the generated index and manifests against the published schemas")
 
-    migrate_parser = commands.add_parser("migrate", help="print a suggested mod.toml for a V3 page (writes nothing)")
-    migrate_parser.add_argument("directory", help="the page's directory, e.g. content/my_mod")
 
     commands.add_parser("zola-version", help="print the Zola version archives are rendered with")
     return parser
@@ -61,12 +59,6 @@ def main(arguments: list[str]) -> int:
     if options.command == "zola-version":
         print(offline.ZOLA_VERSION)
         return 0
-    if options.command == "migrate":
-        suggestion, notes = migrate.suggest(Path(options.directory).resolve())
-        print(suggestion, end="")
-        for note in notes:
-            print(f"note: {note}", file=sys.stderr)
-        return 0
 
     root = repository_root()
     os.chdir(root)
@@ -76,6 +68,8 @@ def main(arguments: list[str]) -> int:
             repository.comments()
             for note in repository.problems.notes:
                 print(f"note: {note}")
+            for path in migrate.write_suggestions(root, repository.version_three_pages):
+                print(f"Suggested {path.relative_to(root)}")
             repository.problems.raise_if_any()
             print(f"OK: {len(repository.projects)} project(s).")
         elif options.command == "build":

@@ -55,6 +55,14 @@ jobs:
       - name: Validate every project
         run: ./buildSite check
 
+      # A page still carrying V3 frontmatter fails the check, which suggests a mod.toml for it.
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: mod-toml-suggestions
+          path: dist/migration/
+          if-no-files-found: ignore
+
       - name: Run the template's tests
         run: python -m unittest discover -s tests -v
 

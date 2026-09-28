@@ -5,7 +5,7 @@ import re
 import unittest
 from pathlib import Path
 
-from support import LANTERN, LANTERN_FILES, Scratch, git
+from support import LANTERN, LANTERN_FILES, Scratch, build_site, git
 from dreamweave.build import load_repository
 from dreamweave.model import load_project
 from dreamweave.problems import Problems
@@ -225,6 +225,24 @@ class RepositoryRules(unittest.TestCase):
     def test_v3_pages_without_mod_toml_are_rejected(self):
         self.scratch.write("content/old/index.md", '+++\ntitle = "Old"\n[extra]\nversion = "0.5"\n+++\n')
         self.assertError("has V3 project frontmatter")
+
+    def test_the_check_suggests_a_mod_toml_for_each_v3_page(self):
+        self.scratch.write("content/old/index.md", '+++\ntitle = "Old Lamp"\n[extra]\nversion = "0.6"\n[extra.install_info]\ncontent_files = ["Old.omwscripts"]\n+++\nBody.\n')
+        self.scratch.write("content/old/Old.omwscripts", "PLAYER: scripts/old.lua\n")
+        self.scratch.commit("V3 page")
+        git(self.scratch.root, "tag", "old_lamp-0.5")
+        process = build_site(self.scratch.root, "check", check=False)
+        self.assertNotEqual(process.returncode, 0)
+        self.assertIn("mod-toml-suggestions", process.stderr)
+        suggestion = (self.scratch.root / "dist/migration/content/old/mod.toml").read_text()
+        self.assertTrue(suggestion.startswith("# Suggested from the V3 frontmatter"))
+        self.assertIn("# - ", suggestion, "what the converter could not decide travels with the file")
+        self.assertIn('slug = "old_lamp"', suggestion)
+
+        (self.scratch.root / "content/old/mod.toml").write_text(suggestion)
+        self.scratch.write("content/old/index.md", '+++\ntitle = "Old Lamp"\n+++\nBody.\n')
+        self.scratch.commit("Adopt the suggestion")
+        self.assertEqual(build_site(self.scratch.root, "check").returncode, 0)
 
     def test_a_newer_release_cannot_sort_below_an_older_one(self):
         releases = '[[releases]]\nversion = "0.82"\ndate = 2026-01-01\n[[releases]]\nversion = "0.9"\ndate = 2026-02-01\n'

@@ -1,4 +1,8 @@
-"""Print a suggested mod.toml for a V3 page. Reads, never writes: the author reviews and saves it.
+"""Suggested mod.toml files for V3 pages, written by CI's check for the author to review.
+
+A V3 page without a mod.toml fails the check, and the same run writes a suggestion for it under
+dist/migration/ (uploaded as an artifact, laid out like the repository) and into the run's
+summary. Nothing here touches the repository itself: the author reviews and commits.
 
 The slug keeps V3's title slug so existing <slug>-<version> tags stay this project's history.
 Every data directory V3 listed stays installed, so the archive and install behave as before;
@@ -7,8 +11,10 @@ splitting them into optional components is a decision for the author, not for a 
 
 import datetime
 import json
+import os
 import re
 import subprocess
+import textwrap
 import uuid
 from pathlib import Path
 
@@ -64,7 +70,35 @@ def ordering_violations(history: list[tuple[str, str]], scheme: str) -> list[str
     ]
 
 
-def suggest(directory: Path) -> tuple[str, list[str]]:
+def suggest(directory: Path) -> str:
+    """A mod.toml for a V3 page, with what the converter could not decide as comments on top."""
+    body, notes = suggestion(directory)
+    header = [f"# Suggested from the V3 frontmatter in {directory.name}/index.md. Review every line, then commit it as mod.toml."]
+    for note in notes:
+        header += textwrap.wrap(note, width=98, initial_indent="# - ", subsequent_indent="#   ")
+    return "\n".join(header) + "\n" + body
+
+
+def write_suggestions(root: Path, directories: list[Path]) -> list[Path]:
+    """dist/migration/<page directory>/mod.toml for each V3 page, and the same in the run's summary."""
+    written = []
+    summary = ["## Suggested mod.toml files", "", "These pages still carry V3 frontmatter. Download the `mod-toml-suggestions` artifact and unzip it at the repository root, or copy from below. Review each file before committing it: content/guide/migration.md explains every line.", ""]
+    for directory in directories:
+        relative = directory.relative_to(root).as_posix()
+        text = suggest(directory)
+        path = root / "dist" / "migration" / relative / "mod.toml"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+        written.append(path)
+        summary += [f"### {relative}/mod.toml", "", "```toml", text.rstrip("\n"), "```", ""]
+    step_summary = os.environ.get("GITHUB_STEP_SUMMARY")
+    if written and step_summary:
+        with open(step_summary, "a", encoding="utf-8") as handle:
+            handle.write("\n".join(summary) + "\n")
+    return written
+
+
+def suggestion(directory: Path) -> tuple[str, list[str]]:
     frontmatter = read_frontmatter(directory / "index.md")
     if frontmatter is None:
         raise SystemExit(f"{directory}/index.md has no frontmatter.")
@@ -77,7 +111,6 @@ def suggest(directory: Path) -> tuple[str, list[str]]:
     slug = next((candidate for candidate in candidates if tags_for(directory, candidate)), candidates[0])
     notes = []
     lines = [
-        f"# Migrated from V3 frontmatter in {directory.name}/index.md. Review every line, then save as mod.toml.",
         f"id = {toml_string(str(uuid.uuid4()))}",
         f"slug = {toml_string(slug)}  # matches the existing {slug}-<version> tags, so they stay this project's history",
     ]
@@ -135,7 +168,7 @@ def suggest(directory: Path) -> tuple[str, list[str]]:
     scheme = NUMERIC
     if numeric_problems and len(decimal_problems) < len(numeric_problems):
         scheme = DECIMAL
-        lines.insert(3, 'versioning = "decimal"  # these releases were numbered like decimals: 0.82 comes before 0.9')
+        lines.insert(2, 'versioning = "decimal"  # these releases were numbered like decimals: 0.82 comes before 0.9')
 
     history = []
     for text, date in tags:
@@ -144,7 +177,7 @@ def suggest(directory: Path) -> tuple[str, list[str]]:
         except VersionError:
             notes.append(f"tag {slug}-{text} is not a {scheme} version, so it is left out of [[releases]].")
     for problem in ordering_violations([(text, date) for _, text, date in history], scheme)[:3]:
-        notes.append(f"historical tags are out of order ({problem}). That is only history: tags without a lock never enter the manifest.")
+        notes.append(f"historical tags are out of order ({problem}). That is only history: tags CI never recorded never enter the manifest.")
 
     current_text = str(extra.get("version", "")).strip()
     try:
@@ -156,7 +189,7 @@ def suggest(directory: Path) -> tuple[str, list[str]]:
         newest = max((version for version, _, _ in history), default=None)
         if newest is None or current > newest:
             history.append((current, current_text, datetime.date.today().isoformat()))
-            notes.append(f"{current_text} has no tag yet, so it is declared as the next release, dated today. Lock and tag it when it ships.")
+            notes.append(f"{current_text} has no tag yet, so it is declared as the next release, dated today. Push its tag when it ships.")
         else:
             notes.append(f"extra.version {current_text} sorts below the newest tag {newest}; it was never bumped, so it is not carried over.")
     history = [(text, date) for _, text, date in history]
@@ -166,7 +199,7 @@ def suggest(directory: Path) -> tuple[str, list[str]]:
     if history:
         notes.append(
             "Tagged releases published before V4 have no recorded hash, so the manifest leaves them out and the "
-            "changelog marks them unverified. Lock and tag your next release to publish it to the network."
+            "changelog marks them unverified. Tag your next release to publish it to the network."
         )
 
     stale = [key for key in V3_EXTRA_KEYS if key in extra]

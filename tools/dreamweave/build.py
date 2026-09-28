@@ -46,6 +46,7 @@ class Repository:
     problems: Problems = field(default_factory=Problems)
     comments_setting: comments.CommentsSetting | None = None
     resolved_comments: dict | None = None
+    version_three_pages: list[Path] = field(default_factory=list)
 
     def comments(self) -> dict:
         """The embed settings for comments, looked up once per run. See comments.py."""
@@ -105,14 +106,17 @@ def load_repository(root: Path, check_payloads: bool = True) -> Repository:
             if item.thumbnail:
                 check_media_file(root, project, item.thumbnail, problems)
 
-    check_version_three_pages(root, projects, problems)
+    version_three_pages = check_version_three_pages(root, projects, problems)
     head = gitrepo.resolve_revision("HEAD")
     locks = {project.id: records.read_lock(project, root, problems) for project in projects}
     for project in projects:
         check_release_order(project, locks[project.id], problems)
 
     comments_setting = comments.read_comments_setting(site, problems)
-    repository = Repository(root=root, site=site, projects=projects, locks=locks, head=head, problems=problems, comments_setting=comments_setting)
+    repository = Repository(
+        root=root, site=site, projects=projects, locks=locks, head=head, problems=problems,
+        comments_setting=comments_setting, version_three_pages=version_three_pages,
+    )
     if check_payloads:
         for project in projects:
             collect_payload(project, None, repository.nested_directories(project), problems, root)
@@ -148,10 +152,12 @@ def check_release_order(project: Project, locked: list[records.LockedRelease], p
                 )
 
 
-def check_version_three_pages(root: Path, projects: list[Project], problems: Problems) -> None:
+def check_version_three_pages(root: Path, projects: list[Project], problems: Problems) -> list[Path]:
     """V3 kept project metadata in the frontmatter of content/<project>/index.md. V4 does not read
-    it, so it must not linger. V3 only ever treated direct children of content/ as projects."""
+    it, so it must not linger. V3 only ever treated direct children of content/ as projects.
+    Returns their directories, for which `check` writes suggested mod.toml files."""
     project_directories = {root / project.directory for project in projects}
+    stale_directories = []
     for index in sorted((root / "content").glob("*/index.md")):
         if index.parent in project_directories:
             continue
@@ -161,11 +167,13 @@ def check_version_three_pages(root: Path, projects: list[Project], problems: Pro
             continue
         stale = [key for key in ("version", "install_info", "nexus_id", "nexus_group_id", "offsite_host") if key in extra]
         if stale:
+            stale_directories.append(index.parent)
             problems.error(
                 index.relative_to(root).as_posix(),
-                f"has V3 project frontmatter ({', '.join(stale)}) but no mod.toml. V4 reads project metadata from mod.toml; "
-                "see content/guide/migration.md, or keep building this site from the V3 tag",
+                f"has V3 project frontmatter ({', '.join(stale)}) but no mod.toml. CI's check suggests one in the run's summary "
+                "and its mod-toml-suggestions artifact; see content/guide/migration.md, or keep building this site from the V3 tag",
             )
+    return stale_directories
 
 
 def check_media_file(root: Path, project: Project, file: str, problems: Problems) -> None:
