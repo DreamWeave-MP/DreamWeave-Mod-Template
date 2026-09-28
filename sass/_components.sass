@@ -153,6 +153,11 @@
     padding: .55em .8em
     background: var(--dw-bg-1)
 
+  // A project with one fact to show keeps it at its own width, not stretched across the row.
+  > div:only-child
+    justify-self: start
+    min-width: 12rem
+
   dt
     color: var(--dw-text-faint)
     font-family: var(--dw-font-mono)

@@ -70,6 +70,10 @@
   display: block
   padding: 1.5rem 0 3rem
 
+  // A hero is the top of its page: no gap between it and the header.
+  > .dw-hero:first-child
+    margin-top: -1.5rem
+
 .dw-footer
   border-top: 1px solid var(--dw-line)
   background: var(--dw-bg-1)
@@ -147,9 +151,10 @@
   .dw-project__body
     grid-template-columns: minmax(0, 1fr)
 
+  // Below the page, not above it: the hero already offers the download, and on a phone the
+  // record and links would push what the mod is off the first screen.
   .dw-project__rail
     position: static
-    grid-row: 1
     grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr))
 
 @media (max-width: 860px)
