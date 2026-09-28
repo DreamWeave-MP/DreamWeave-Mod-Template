@@ -38,6 +38,8 @@ def command_parser() -> argparse.ArgumentParser:
     links_parser.add_argument("--public", default="public", help="the built site (default: public)")
     links_parser.add_argument("--base-url", help="the URL it was built for (default: DREAMWEAVE_BASE_URL or config.toml)")
 
+    commands.add_parser("schemas", help="validate the generated index and manifests against the published schemas")
+
     commands.add_parser("serve", help="write preview data, run `zola serve`, and regenerate when mod.toml or mod.lock change")
     migrate_parser = commands.add_parser("migrate", help="print a suggested mod.toml for a V3 page (writes nothing)")
     migrate_parser.add_argument("directory", help="the page's directory, e.g. content/my_mod")
@@ -131,6 +133,12 @@ def main(arguments: list[str]) -> int:
                 print(f"{len(errors)} broken local link(s).", file=sys.stderr)
                 return 1
             print(f"Checked {checked} local links, assets and anchors.")
+        elif options.command == "schemas":
+            checked, errors = sitecheck.check_protocol_documents(root)
+            if errors:
+                print("\n".join(errors), file=sys.stderr)
+                return 1
+            print(f"{checked} protocol document(s) match their schemas.")
         elif options.command == "serve":
             run_serve(root)
     except InvalidRepository as error:

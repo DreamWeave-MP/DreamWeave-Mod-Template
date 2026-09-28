@@ -93,6 +93,34 @@ class ReleaseLifecycle(unittest.TestCase):
             self.assertEqual(schema_errors(manifest, "modManifest-2.schema.json"), [])
             self.assertEqual(schema_errors(load(self.root, "static/dreamweave.json"), "dreamweave-index-2.schema.json"), [])
 
+    def test_extension_data_reaches_the_manifest_unchanged(self):
+        mod_toml = (self.root / "content/lantern/mod.toml").read_text()
+        extension = '[extensions."org.tes3mp"]\nserver_side = true\nsync = ["time", "weather"]\n\n'
+        (self.root / "content/lantern/mod.toml").write_text(mod_toml.replace("[[releases]]", extension + "[[releases]]", 1))
+        self.scratch.commit("Add a third-party extension")
+        build_site(self.root, "build")
+        release = self.manifest()["releases"][0]
+        self.assertEqual(release["extensions"]["org.tes3mp"], {"server_side": True, "sync": ["time", "weather"]})
+        self.assertEqual(release["critical_extensions"], ["openmw"])
+        self.assertIn("server_side = true", (self.root / "content/lantern/mod.toml").read_text())
+
+    def test_a_lock_that_belongs_to_another_project_is_refused(self):
+        self.lock_and_tag()
+        lock_path = self.root / "content/lantern/mod.lock"
+        lock = json.loads(lock_path.read_text())
+        lock["project"] = "11111111-2222-4333-8444-555555555555"
+        lock_path.write_text(json.dumps(lock))
+        self.scratch.commit("Tamper with the lock")
+        process = build_site(self.root, "check", check=False)
+        self.assertIn("claims someone else's releases", process.stdout + process.stderr)
+
+    def test_the_repository_documents_match_their_schemas(self):
+        if jsonschema is None:
+            self.skipTest("jsonschema is not installed")
+        self.lock_and_tag()
+        build_site(self.root, "build")
+        self.assertIn("match their schemas", build_site(self.root, "schemas").stdout)
+
     def test_a_tag_that_does_not_reproduce_its_lock_is_refused(self):
         build_site(self.root, "lock", "lantern")
         self.scratch.commit("RELEASE: Lantern 1.0.0")

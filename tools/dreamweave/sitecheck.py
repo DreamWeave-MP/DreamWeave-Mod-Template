@@ -77,3 +77,27 @@ def check_site(public: Path, base_url: str) -> tuple[int, list[str]]:
             elif target.fragment and local.suffix == ".html" and unquote(target.fragment) not in documents[local].ids:
                 errors.append(f"{relative}: missing anchor {link}")
     return checked, errors
+
+
+def check_protocol_documents(root: Path) -> tuple[int, list[str]]:
+    """Validate the generated index and manifests against the schemas the site publishes."""
+    try:
+        import jsonschema
+    except ImportError as error:
+        raise SystemExit("./buildSite schemas needs jsonschema: python3 -m pip install -r tools/requirements.txt") from error
+    import json
+
+    schemas = root / "static" / "schemas"
+    documents = [(root / "static" / "dreamweave.json", "dreamweave-index-2.schema.json")]
+    documents += [(path, "modManifest-2.schema.json") for path in sorted((root / "static" / "dreamweave" / "projects").glob("*.json"))]
+    errors = []
+    for path, schema_name in documents:
+        if not path.is_file():
+            errors.append(f"{path.relative_to(root)} does not exist; run ./buildSite build first")
+            continue
+        schema = json.loads((schemas / schema_name).read_text(encoding="utf-8"))
+        validator = jsonschema.Draft202012Validator(schema, format_checker=jsonschema.FormatChecker())
+        for error in validator.iter_errors(json.loads(path.read_text(encoding="utf-8"))):
+            location = "/".join(str(part) for part in error.absolute_path) or "(root)"
+            errors.append(f"{path.relative_to(root)} {location}: {error.message}")
+    return len(documents), errors

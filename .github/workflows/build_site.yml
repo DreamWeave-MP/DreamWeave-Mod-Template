@@ -168,6 +168,9 @@ jobs:
           DREAMWEAVE_DEVELOPMENT_REF: refs/heads/${{ github.event.repository.default_branch }}
         run: ./buildSite build
 
+      - name: Check the protocol documents against their schemas
+        run: ./buildSite schemas
+
       - name: Build the site
         env:
           BASE_URL: ${{ steps.base.outputs.url }}
