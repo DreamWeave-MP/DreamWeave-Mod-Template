@@ -1,15 +1,15 @@
 name: Build, release and publish
 
-# Pull requests: validate, test, build the site.
-# Pushes to the default branch: all of that, then a fresh `development` release and the site.
-# Tags (<slug>-<version>): rebuild that release, refuse it unless it matches mod.lock, publish its
-# archive, then rebuild the site from the default branch so the release appears on it.
+# Pull requests and pushes to other branches: validate, test, build the site. Nothing is published.
+# Pushes to the default branch (whatever it is called): all of that, then a fresh `development`
+# release and the site. Tags (<slug>-<version>): rebuild that release, refuse it unless it matches
+# mod.lock, publish its archive, then rebuild the site from the default branch so it appears there.
 #
 # The file name matters: Sigstore signatures name this workflow as the identity that signed.
 
 on:
   push:
-    branches: [main]
+    branches: ['**']
     tags: ['*']
   pull_request:
   workflow_dispatch:
@@ -19,7 +19,7 @@ permissions:
 
 concurrency:
   group: dreamweave-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: ${{ !(github.event_name != 'pull_request' && (github.ref_type == 'tag' || github.ref_name == github.event.repository.default_branch)) }}
 
 env:
   PYTHON_VERSION: '3.12'
@@ -128,7 +128,7 @@ jobs:
       # The site always describes the default branch, even when a tag triggered the run.
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.event.repository.default_branch }}
+          ref: ${{ github.ref_type == 'tag' && github.event.repository.default_branch || '' }}
           fetch-depth: 0
 
       - uses: actions/setup-python@v5
@@ -148,7 +148,7 @@ jobs:
 
       - name: Find the published site's URL
         id: pages
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && (github.ref_type == 'tag' || github.ref_name == github.event.repository.default_branch)
         uses: actions/configure-pages@v5
 
       - name: Choose the base URL
@@ -183,8 +183,10 @@ jobs:
 
       - name: Check whether anything asks to be signed
         id: signing
+        env:
+          PUBLISHING: ${{ github.event_name != 'pull_request' && (github.ref_type == 'tag' || github.ref_name == github.event.repository.default_branch) }}
         run: |
-          if [ -s dist/sign.txt ] && [ "$GITHUB_EVENT_NAME" = push ] && [ "$GITHUB_REF_TYPE" = branch ]; then
+          if [ -s dist/sign.txt ] && [ "$PUBLISHING" = true ] && [ "$GITHUB_REF_TYPE" = branch ]; then
             echo "needed=true" >> "$GITHUB_OUTPUT"
           else
             echo "needed=false" >> "$GITHUB_OUTPUT"
@@ -202,12 +204,12 @@ jobs:
           done < sign.txt
 
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && (github.ref_type == 'tag' || github.ref_name == github.event.repository.default_branch)
         with:
           path: public/
 
       - uses: actions/upload-artifact@v7
-        if: github.event_name != 'pull_request' && github.ref_type == 'branch'
+        if: github.event_name != 'pull_request' && (github.ref_type == 'tag' || github.ref_name == github.event.repository.default_branch) && github.ref_type == 'branch'
         with:
           name: development
           path: dist/
@@ -216,7 +218,7 @@ jobs:
   release-cleanup:
     name: Recreate the GitHub release
     needs: [release-archive, site]
-    if: ${{ !cancelled() && github.event_name != 'pull_request' && needs.site.result == 'success' && needs.release-archive.result != 'failure' }}
+    if: ${{ !cancelled() && github.event_name != 'pull_request' && (github.ref_type == 'tag' || github.ref_name == github.event.repository.default_branch) && needs.site.result == 'success' && needs.release-archive.result != 'failure' }}
     permissions:
       contents: write
     uses: DreamWeave-MP/StroggForge/.github/workflows/createRelease.yml@v40
@@ -260,7 +262,7 @@ jobs:
   deploy:
     name: Deploy to GitHub Pages
     needs: [site, upload-release]
-    if: ${{ !cancelled() && github.event_name != 'pull_request' && needs.site.result == 'success' && needs.upload-release.result == 'success' }}
+    if: ${{ !cancelled() && github.event_name != 'pull_request' && (github.ref_type == 'tag' || github.ref_name == github.event.repository.default_branch) && needs.site.result == 'success' && needs.upload-release.result == 'success' }}
     runs-on: ubuntu-24.04
     permissions:
       pages: write
