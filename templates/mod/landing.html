@@ -57,7 +57,7 @@
                 {%- endif %}
                 <a class="dw-button" href="modl://{{ project.game }}/?url={{ primary_source.url | safe }}" title="Hand the archive to umo or ModdingLinked MO2">Mod manager</a>
                 {%- endif %}
-                <a class="dw-button" href="#install">Install guide</a>
+                {%- if "install" in sections %}<a class="dw-button" href="#install">Install guide</a>{% endif %}
                 {%- if project.links.documentation is defined %}<a class="dw-button" href="{{ project.links.documentation | safe }}">Documentation</a>{% endif %}
                 <a class="dw-button dw-button--ghost" href="{{ project.links.source | safe }}">Source</a>
                 <a class="dw-button dw-button--ghost" href="{{ project.links.issues | safe }}">Report a problem</a>
