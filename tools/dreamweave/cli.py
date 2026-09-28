@@ -8,7 +8,7 @@ import time
 import uuid
 from pathlib import Path
 
-from . import build, gitrepo, offline, sitecheck
+from . import build, gitrepo, migrate, offline, sitecheck
 from .problems import InvalidRepository
 
 COMMANDS = ("check", "build", "lock", "verify", "serve", "new-id", "zola-version")
@@ -39,6 +39,9 @@ def command_parser() -> argparse.ArgumentParser:
     links_parser.add_argument("--base-url", help="the URL it was built for (default: DREAMWEAVE_BASE_URL or config.toml)")
 
     commands.add_parser("serve", help="write preview data, run `zola serve`, and regenerate when mod.toml or mod.lock change")
+    migrate_parser = commands.add_parser("migrate", help="print a suggested mod.toml for a V3 page (writes nothing)")
+    migrate_parser.add_argument("directory", help="the page's directory, e.g. content/my_mod")
+
     commands.add_parser("new-id", help="print a fresh project id (a random UUID)")
     commands.add_parser("zola-version", help="print the Zola version archives are rendered with")
     return parser
@@ -89,6 +92,12 @@ def main(arguments: list[str]) -> int:
         return 0
     if options.command == "zola-version":
         print(offline.ZOLA_VERSION)
+        return 0
+    if options.command == "migrate":
+        suggestion, notes = migrate.suggest(Path(options.directory).resolve())
+        print(suggestion, end="")
+        for note in notes:
+            print(f"note: {note}", file=sys.stderr)
         return 0
 
     root = repository_root()
