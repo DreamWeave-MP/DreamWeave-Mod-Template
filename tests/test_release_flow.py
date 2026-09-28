@@ -164,7 +164,7 @@ class ReleaseLifecycle(unittest.TestCase):
         self.assertEqual(stable["artifacts"][0]["sources"][0]["url"], "https://github.com/someone/cool-mods/releases/download/lantern-1.0.0/lantern.zip")
         self.assertEqual(stable["notes"]["summary"], "First.")
         development = next(release for release in manifest["releases"] if release["channel"] == "development")
-        self.assertRegex(development["version"], r"^1\.0\.1-dev\.\d+$")
+        self.assertEqual(development["version"], "1.0.1-dev.0", "CI's record commit changes nothing an archive contains")
 
         if jsonschema:
             self.assertEqual(schema_errors(manifest, "modManifest-2.schema.json"), [])

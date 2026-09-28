@@ -59,9 +59,10 @@ def commit_time(revision: str) -> str:
     return moment.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def count_commits(revision: str, since: str | None, path: str) -> int:
+def count_commits(revision: str, since: str | None, path: str, excluding: tuple[str, ...] = ()) -> int:
     span = f"{since}..{revision}" if since else revision
-    return int(run_git("rev-list", "--count", span, "--", path).decode().strip())
+    pathspecs = [path, *(f":(exclude){excluded}" for excluded in excluding)]
+    return int(run_git("rev-list", "--count", span, "--", *pathspecs).decode().strip())
 
 
 def tree_entries(revision: str, directory: str) -> list[TreeEntry]:

@@ -13,6 +13,7 @@ from .model import (
     DEVELOPMENT_CHANNEL,
     EXAMPLE_PROJECT_IDS,
     MEDIA_IMAGE_SUFFIXES,
+    MOD_LOCK,
     TEMPLATE_REPOSITORY,
     Project,
     SiteConfig,
@@ -223,7 +224,8 @@ def development_version(repository: Repository, project: Project, state: Release
     tagged += [release.version for release in project.releases if str(release.version) in state.unverified]
     base = max(tagged, key=lambda version: version.precedence_key(), default=None)
     since = project.release_tag(base) if base is not None else None
-    count = gitrepo.count_commits(repository.head, since, project.directory)
+    # CI's own record commits change only mod.lock, which no archive contains.
+    count = gitrepo.count_commits(repository.head, since, project.directory, excluding=(f"{project.directory}/{MOD_LOCK}",))
     if base is None:
         base = Version.parse("0.0.0" if project.versioning == "numeric" else "0", project.versioning)
     return base.next_development(count)
