@@ -8,7 +8,7 @@ import time
 import uuid
 from pathlib import Path
 
-from . import build, gitrepo, offline
+from . import build, gitrepo, offline, sitecheck
 from .problems import InvalidRepository
 
 COMMANDS = ("check", "build", "lock", "verify", "serve", "new-id", "zola-version")
@@ -33,6 +33,10 @@ def command_parser() -> argparse.ArgumentParser:
 
     verify_parser = commands.add_parser("verify", help="CI: rebuild a tagged release and fail unless it matches mod.lock")
     verify_parser.add_argument("tag", help="<slug>-<version>")
+
+    links_parser = commands.add_parser("links", help="check the built site's local links, assets and anchors")
+    links_parser.add_argument("--public", default="public", help="the built site (default: public)")
+    links_parser.add_argument("--base-url", help="the URL it was built for (default: DREAMWEAVE_BASE_URL or config.toml)")
 
     commands.add_parser("serve", help="write preview data, run `zola serve`, and regenerate when mod.toml or mod.lock change")
     commands.add_parser("new-id", help="print a fresh project id (a random UUID)")
@@ -109,6 +113,15 @@ def main(arguments: list[str]) -> int:
             repository.problems.raise_if_any()
             build.clean_dist(root)
             build.verify_tag(repository, options.tag)
+        elif options.command == "links":
+            import tomllib
+            base_url = options.base_url or os.environ.get("DREAMWEAVE_BASE_URL") or tomllib.loads((root / "config.toml").read_text())["base_url"]
+            checked, errors = sitecheck.check_site(root / options.public, base_url)
+            if errors:
+                print("\n".join(errors), file=sys.stderr)
+                print(f"{len(errors)} broken local link(s).", file=sys.stderr)
+                return 1
+            print(f"Checked {checked} local links, assets and anchors.")
         elif options.command == "serve":
             run_serve(root)
     except InvalidRepository as error:
