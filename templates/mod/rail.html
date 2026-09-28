@@ -10,8 +10,8 @@
                 <dt>Status</dt><dd>{{ dw_macros::status(state=project.status) }}</dd>
                 <dt>Package</dt><dd>{{ dw_macros::format_label(format=project.format) }}</dd>
                 {%- if not dw_offline and project.channels is defined %}
-                {%- for channel, head in project.channels %}
-                <dt>{{ channel | capitalize }}</dt><dd>{{ head.version }}</dd>
+                {%- for channel in project.channel_order %}
+                <dt>{{ channel | capitalize }}</dt><dd>{{ project.channels[channel].version }}</dd>
                 {%- endfor %}
                 {%- endif %}
             </dl>
@@ -22,7 +22,8 @@
     <section class="dw-panel">
         <h2 class="dw-panel__title">Downloads</h2>
         <div class="dw-panel__body">
-        {%- for channel, release in project.heads %}
+        {%- for channel in project.channel_order %}
+            {%- set release = project.heads[channel] %}
             <p class="dw-kicker"><span>{{ channel }}</span><span>{{ release.version }}</span>{% if release.date is defined %}<span>{{ release.date }}</span>{% endif %}</p>
             {%- for artifact in release.artifacts %}
             {{ dw_macros::artifact(artifact=artifact, release=release, project=project, primary=channel == "stable") }}

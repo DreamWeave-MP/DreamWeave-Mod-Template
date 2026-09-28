@@ -223,6 +223,10 @@ def project_view(repository: Repository, project: Project, base_url: str, offlin
 
     view["manifest_sha256"] = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
     view["channels"] = manifest["channels"]
+    channels = list(manifest["channels"])
+    view["channel_order"] = [channel for channel in ("stable",) if channel in channels] + sorted(
+        channel for channel in channels if channel not in ("stable", "development")
+    ) + [channel for channel in ("development",) if channel in channels]
     view["releases"] = manifest["releases"]
     heads = {}
     for channel, head in manifest["channels"].items():
