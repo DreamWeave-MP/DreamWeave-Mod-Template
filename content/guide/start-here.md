@@ -35,10 +35,22 @@ these do not name the repository it runs in. While you are there, set `title`, `
 `logo_text` and `base_url`. On GitHub Pages the workflow uses the real Pages URL anyway, so
 `base_url` mostly matters for local previews and for the links inside offline documentation.
 
-Comments and analytics are off. They stay off until you configure your own accounts; see
-[Customizing](@/guide/customizing.md).
+## 3. Turn on comments
 
-## 3. Make the project yours
+Every project page ends in a discussion thread, backed by your repository's GitHub Discussions
+through [giscus](https://giscus.app). It is the fastest way players will tell you what broke. To
+switch it on:
+
+1. **Settings → General → Features → Discussions**: tick it.
+2. Install the [giscus app](https://github.com/apps/giscus) on the repository.
+
+That is all. `config.toml` already asks for comments in the `General` category, and the build looks
+up your repository's ids itself; there is nothing to paste. Until both steps are done, the build
+prints a warning and pages simply have no thread.
+
+Analytics are off, and stay off until you set up your own GoatCounter code.
+
+## 4. Make the project yours
 
 The template ships two example projects. `content/home` is Candlelight, the complete example.
 `content/simplified` is Tallow, the minimal one. Turn `content/home` into your mod, and delete
@@ -82,7 +94,7 @@ summary = "First release."
 That is a complete, network-ready project. [Project pages](@/guide/project-pages.md) covers the
 rest of what you can say about it, and [mod.toml reference](@/guide/mod-toml.md) lists every key.
 
-## 4. Preview
+## 5. Preview
 
 ```sh
 ./buildSite serve
@@ -92,13 +104,13 @@ This validates everything, writes the preview data and starts Zola on <http://12
 It regenerates when you save `mod.toml`. Mistakes show up in the terminal with the file, the key
 and what to do about them. `./buildSite check` runs the same validation without serving anything.
 
-## 5. Push
+## 6. Push
 
 Commit and push to `main`. The workflow validates, packages a development build, builds the site
 and deploys it. Your page appears at `https://your-name.github.io/your-repository/home/`, and the
 development archive is on a GitHub release called `development`.
 
-## 6. Release
+## 7. Release
 
 When you have a version worth calling one, [Releases](@/guide/releases.md) walks through it. The
 short version:

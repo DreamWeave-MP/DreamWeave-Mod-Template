@@ -74,26 +74,48 @@ The docs shell (`templates/docs/`, `sass/docs.sass`, `static/docs/docs.js`) is s
 DreamWeave sites that import it. Restyle it through tokens rather than editing it, and upgrades stay
 a copy.
 
-## Comments and analytics
+## Comments
 
-Both are off, and a site built from the template never talks to DreamWeave's accounts.
-
-Comments use [giscus](https://giscus.app), which stores them in your repository's Discussions.
-Enable Discussions, install the giscus app on your repository, and copy the values it gives you:
+Project pages end in a **Discussion** section: a thread in your repository's GitHub Discussions,
+embedded with [giscus](https://giscus.app) and loaded live in the reader's browser. Nothing about the
+comments is part of the built site; a new comment appears immediately, without a rebuild.
 
 ```toml
-[extra]
-giscus = { repo = "you/your-repo", repo_id = "R_…", category = "General", category_id = "DIC_…", theme = "dark_dimmed" }
+[extra.comments]
+enabled = true
+category = "General"      # a Discussions category of your repository
+# reactions = true        # emoji reactions on each thread's first post
+# theme = "dark_dimmed"   # any giscus theme; the default is DreamWeave's, in your palette
+# mapping = "pathname"    # how a page finds its thread: pathname, title or og:title
 ```
 
-Page-view counts use [GoatCounter](https://www.goatcounter.com) with your own site code:
+It needs Discussions enabled on the repository and the [giscus app](https://github.com/apps/giscus)
+installed. The build asks giscus for your repository's and category's ids, for the repository named
+by `github_username` and `github_project`, which CI checks is the one it runs in. That is why there
+are no ids to paste, and why a copied `config.toml` cannot post into someone else's Discussions. If
+giscus is not installed yet, or unreachable, the build warns and leaves comments out; a category
+name that does not exist is an error.
+
+Threads are matched by page path, as in V3, so existing threads keep their pages. Changelogs and the
+network page have no thread. Docs pages have none unless their docs root sets
+`docs_comments = true`, and any page can opt out with `comments = false` in its `[extra]`. The
+offline documentation inside archives never loads comments.
+
+The DreamWeave giscus theme is served from your site (`giscus/<palette>.css`), so it only applies on
+the published https site. A local preview uses giscus's own dark theme.
+
+## Analytics
+
+Page-view counts use [GoatCounter](https://www.goatcounter.com) with your own site code, and are off
+until you set it:
 
 ```toml
 [extra]
 goatcounter = "your-code"
 ```
 
-Neither loads in the offline documentation inside archives.
+A site built from the template never reports to DreamWeave's analytics, and the offline
+documentation never loads them.
 
 ## Search
 

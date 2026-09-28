@@ -27,7 +27,9 @@
   variables, function calls cannot be `if` conditions. Use `| safe` only on URLs and trusted HTML.
 - The docs shell (`templates/docs/`, `sass/docs.sass`, `static/docs/docs.js`) and the schematic
   shortcode are imported by StroggForge; keep class names and arguments stable.
-- Nothing may default to DreamWeave's accounts: comments and analytics stay off until configured.
+- Nothing may default to DreamWeave's accounts. Analytics stay off until configured. Comments are on,
+  but `tools/dreamweave/comments.py` looks up giscus ids for the site's own repository at build time;
+  never reintroduce pasted `repo_id`/`category_id`. No comment content is ever built into the site.
 
 ## Verification
 

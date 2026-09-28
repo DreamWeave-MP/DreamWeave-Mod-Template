@@ -25,7 +25,8 @@ carries V3 project frontmatter without a `mod.toml` is an error that names the p
 | Commit-log changelog | Release notes in `mod.toml`, one changelog for the page, the manifest and the GitHub release |
 | `./buildSite --build --changelog --tag …` | `./buildSite check`, `build`, `lock`, `verify`, `serve`, `links` |
 | terminimal theme, `accent_color`, `background_color` | The template's own layout, `palette` and `accent`, tokens in `sass/brand.sass` |
-| Giscus and GoatCounter pointing at DreamWeave's accounts by default | Off until you configure your own |
+| `giscus = { repo_id, category_id, … }` with pasted ids | `[extra.comments]`; the build looks the ids up for your own repository |
+| GoatCounter pointing at DreamWeave's account by default | Off until you set your own code |
 | `segment_versions`, `excluded_dirs`, `button_style`, `use_custom_titles`, `enable_post_view_navigation` | Gone |
 
 The shortcodes existing pages call, `install_instructions`, `credits`, `usage_note`, `image` and
@@ -59,6 +60,12 @@ writes nothing itself. Its notes, on stderr, say what it could not decide. It:
   content files, fallback entries and Nexus ids across;
 - skips placeholder versions like `UNRELEASED`, and a frontmatter version that was never bumped past
   the last tag.
+
+**Comments.** Replace the V3 `giscus = {…}` line with `[extra.comments]` (see
+[Customizing](@/guide/customizing.md#comments)); the build refuses the old one. Pasted ids are how a
+copied config sends comments to the wrong repository: St4sh's config carried the Mod Template's
+`repo_id`, so the one St4sh page thread that exists was created in the Mod Template's Discussions.
+Threads are still matched by page path, so threads created in the right repository keep their pages.
 
 **3. Review it.** Narrow `openmw = "*"` to what you have tested. Split data directories into
 `[[components]]` with `format = "bain"` or `"fomod"` if players should choose. Add notes to the

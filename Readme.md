@@ -12,7 +12,8 @@ read without scraping it.
 
 1. Click **Use this template** (not Fork) and create your repository. Set
    **Settings → Pages → Source** to **GitHub Actions**.
-2. In `config.toml`, set `github_username` and `github_project` to your repository.
+2. In `config.toml`, set `github_username` and `github_project` to your repository. For comments,
+   enable Discussions on it and install the [giscus app](https://github.com/apps/giscus).
 3. Run `./buildSite new-id` and put the result in `content/home/mod.toml` as `id`. Set `slug` to a
    short name like `my_mod`: it names your archive and your release tags.
 4. Replace Candlelight's files in `content/home` with your mod, and rewrite `content/home/index.md`:
@@ -47,8 +48,10 @@ plus [Zola](https://www.getzola.org/) to preview. No Node, no Rust, no accounts.
   scoped search and copy buttons.
 - **One mod or a catalog of them.** Delete one line and the front page becomes a paginated catalog;
   every project keeps its own id, releases and tags.
-- **Nothing phoning home.** No analytics, comments, web fonts or CDN unless you configure them.
-  Every page works without JavaScript.
+- **A discussion on every mod page**, backed by your repository's GitHub Discussions through giscus
+  and styled to match. Enable Discussions and install the giscus app; there are no ids to paste.
+- **Nothing phoning home.** No analytics, web fonts or CDN unless you configure them. Every page works
+  without JavaScript, and comments are the only third-party embed.
 
 ## Commands
 
