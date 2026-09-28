@@ -14,10 +14,6 @@ generate_feeds = true
 feed_filenames = ["atom.xml"]
 taxonomies = [{ name = "tags", feed = false }]
 
-# mod.toml and mod.lock are build inputs, not pages. The published manifests are generated
-# from them under /dreamweave/.
-ignored_content = ["**/mod.toml", "**/mod.lock"]
-
 [search]
 index_format = "fuse_json"
 include_title = true

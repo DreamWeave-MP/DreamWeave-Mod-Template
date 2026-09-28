@@ -23,7 +23,6 @@ base_url = "https://example.github.io/cool-mods"
 title = "Cool Mods"
 compile_sass = true
 build_search_index = true
-ignored_content = ["**/mod.toml", "**/mod.lock"]
 
 [search]
 index_format = "fuse_json"
@@ -68,6 +67,7 @@ class Scratch:
         (self.root / "config.toml").write_text(SITE_CONFIG)
         (self.root / ".gitignore").write_text((REPOSITORY / ".gitignore").read_text())
         self.write("content/_index.md", '+++\ntitle = "Cool Mods"\nsort_by = "title"\npaginate_by = 2\n+++\n')
+        self.write("content/network.md", (REPOSITORY / "content/network.md").read_text())
         git(self.root, "init", "-q", "-b", "main")
         git(self.root, "config", "user.email", "test@example.invalid")
         git(self.root, "config", "user.name", "Test")

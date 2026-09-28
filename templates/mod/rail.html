@@ -9,16 +9,16 @@
                 <dt>Type</dt><dd>{{ dw_macros::type_label(type=project.type) }}</dd>
                 <dt>Status</dt><dd>{{ dw_macros::status(state=project.status) }}</dd>
                 <dt>Package</dt><dd>{{ dw_macros::format_label(format=project.format) }}</dd>
-                {%- if not dw_offline and project.channels is defined %}
+                {%- if not dw_offline %}
                 {%- for channel in project.channel_order %}
-                <dt>{{ channel | capitalize }}</dt><dd>{{ project.channels[channel].version }}</dd>
+                <dt>{{ channel | capitalize }}</dt><dd>{{ project.heads[channel].version }}</dd>
                 {%- endfor %}
                 {%- endif %}
             </dl>
         </div>
     </section>
 
-    {%- if not dw_offline and project.heads is defined and project.heads | length > 0 %}
+    {%- if not dw_offline and project.channel_order | length > 0 %}
     <section class="dw-panel">
         <h2 class="dw-panel__title">Downloads</h2>
         <div class="dw-panel__body">
@@ -38,7 +38,7 @@
         <div class="dw-panel__body">
             <ul class="dw-linklist">
                 {%- if project.links.documentation is defined %}<li><a href="{{ project.links.documentation | safe }}"><span>Documentation</span></a></li>{% endif %}
-                {%- if project.declared_releases | length > 0 %}<li><a href="{{ changelog_url | safe }}"><span>Changelog</span><small>{{ project.declared_releases | length }}</small></a></li>{% endif %}
+                {%- if changelog_page and project.declared_releases | length > 0 %}<li><a href="{{ changelog_url | safe }}"><span>Changelog</span><small>{{ project.declared_releases | length }}</small></a></li>{% endif %}
                 <li><a href="{{ project.links.source | safe }}"><span>Source</span></a></li>
                 <li><a href="{{ project.links.issues | safe }}"><span>Report a problem</span></a></li>
                 {%- if not dw_offline and dw.comments is defined and dw.comments.state == "on" %}<li><a href="#comments"><span>Discussion</span></a></li>{% endif %}
@@ -49,7 +49,7 @@
         </div>
     </section>
 
-    {%- if relationships.required_by is defined or relationships.recommended_by is defined %}
+    {%- if relationships.required_by | default(value=[]) | length > 0 or relationships.recommended_by | default(value=[]) | length > 0 %}
     <section class="dw-panel">
         <h2 class="dw-panel__title">Used by</h2>
         <div class="dw-panel__body">

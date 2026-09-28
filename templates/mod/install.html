@@ -28,7 +28,8 @@
                     <li>Open the launcher and check the load order. Content files load in the order listed here.</li>
                 </ol>
                 <div class="dw-configurator" data-configurator>
-                    <script type="application/json" data-install-model>{{ project.install_data | safe }}</script>
+                    {#- JSON inside <script> must not contain "<", or author text could close the element. -#}
+                    <script type="application/json" data-install-model>{{ project.install | json_encode | replace(from="&", to="\u0026") | replace(from="<", to="\u003c") | replace(from=">", to="\u003e") | safe }}</script>
                     <div class="dw-configurator__row" data-configurator-controls hidden>
                         <label for="dw-install-path-{{ project.slug }}">Folder you extracted to</label>
                         <input type="text" id="dw-install-path-{{ project.slug }}" data-install-path placeholder="C:/Games/OpenMW-Mods/{{ page.title }}" spellcheck="false" autocomplete="off">

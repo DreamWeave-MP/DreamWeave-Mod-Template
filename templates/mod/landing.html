@@ -1,9 +1,6 @@
-{#- A project's landing page, rendered from the generated view. Expects `project` and `page`. -#}
-{%- set stable = false -%}{%- set development = false -%}
-{%- if project.heads is defined -%}
-  {%- set stable = project.heads | get(key="stable", default=false) -%}
-  {%- set development = project.heads | get(key="development", default=false) -%}
-{%- endif -%}
+{#- A project's landing page. Expects `project` (templates/macros/project.html), `ci` and `page`. -#}
+{%- set stable = project.heads | get(key="stable", default=false) -%}
+{%- set development = project.heads | get(key="development", default=false) -%}
 {%- if stable %}{% set primary = stable %}{% elif development %}{% set primary = development %}{% else %}{% set primary = false %}{% endif -%}
 {%- set images = project.media | filter(attribute="kind", value="image") -%}
 {%- set featured_items = images | filter(attribute="featured", value=true) -%}
@@ -13,6 +10,8 @@
 {%- set optional_components = project.components | filter(attribute="required", value=false) -%}
 {%- set sections = page.extra.sections | default(value=["overview", "media", "install", "compatibility", "components", "releases", "credits"]) -%}
 {%- set changelog_url = page.permalink ~ "changelog/" -%}
+{#- CI generates the changelog page. Without it (a plain `zola serve`) every release is listed here. -#}
+{%- set changelog_page = load_data(path="content/" ~ page.colocated_path ~ "_changelog.md", format="plain", required=false) -%}
 {%- set relationships = project.relationships -%}
 
 <header class="dw-hero">
@@ -28,7 +27,7 @@
 
             <dl class="dw-strip" aria-label="Project status">
                 {%- if dw_offline %}
-                <div><dt>This archive</dt><dd>{{ project.packaged_version | default(value="unversioned") }}</dd></div>
+                <div><dt>This archive</dt><dd>{% if ci and ci.packaged_version %}{{ ci.packaged_version }}{% else %}unversioned{% endif %}</dd></div>
                 {%- else %}
                 <div><dt>Stable</dt><dd>{% if stable %}<a href="#v{{ stable.version | slugify }}">{{ stable.version }}</a> <small>{{ stable.date }}</small>{% else %}not released{% endif %}</dd></div>
                 {%- if development %}
@@ -155,12 +154,13 @@
 
     {%- elif name == "releases" and project.declared_releases | length > 0 %}
         <section class="dw-section" id="releases" aria-labelledby="releases-title">
-            <div class="dw-section__head"><h2 id="releases-title">Releases</h2><p><a href="{{ changelog_url | safe }}">Full changelog →</a></p></div>
+            <div class="dw-section__head"><h2 id="releases-title">Releases</h2>{% if changelog_page %}<p><a href="{{ changelog_url | safe }}">Full changelog →</a></p>{% endif %}</div>
+            {%- if changelog_page %}{% set shown = project.declared_releases | slice(end=3) %}{% else %}{% set shown = project.declared_releases %}{% endif %}
             <ol class="dw-releases">
-            {%- for declared in project.declared_releases | slice(end=3) %}
+            {%- for declared in shown %}
                 {%- set published = false %}
                 {%- if not dw_offline %}
-                {%- set matches = project.releases | default(value=[]) | filter(attribute="version", value=declared.version) %}
+                {%- set matches = project.releases | filter(attribute="version", value=declared.version) %}
                 {%- if matches | length > 0 %}{% set published = matches | first %}{% endif %}
                 {%- endif %}
                 {{ dw_macros::release_entry(declared=declared, published=published, project=project) }}

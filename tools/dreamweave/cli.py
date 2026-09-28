@@ -3,9 +3,7 @@
 
 import argparse
 import os
-import subprocess
 import sys
-import time
 from pathlib import Path
 
 from . import build, gitrepo, migrate, offline, sitecheck
@@ -22,7 +20,7 @@ def command_parser() -> argparse.ArgumentParser:
     commands.add_parser("check", help="validate every project without writing anything")
 
     build_parser = commands.add_parser("build", help="package development builds and write the site's protocol files")
-    build_parser.add_argument("--skip-archives", action="store_true", help="skip packaging (faster preview; development hashes are omitted)")
+    build_parser.add_argument("--skip-archives", action="store_true", help="skip packaging (faster; development hashes are omitted)")
 
     release_parser = commands.add_parser("release", help="with a tag checked out: build that release into dist/, with its record for mod.lock")
     release_parser.add_argument("tag", help="<slug>-<version>")
@@ -36,7 +34,6 @@ def command_parser() -> argparse.ArgumentParser:
 
     commands.add_parser("schemas", help="validate the generated index and manifests against the published schemas")
 
-    commands.add_parser("serve", help="write preview data, run `zola serve`, and regenerate when mod.toml or mod.lock change")
     migrate_parser = commands.add_parser("migrate", help="print a suggested mod.toml for a V3 page (writes nothing)")
     migrate_parser.add_argument("directory", help="the page's directory, e.g. content/my_mod")
 
@@ -57,30 +54,6 @@ def run_build(root: Path, skip_archives: bool) -> None:
     artifacts = build.build_development(repository, include_archives=not skip_archives)
     build.write_site(repository, artifacts, archives_built=not skip_archives)
     print(f"Wrote {build.INDEX_FILE} and {len(repository.projects)} project manifest(s) under {build.GENERATED_ROOT}/projects/")
-
-
-def watched_state(root: Path) -> tuple:
-    paths = sorted([*root.glob("content/**/mod.toml"), *root.glob("content/**/mod.lock"), *root.glob("content/**/index.md"), root / "config.toml"])
-    return tuple((str(path), path.stat().st_mtime_ns) for path in paths if path.exists())
-
-
-def run_serve(root: Path) -> None:
-    run_build(root, skip_archives=True)
-    process = subprocess.Popen(["zola", "serve"], cwd=root)
-    state = watched_state(root)
-    try:
-        while process.poll() is None:
-            time.sleep(1)
-            current = watched_state(root)
-            if current != state:
-                state = current
-                try:
-                    run_build(root, skip_archives=True)
-                except InvalidRepository as error:
-                    print(error.render(), file=sys.stderr)
-    except KeyboardInterrupt:
-        process.terminate()
-    process.wait()
 
 
 def main(arguments: list[str]) -> int:
@@ -131,8 +104,6 @@ def main(arguments: list[str]) -> int:
                 print("\n".join(errors), file=sys.stderr)
                 return 1
             print(f"{checked} protocol document(s) match their schemas.")
-        elif options.command == "serve":
-            run_serve(root)
     except InvalidRepository as error:
         print(error.render(), file=sys.stderr)
         return 1

@@ -1,7 +1,11 @@
 {#- The document shell every page extends. Blocks keep their V3 names: extra_head, header,
-    content, footer, extra_body. `dw` is the generated view (static/dreamweave/view.json). -#}
+    content, footer, extra_body. `dw` is what only CI knows (static/dreamweave/view.json), and is
+    false under a plain `zola serve`: everything else comes from the site's own files. -#}
 {%- set_global dw = load_data(path="static/dreamweave/view.json", required=false) -%}
 {%- set_global dw_offline = config.extra.dreamweave_offline | default(value=false) -%}
+{#- Pages that describe a project set `project` (and `ci`, its CI facts) here, before anything
+    renders. See templates/macros/project.html. -#}
+{%- block model %}{% endblock model -%}
 {%- if lang is defined and lang -%}{%- set document_language = lang -%}{%- else -%}{%- set document_language = config.default_language -%}{%- endif -%}
 {%- set palette = config.extra.palette | default(value="purple") -%}
 {%- if page -%}
