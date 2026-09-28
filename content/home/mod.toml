@@ -1,0 +1,190 @@
+# Candlelight: the complete example. Every key this template understands appears here once.
+# The minimal version of this file is five lines; see content/simplified/mod.toml.
+#
+# The display name and one-line summary are NOT here. They are `title` and `description`
+# in index.md's frontmatter, so they are written exactly once.
+
+# Identity. Generated once with `./buildSite new-id` and never changed: not when the mod is
+# renamed, not when it moves hosts, not when it lands on Nexus. Copying this value into another
+# project makes the two indistinguishable, so the build refuses the template's example ids.
+id = "4d0c9f6e-2b1a-4c8e-9f3a-7e5d1b2c6a90"
+
+# Archive name and release-tag prefix: candlelight.zip, tagged candlelight-1.1.0. Not identity;
+# changing it breaks old download links but not the project.
+slug = "candlelight"
+
+type = "mod"          # mod | library | framework | tool | assets | total-conversion | documentation
+status = "active"     # active | maintenance | experimental | deprecated | archived
+game = "morrowind"
+license = "GPL-3.0-or-later"
+
+# Capabilities other projects can depend on without naming this one.
+provides = ["dreamweave:dynamic-lights"]
+
+[[maintainers]]
+name = "DreamWeave"
+url = "https://github.com/DreamWeave-MP"
+
+# Where things are. `source` and `issues` default to this repository on GitHub.
+[links]
+documentation = "@/home/docs/_index.md"
+support = "https://github.com/DreamWeave-MP/DreamWeave-Mod-Template/discussions"
+
+# Engines this runs on, with version constraints. Constraints are comma-separated comparators
+# that must all hold: >=0.49, <0.51. There is no ^, ~ or ||, on purpose.
+[runtimes]
+openmw = ">=0.49"
+
+# Relationships name other projects by id. `name` is for humans; `url` tells a client where
+# to discover the project. An entry without an id is shown to people but cannot be resolved.
+[[requires]]
+id = "9b7e3f21-6c4d-4a8b-b1e2-3f5a7c9d0e14"
+name = "Tallow"
+version = ">=1.0"
+url = "https://dreamweave-mp.github.io/DreamWeave-Mod-Template/simplified/"
+
+[[recommends]]
+name = "Tamriel Rebuilt"
+url = "https://www.tamriel-rebuilt.org/"
+reason = "Install the Tamriel Rebuilt component to light the mainland too."
+
+[[conflicts]]
+name = "Other mods that script vanilla light records"
+reason = "Two scripts animating the same light fight every frame. Pick one."
+
+[[compatible]]
+name = "OpenMW's own shadows and post-processing"
+reason = "Tested with shadows, per-pixel lighting and the default post-processing stack."
+
+
+# What OpenMW needs to know that is true of the whole project.
+[openmw]
+lua_api = ">=60"
+requires_content = ["Morrowind.esm"]
+
+[[openmw.settings]]
+category = "Shaders"
+key = "force per pixel lighting"
+value = true
+
+# How the archive is laid out. `flat` is one data directory. `bain` is numbered top-level
+# directories. `fomod` is a bain tree plus a generated fomod/ installer for MO2 and Vortex.
+[package]
+format = "fomod"
+documentation = true    # ship this page and its docs as offline HTML in Documentation/
+development = true      # publish a rolling build of the default branch on the development channel
+
+# Components are the pieces a user can choose. Paths are top-level directories of this folder.
+[[components]]
+id = "core"
+name = "Core"
+path = "00 Core"
+required = true
+description = "The light scripts. Everything else is optional."
+
+[components.openmw]
+content_files = ["Candlelight.omwscripts"]
+
+[[components]]
+id = "tamriel-rebuilt"
+name = "Tamriel Rebuilt patch"
+path = "10 Tamriel Rebuilt"
+description = "Light records from the Tamriel Rebuilt mainland."
+
+[components.openmw]
+content_files = ["Candlelight - TR.omwscripts"]
+requires_content = ["TR_Mainland.esm"]
+
+[[groups]]
+id = "flames"
+name = "Flame textures"
+select = "exactly-one"
+description = "Pick one. Both replace the same files."
+
+[[components]]
+id = "flames-2k"
+name = "Flames, 2K"
+path = "20 Flames 2K"
+group = "flames"
+default = true
+
+[[components]]
+id = "flames-4k"
+name = "Flames, 4K"
+path = "21 Flames 4K"
+group = "flames"
+description = "Sharper up close. Four times the VRAM for a candle."
+
+[install]
+post_install = "Load a save that is not inside a building. Lights re-register when their cell loads."
+upgrade = "Replace the old files. Candlelight stores no state in saves, so there is nothing to migrate."
+uninstall = "Remove the data directories and `content=` lines. Lights return to vanilla on the next cell load."
+
+# Images live next to this file. `alt` is required: it is what a screen reader says.
+[[media]]
+file = "media/dusk-over-balmora.webp"
+alt = "Warm lantern light scattered across dark hills under a violet dusk sky."
+caption = "Dusk, with every lantern following the time of day."
+category = "Gameplay"
+featured = true
+
+[[media]]
+file = "media/storm-lanterns.webp"
+alt = "A handful of dim lanterns under a heavy grey storm sky."
+caption = "Storm weather dims and gutters exposed flames."
+category = "Weather"
+
+[[media]]
+file = "media/ashland-camp.webp"
+alt = "A few bright fires glowing orange against a red ashland sky."
+caption = "Campfires in the Ashlands during an ash storm."
+category = "Weather"
+
+[[media]]
+file = "media/tallow-schedule.webp"
+alt = "Cool blue-violet lights on a night hillside."
+caption = "Magic lights ignore the weather; Tallow schedules them anyway."
+category = "Magic"
+
+[[credits]]
+name = "S3ctor"
+role = "Scripts"
+url = "https://github.com/magicaldave"
+
+[[credits]]
+name = "DreamWeave contributors"
+role = "Testing"
+
+# Where the Nexus Mods page is. A location, not an identity. `file_group_id` enables the
+# workflow's Nexus upload on tagged releases.
+[nexusmods]
+mod_id = 57511
+
+# Extra download locations. Placeholders: {slug} {version} {tag} {filename} {sha256}.
+# A mirror serves bytes; the manifest's hash decides whether they are the right bytes.
+# [[mirrors]]
+# name = "Example content-addressed cache"
+# url = "https://cache.example.org/sha256/{sha256}"
+
+# Keyless Sigstore signing in CI: proves the archive came from this repository's workflow.
+[provenance]
+sigstore = false
+
+# Releases. Notes are Markdown. Date, channel, notes and yank state can be corrected later;
+# what the release contains is frozen in mod.lock by `./buildSite lock candlelight`.
+[[releases]]
+version = "1.0.0"
+date = 2026-09-14
+summary = "First release."
+highlights = "Candles, lanterns and torches respond to the hour and the weather."
+added = ["Time-of-day light curves for every vanilla light.", "Weather dimming for exposed flames."]
+
+[[releases]]
+version = "1.1.0"
+date = 2026-09-27
+summary = "Tamriel Rebuilt support and a texture choice."
+added = ["Tamriel Rebuilt patch component.", "2K and 4K flame textures."]
+fixed = ["Lights inside interiors no longer dim during storms."]
+changed = ["Now requires Tallow 1.0 for scheduling."]
+migration = "Install Tallow before updating. Candlelight 1.1 refuses to start without it."
+known_issues = ["Lights in cells loaded during a weather transition update one frame late."]
