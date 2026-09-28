@@ -1,0 +1,15 @@
+# Tallow: the minimal example. This is everything a network-ready project needs.
+id = "9b7e3f21-6c4d-4a8b-b1e2-3f5a7c9d0e14"
+slug = "tallow"
+type = "library"
+
+[runtimes]
+openmw = ">=0.49"
+
+[openmw]
+content_files = ["Tallow.omwscripts"]
+
+[[releases]]
+version = "1.0.0"
+date = 2026-09-20
+summary = "First release: dusk, dawn and hourly callbacks."

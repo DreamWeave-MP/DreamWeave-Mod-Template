@@ -1,45 +1,28 @@
 +++
-title = "My Simplified Example Mod"
-date = 2025-12-29
+title = "Tallow"
+description = "A tiny OpenMW Lua library that wakes your script at dusk, at dawn, or on the hour."
 
 [taxonomies]
-tags = [ "Different", "Tag", "Names"]
-
-[extra]
-hide_download_bar = true
-use_toc = false
-version = "0.1"
+tags = ["Library", "Lua", "OpenMW"]
 +++
 
-This is much better, isn't it?
+Tallow schedules callbacks against the game clock, so a script that cares about the time of day
+can sleep until the time it cares about instead of checking every frame.
 
 <!-- more -->
 
-## Headings link to and from the table of contents.
+```lua
+local I = require('openmw.interfaces')
 
-Why walk when you can float? The Telvanni magister demanded a treatise on levitation. His tower grew impatient. The parchment sprouted fungal caps.
-The margins crawled with nix-hounds, their grammar all bite and no bark.
-The footnote reads: "See also: plummeting, sudden."
+I.Tallow.every('dusk', function()
+  print('The lamps are lit.')
+end)
+```
 
-# Contents Are
+`every(moment, callback)` accepts `'dusk'`, `'dawn'` or an hour from `0` to `23`. Callbacks run
+once per occurrence, in the order they were registered.
 
-The alchemist's manual devolved into a list. Hackle-Lo leaf, marshmerrow, scuttle... and then, for ten pages, just the word "skooma" written in increasingly frantic, spidery script.
-
-The final page is a single golden stain, shaped vaguely like a sinking sun.
-
-A helpful cartouche labels it: "Perfect clarity."
-
-## Generated Up To
-
-A bard's tale from Skyrim, translated poorly. The words "cheese," "shout," and "dragon" appear with unreasonable frequency.
-
-The syntax is battered, as if by a great warhammer.
-
-Whole passages are just the sound a Nord makes before a fight, spelled out phonetically. It smells of mead and regret.
-
-### Heading 3
-
-The Black Horse Courier's rejected obituary. "He died as he lived: annoyingly," it begins.
-It details a fatal misunderstanding with a Guar, a misplaced intervention by a Daedric Prince of minor ridicule, and a funeral procession disrupted by a surprisingly eloquent mudcrab.
-
-The tone is inappropriately jaunty. It is the most accurate document in all Tamriel.
+{% callout(kind="note", title="This page is an example") %}
+Tallow is the template's minimal example. Its whole `mod.toml` is an id, a slug, a runtime, one
+content file and one release. [Candlelight](@/home/index.md) depends on it.
+{% end %}
