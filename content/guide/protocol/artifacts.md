@@ -12,11 +12,12 @@ kind = "reference"
 | Field | Meaning |
 |---|---|
 | `id` | Token, unique within the release. |
-| `format` | `flat`, `bain` or `fomod`: how the archive is laid out. See [Installation](@/guide/protocol/installation.md). |
+| `format` | `flat`, `bain` or `fomod`: game data, laid out as [Installation](@/guide/protocol/installation.md) describes. `binary`: a program built for one platform. |
 | `filename` | A suggested file name. Not identity. |
 | `media_type` | `application/zip` for every current format. |
 | `size` | Bytes. |
 | `digests` | `{ "sha256": "<64 lowercase hex>" }`. Further algorithms MAY be added; `sha256` is always present. |
+| `platform` | `{ os, arch }`, required when `format` is `binary`: the one platform the program runs on. |
 | `layout` | *Optional.* Paths inside the archive: `release_document`, `documentation` (the offline docs' entry page), `installer` (`fomod/ModuleConfig.xml`). |
 | `sources` | At least one `{ url, kind, name? }`. `kind` is `publisher` for locations the project operates, `mirror` otherwise. |
 | `signatures` | `[{ format, url, issuer?, identity? }]`. May be empty. |
@@ -54,9 +55,25 @@ Every archive is a zip. Archives built by the DreamWeave Mod Template are stored
 sorted, dated 1980-01-01 and byte-reproducible from their source commit; the protocol does not
 require any of that, only that the digest match.
 
-At the root:
+At the root of a `flat`, `bain` or `fomod` archive:
 
 - the project's files, laid out per `format`;
 - `dreamweave.release.json`, the [release payload](@/guide/protocol/manifest.md#release-payload);
 - `Documentation/`, optionally: the project's pages rendered as self-contained HTML;
 - `fomod/`, for `format: "fomod"`: a ModConfig 5.0 installer generated from the components.
+
+## Programs
+
+A release of a tool built from source has one `binary` artifact per platform, each with its
+`platform`. The release's `platforms` lists them all. A client offers the artifact whose `platform`
+matches the machine it runs on, and none if nothing matches: a Windows build is not a fallback for
+Linux.
+
+A binary archive holds the program and the files its publisher ships beside it, and nothing
+DreamWeave adds; there is no release payload inside. It is not game data. A client MUST NOT install it
+into a game's data directories, and MUST NOT run anything from it as part of installing. Unpacking
+it where the user asks, verified, is the whole job.
+
+The DreamWeave Mod Template publishes these from StroggForge's Rust workflow: it builds, signs and
+scans a program per platform, and the template hashes those exact archives into the release record
+before publishing them.

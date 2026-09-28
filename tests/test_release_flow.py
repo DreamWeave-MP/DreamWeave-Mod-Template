@@ -71,6 +71,30 @@ name = "Embers"
 path = "20 Embers"
 group = "extras"
 """
+BROOM_ID = "7d8e9f0a-1b2c-4d3e-8f4a-5b6c7d8e9f0a"
+BROOM = """
+id = "7d8e9f0a-1b2c-4d3e-8f4a-5b6c7d8e9f0a"
+slug = "broom"
+type = "tool"
+
+[package]
+format = "binary"
+binary = "broom"
+include = ["README.md"]
+
+[[platforms]]
+os = "linux"
+arch = "x86_64"
+
+[[platforms]]
+os = "windows"
+arch = "x86_64"
+
+[[releases]]
+version = "1.0.0"
+date = 2026-01-02
+summary = "First."
+"""
 HEARTH_FILES = {"00 Core/Hearth.omwscripts": "PLAYER: x.lua\n", "10 Light/a.txt": "a", "11 Heavy/b.txt": "b", "20 Embers/c.txt": "c"}
 
 
@@ -197,6 +221,55 @@ class ReleaseLifecycle(unittest.TestCase):
         self.release()
         build_site(self.root, "build")
         self.assertIn("match their schemas", build_site(self.root, "schemas").stdout)
+
+    def add_broom(self) -> None:
+        """A program, built per platform by the Rust workflow rather than zipped from content/."""
+        self.scratch.write("README.md", "Broom sweeps.\n")
+        self.scratch.add_project("broom", BROOM, title="Broom", description="Sweeps maps.")
+        self.scratch.commit("Add Broom")
+
+    def stage_binaries(self, build: str, platforms=("Linux-X64", "Windows-X64")) -> None:
+        """What the workflow's download step leaves in dist/binaries/."""
+        binaries = self.root / "dist/binaries"
+        binaries.mkdir(parents=True, exist_ok=True)
+        for platform in platforms:
+            (binaries / f"broom-{platform}.zip").write_bytes(f"broom {platform} {build}".encode())
+
+    def test_a_binary_release_records_every_platform_the_rust_workflow_built(self):
+        self.add_broom()
+        git(self.root, "tag", "broom-1.0.0")
+        git(self.root, "checkout", "-q", "broom-1.0.0")
+        process = build_site(self.root, "release", "broom-1.0.0", check=False)
+        self.assertIn("broom-Linux-X64.zip", process.stderr, "without the Rust workflow's archives there is nothing to release")
+        self.stage_binaries("1.0.0")
+        build_site(self.root, "release", "broom-1.0.0")
+        self.assertTrue((self.root / "dist/broom-Windows-X64.zip").is_file(), "the hashed bytes are the published bytes")
+        git(self.root, "checkout", "-q", "main")
+        build_site(self.root, "record")
+        self.scratch.commit("RELEASE: Broom 1.0.0")
+
+        locked = load(self.root, "content/broom/mod.lock")["releases"][0]
+        self.assertEqual([artifact["id"] for artifact in locked["artifacts"]], ["linux-x64", "windows-x64"])
+        windows = locked["artifacts"][1]
+        self.assertEqual(windows["format"], "binary")
+        self.assertEqual(windows["platform"], {"os": "windows", "arch": "x86_64"})
+        self.assertEqual(windows["digests"]["sha256"], hashlib.sha256(b"broom Windows-X64 1.0.0").hexdigest())
+
+        self.stage_binaries("dev")
+        build_site(self.root, "build")
+        manifest = load(self.root, f"static/dreamweave/projects/{BROOM_ID}.json")
+        self.assertEqual(manifest["channels"]["stable"], {"version": "1.0.0"})
+        development = next(release for release in manifest["releases"] if release["channel"] == "development")
+        self.assertEqual(development["artifacts"][0]["sources"][0]["url"], "https://github.com/someone/cool-mods/releases/download/development/broom-Linux-X64.zip")
+        self.assertEqual(development["artifacts"][0]["digests"]["sha256"], hashlib.sha256(b"broom Linux-X64 dev").hexdigest())
+        if jsonschema:
+            self.assertEqual(schema_errors(manifest, "modManifest-2.schema.json"), [])
+
+    def test_a_binary_project_without_its_build_has_no_development_channel(self):
+        self.add_broom()
+        output = build_site(self.root, "build").stdout
+        self.assertIn("broom has no development build", output)
+        self.assertEqual(load(self.root, f"static/dreamweave/projects/{BROOM_ID}.json")["channels"], {})
 
     def test_a_published_release_never_changes(self):
         self.release()

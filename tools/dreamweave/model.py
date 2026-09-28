@@ -30,12 +30,18 @@ DEVELOPMENT_CHANNEL = "development"
 
 PROJECT_TYPES = ("mod", "library", "framework", "tool", "assets", "total-conversion", "documentation")
 PROJECT_STATUSES = ("active", "maintenance", "experimental", "deprecated", "archived")
-PACKAGE_FORMATS = ("flat", "bain", "fomod")
+PACKAGE_FORMATS = ("flat", "bain", "fomod", "binary")
 GROUP_SELECTIONS = ("exactly-one", "at-most-one", "at-least-one", "any")
 LINK_KEYS = ("source", "issues", "documentation", "support", "donate", "nexusmods", "homepage")
 RELATIONSHIP_KINDS = ("requires", "recommends", "conflicts", "compatible", "replaces")
 PLATFORM_SYSTEMS = ("windows", "macos", "linux")
 PLATFORM_ARCHITECTURES = ("x86_64", "aarch64")
+
+# A binary project's archives come from StroggForge's Rust workflow, one per platform, named
+# <binary>-<runner OS>-<runner architecture>.zip: morrobroom-Windows-X64.zip.
+BINARY_SYSTEM_NAMES = {"windows": "Windows", "macos": "macOS", "linux": "Linux"}
+BINARY_ARCHITECTURE_NAMES = {"x86_64": "X64", "aarch64": "ARM64"}
+BINARY_NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
 
 # Extension namespaces this template defines. Anything else must be dotted (org.tes3mp).
 KNOWN_EXTENSION_NAMESPACES = ("openmw",)
@@ -181,6 +187,11 @@ class Platform:
     system: str
     architecture: str
 
+    @property
+    def id(self) -> str:
+        """A token for artifact ids: linux-x64, macos-arm64."""
+        return f"{self.system}-{BINARY_ARCHITECTURE_NAMES[self.architecture].lower()}"
+
 
 @dataclass
 class Project:
@@ -208,6 +219,8 @@ class Project:
     package_format: str
     package_documentation: bool
     package_development: bool
+    package_binary: str | None
+    package_include: list[str]
     install_notes: dict[str, str]
     media: list[Media]
     credits: list[Credit]
@@ -221,6 +234,10 @@ class Project:
     @property
     def page_path(self) -> str:
         return str(PurePosixPath(self.directory).relative_to("content")) + "/"
+
+    def binary_archive(self, platform: Platform) -> str:
+        """The archive StroggForge builds for one platform of a binary project."""
+        return f"{self.package_binary}-{BINARY_SYSTEM_NAMES[platform.system]}-{BINARY_ARCHITECTURE_NAMES[platform.architecture]}.zip"
 
     def release_tag(self, version: Version) -> str:
         return f"{self.slug}-{version}"
@@ -462,9 +479,22 @@ def read_project(table: Table, directory: str, name: str, summary: str | None, t
 
     package_table = table.table("package")
     package_format = package_table.choice("format", PACKAGE_FORMATS, "flat")
-    package_documentation = package_table.boolean("documentation", True)
+    documentation_declared = package_table.has("documentation")
+    package_documentation = package_table.boolean("documentation", package_format != "binary")
     package_development = package_table.boolean("development", True)
+    package_binary = package_table.string("binary", None, pattern=BINARY_NAME_PATTERN, describe="a Cargo binary name")
+    package_include = package_table.string_list("include")
     package_table.finish()
+    if package_format == "binary":
+        if not package_binary:
+            problems.error(package_table.child_where("binary"), 'a binary package names the Cargo binary its archives hold, like binary = "morrobroom"')
+        if documentation_declared and package_documentation:
+            problems.error(package_table.child_where("documentation"), "a binary package's archives are built by the Rust workflow, which cannot add the rendered docs; list the docs in include instead")
+    else:
+        if package_binary:
+            problems.error(package_table.child_where("binary"), 'only format = "binary" packages have a binary')
+        if package_include:
+            problems.error(package_table.child_where("include"), 'only format = "binary" packages include extra files; every other format ships the project directory')
 
     install_table = table.table("install")
     install_notes = {}
@@ -557,6 +587,8 @@ def read_project(table: Table, directory: str, name: str, summary: str | None, t
         package_format=package_format,
         package_documentation=package_documentation,
         package_development=package_development,
+        package_binary=package_binary,
+        package_include=package_include,
         install_notes=install_notes,
         media=media,
         credits=credits,
@@ -802,8 +834,31 @@ def check_project_structure(project: Project, where: str, problems: Problems) ->
     if project.package_format == "flat" and project.groups:
         problems.error(where, "a flat package has one component, so [[groups]] have nothing to choose between")
 
+    if project.package_format == "binary":
+        check_binary_package(project, where, problems)
+
     if len([item for item in project.media if item.featured]) > 1:
         problems.error(where, "at most one [[media]] entry can be featured")
+
+
+def check_binary_package(project: Project, where: str, problems: Problems) -> None:
+    """A program built per platform: one archive per [[platforms]] entry, nothing installed into a game."""
+    if not project.implicit_component:
+        problems.error(where, "a binary package is one program per platform; it has no [[components]]")
+    if project.groups:
+        problems.error(where, "a binary package has no [[groups]]: there are no components to choose between")
+    if not project.platforms:
+        problems.error(where, 'a binary package lists the [[platforms]] it is built for, like os = "windows", arch = "x86_64"; each is one archive')
+    seen = set()
+    for platform in project.platforms:
+        if platform.id in seen:
+            problems.error(where, f"platform {platform.id} is listed twice")
+        seen.add(platform.id)
+    openmw = project.components[0].openmw if project.components else None
+    if openmw and (openmw.content_files or openmw.groundcover_files or openmw.fallback_archives or openmw.fallback_entries or openmw.config or openmw.data_directories != ["."]):
+        problems.error(where, "a binary package is a program, not data OpenMW loads; it has no [openmw] install data")
+    if project.nexusmods_file_group_id is not None:
+        problems.error(where, "a binary package has one archive per platform; Nexus Mods uploads for programs are StroggForge's (its NEXUS_GROUP_IDS secret), not [nexusmods] file_group_id")
 
 
 def check_openmw_files(component: Component, where: str, problems: Problems) -> None:

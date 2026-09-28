@@ -43,7 +43,8 @@ A selection is valid when it contains every required component, satisfies every 
 invalid selection. The publisher's tooling rejects releases for which no valid selection exists.
 
 `format` says how components sit in the archive: `flat` has one component at `.`; `bain` and `fomod`
-have one top-level directory per component.
+have one top-level directory per component. A `binary` artifact is a program, not game data, and is
+never installed this way: see [Programs](@/guide/protocol/artifacts.md#programs).
 
 ## The OpenMW extension
 

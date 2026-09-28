@@ -3,6 +3,7 @@
 import hashlib
 import json
 import os
+import shutil
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -33,6 +34,8 @@ DIST = Path("dist")
 RELEASE_RECORD = DIST / "release.json"
 # The GitHub release the workflow publishes dist/ to: the tag, or the development release.
 GITHUB_RELEASE = DIST / "github-release"
+# Where the workflow puts the archives StroggForge's Rust workflow built for binary projects.
+BINARIES = DIST / "binaries"
 
 # Everything an archive's bytes can depend on: the payload, and everything the offline documentation
 # render reads. A stray note at the repository root is not one of them.
@@ -103,6 +106,9 @@ def load_repository(root: Path, check_payloads: bool = True) -> Repository:
                 f"id {project.id} belongs to the template's example project {EXAMPLE_PROJECT_IDS[project.id]}. "
                 f"Every project needs its own identity: replace it with a fresh one, like {uuid.uuid4()}",
             )
+        for included in project.package_include:
+            if included.startswith("/") or ".." in included.split("/") or not (root / included).exists():
+                problems.error(f"{project.directory}/mod.toml [package] include", f"{included!r} is not a file or directory in the repository; include paths start at its root")
         if (root / project.directory / "changelog.md").is_file():
             problems.error(
                 f"{project.directory}/changelog.md",
@@ -279,6 +285,41 @@ def build_archive(repository: Repository, project: Project, version: Version, re
     return result, artifact
 
 
+def file_digest(path: Path) -> tuple[int, str]:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for block in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(block)
+    return path.stat().st_size, digest.hexdigest()
+
+
+def collect_binaries(repository: Repository, project: Project) -> tuple[list[dict], list[str]]:
+    """A binary project's archives, one per platform, exactly as the Rust workflow built them.
+
+    The workflow downloads them into dist/binaries/; they are copied to dist/ unchanged, so the
+    bytes published are the bytes hashed. Returns the artifacts and the archive names missing.
+    """
+    artifacts, missing = [], []
+    for platform in project.platforms:
+        filename = project.binary_archive(platform)
+        source = repository.root / BINARIES / filename
+        if not source.is_file():
+            missing.append(filename)
+            continue
+        shutil.copyfile(source, repository.root / DIST / filename)
+        size, sha256 = file_digest(source)
+        artifacts.append({
+            "id": platform.id,
+            "format": "binary",
+            "filename": filename,
+            "media_type": records.MEDIA_TYPE_ZIP,
+            "size": size,
+            "digests": {"sha256": sha256},
+            "platform": {"os": platform.system, "arch": platform.architecture},
+        })
+    return artifacts, missing
+
+
 def render_documentation(repository: Repository, projects: list[Project], packaged_versions: dict[str, Version]) -> dict[str, dict[str, bytes]]:
     documented = [project for project in projects if project.package_documentation]
     if not documented:
@@ -317,18 +358,27 @@ def build_release(repository: Repository, tag: str) -> Path:
             f"{tag}: {project.directory}/mod.toml has no [[releases]] entry for {version} at this commit. Declare it with its "
             f"date and notes, commit, and move the tag there: git tag -f {tag} && git push -f origin {tag}"
         )
-    if project.package_documentation:
-        offline.require_zola(pinned=True)
-
-    documentation = render_documentation(repository, [project], {project.id: version})
-    result, artifact = build_archive(repository, project, version, revision, documentation.get(project.page_path, {}))
-    locked = records.LockedRelease(version=version, locked_from=revision, artifacts=[artifact], semantics=records.release_semantics(project))
+    if project.package_format == "binary":
+        artifacts, missing = collect_binaries(repository, project)
+        if missing:
+            raise SystemExit(
+                f"{tag}: the Rust workflow's archives are missing from {BINARIES}/: {', '.join(missing)}. A binary project's "
+                "release is what StroggForge built for each of its [[platforms]]."
+            )
+    else:
+        if project.package_documentation:
+            offline.require_zola(pinned=True)
+        documentation = render_documentation(repository, [project], {project.id: version})
+        result, artifact = build_archive(repository, project, version, revision, documentation.get(project.page_path, {}))
+        artifacts = [artifact]
+    locked = records.LockedRelease(version=version, locked_from=revision, artifacts=artifacts, semantics=records.release_semantics(project))
     path = repository.root / RELEASE_RECORD
     path.write_text(records.dumps({"project": project.id, "name": project.name, "tag": tag, "release": locked.to_document()}), encoding="utf-8")
-    print(f"Built {tag}: {artifact['filename']} {result.size} bytes sha256 {result.sha256}")
-    write_nexus_uploads(repository, project, version, artifact)
-    write_release_notes(repository, project, version, artifact)
-    write_signing_list(repository, [(project, artifact)])
+    for artifact in artifacts:
+        print(f"Built {tag}: {artifact['filename']} {artifact['size']} bytes sha256 {artifact['digests']['sha256']}")
+    write_nexus_uploads(repository, project, version, artifacts)
+    write_release_notes(repository, project, version, artifacts)
+    write_signing_list(repository, [(project, artifact) for artifact in artifacts])
     (repository.root / GITHUB_RELEASE).write_text(tag + "\n", encoding="utf-8")
     return path
 
@@ -382,28 +432,42 @@ def record_release(repository: Repository, release_path: Path) -> Path | None:
     return None
 
 
-def build_development(repository: Repository, include_archives: bool) -> dict[str, dict]:
-    """Package every project's development build. Returns artifacts keyed by project id."""
+def build_development(repository: Repository, include_archives: bool) -> dict[str, list[dict]]:
+    """Package every project's development build. Returns its artifacts keyed by project id.
+
+    A binary project's development build is what the Rust workflow built from this commit. Without
+    it (a pull request, or a build that failed) the project has no development channel this time.
+    """
     targets = [project for project in repository.projects if project.package_development]
     versions = {project.id: development_version(repository, project, release_state(repository, project)) for project in targets}
-    artifacts: dict[str, dict] = {}
+    artifacts: dict[str, list[dict]] = {}
     (repository.root / GITHUB_RELEASE).parent.mkdir(parents=True, exist_ok=True)
     (repository.root / GITHUB_RELEASE).write_text(repository.site.development_release + "\n", encoding="utf-8")
     if not include_archives or not targets:
         return artifacts
 
-    documentation = render_documentation(repository, targets, versions)
     built = []
-    for project in targets:
+    for project in [project for project in targets if project.package_format == "binary"]:
+        collected, missing = collect_binaries(repository, project)
+        if missing:
+            print(f"note: {project.slug} has no development build: {', '.join(missing)} not in {BINARIES}/")
+            continue
+        artifacts[project.id] = collected
+        built.extend((project, artifact) for artifact in collected)
+        print(f"Collected {project.slug} {versions[project.id]}: {len(collected)} platform archive(s)")
+
+    packaged = [project for project in targets if project.package_format != "binary"]
+    documentation = render_documentation(repository, packaged, versions) if packaged else {}
+    for project in packaged:
         result, artifact = build_archive(repository, project, versions[project.id], None, documentation.get(project.page_path, {}))
-        artifacts[project.id] = artifact
+        artifacts[project.id] = [artifact]
         built.append((project, artifact))
         print(f"Built {project.slug} {versions[project.id]}: {result.size} bytes sha256 {result.sha256}")
     write_signing_list(repository, built)
     return artifacts
 
 
-def write_release_notes(repository: Repository, project: Project, version: Version, artifact: dict) -> Path:
+def write_release_notes(repository: Repository, project: Project, version: Version, artifacts: list[dict]) -> Path:
     """dist/release-notes.md: the GitHub Release body, from the same notes as the changelog."""
     declared = project.declared_release(version)
     notes = records.notes_document(declared)
@@ -423,7 +487,7 @@ def write_release_notes(repository: Repository, project: Project, version: Versi
     lines += [
         "---",
         "",
-        f"`{artifact['filename']}` · {artifact['size']} bytes · SHA-256 `{artifact['digests']['sha256']}`",
+        *(f"`{artifact['filename']}` · {artifact['size']} bytes · SHA-256 `{artifact['digests']['sha256']}`  " for artifact in artifacts),
         "",
         f"Project page: {base_url}/{project.page_path} · Manifest: {base_url}/dreamweave/projects/{project.id}.json",
     ]
@@ -440,7 +504,7 @@ def write_signing_list(repository: Repository, built: list[tuple[Project, dict]]
     return path
 
 
-def write_nexus_uploads(repository: Repository, project: Project, version: Version, artifact: dict) -> None:
+def write_nexus_uploads(repository: Repository, project: Project, version: Version, artifacts: list[dict]) -> None:
     """dist/nexus.json: the Nexus Mods upload matrix for the workflow. Empty when nothing is configured."""
     uploads = []
     if project.nexusmods_file_group_id is not None:
@@ -448,7 +512,7 @@ def write_nexus_uploads(repository: Repository, project: Project, version: Versi
             "name": project.name,
             "version": str(version),
             "file_group_id": project.nexusmods_file_group_id,
-            "filename": artifact["filename"],
+            "filename": artifacts[0]["filename"],
         })
     path = repository.root / DIST / "nexus.json"
     path.write_text(json.dumps(uploads), encoding="utf-8")
@@ -467,7 +531,7 @@ def site_base_url(repository: Repository) -> str:
     return (os.environ.get("DREAMWEAVE_BASE_URL") or repository.site.base_url).rstrip("/")
 
 
-def write_site(repository: Repository, development_artifacts: dict[str, dict], archives_built: bool) -> None:
+def write_site(repository: Repository, development_artifacts: dict[str, list[dict]], archives_built: bool) -> None:
     """Write the public protocol documents and the data the templates render from."""
     root = repository.root
     base_url = site_base_url(repository)
@@ -486,7 +550,7 @@ def write_site(repository: Repository, development_artifacts: dict[str, dict], a
         ]
         if project.package_development and project.id in development_artifacts:
             version = development_version(repository, project, state)
-            locked = records.LockedRelease(version=version, locked_from=repository.head, artifacts=[development_artifacts[project.id]], semantics=records.release_semantics(project))
+            locked = records.LockedRelease(version=version, locked_from=repository.head, artifacts=development_artifacts[project.id], semantics=records.release_semantics(project))
             release_name = repository.site.development_release
             development = records.PublishedRelease(declared=None, locked=locked, tag=release_name, revision=repository.head, channel=DEVELOPMENT_CHANNEL, date=gitrepo.commit_time(repository.head)[:10])
             releases.append(records.release_document(project, repository.site, development, release_name, os.environ.get("DREAMWEAVE_DEVELOPMENT_REF", "refs/heads/main")))

@@ -322,6 +322,7 @@ def release_document(project: Project, site: SiteConfig, release: PublishedRelea
     document["artifacts"] = [
         {
             **{key: artifact[key] for key in ARTIFACT_KEYS},
+            **({"platform": artifact["platform"]} if "platform" in artifact else {}),
             **({"layout": artifact["layout"]} if "layout" in artifact else {}),
             "sources": artifact_sources(project, site, release_name, artifact),
             "signatures": artifact_signatures(project, site, release_name, artifact, ref),

@@ -63,7 +63,8 @@ the project does not care, which is true of an asset pack and false of almost ev
 ## `[[platforms]]`
 
 For tools with native binaries: `os` is `windows`, `macos` or `linux`; `arch` is `x86_64` or
-`aarch64`. No entries means platform-independent.
+`aarch64`. No entries means platform-independent. A `binary` package needs at least one: each entry
+is one archive the Rust workflow builds, and one artifact in every release.
 
 ## Relationships
 
@@ -133,9 +134,11 @@ Each component has an `[components.openmw]` table with the install keys:
 
 | Key | Default | Meaning |
 |---|---|---|
-| `format` | `"flat"` | `flat`, `bain` or `fomod`. See [Packages](@/guide/packages.md). |
-| `documentation` | `true` | Render the page and its docs into `Documentation/` inside the archive. |
+| `format` | `"flat"` | `flat`, `bain` or `fomod` for game data; `binary` for a program built from Rust source. See [Packages](@/guide/packages.md). |
+| `documentation` | `true` | Render the page and its docs into `Documentation/` inside the archive. Not for `binary`, whose archives the Rust workflow builds. |
 | `development` | `true` | Publish a rolling build of the default branch on the `development` channel. |
+| `binary` | | `binary` only: the Cargo binary. Its archives are `<binary>-<OS>-<ARCH>.zip`, one per `[[platforms]]` entry. |
+| `include` | `[]` | `binary` only: files and directories, from the repository root, packed beside the program: `["README.md", "LICENSE", "resources"]`. |
 
 ## `[install]`
 
