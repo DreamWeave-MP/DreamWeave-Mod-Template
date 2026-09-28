@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% import "macros/dw.html" as dw_macros %}
+
+{%- block content %}
+{%- set project_path = page.extra.project | default(value="") %}
+{%- if dw and project_path in dw.projects %}
+{%- set project = dw.projects[project_path] %}
+{%- set project_url = get_url(path=project_path) %}
+<header class="dw-hero">
+    <div class="dw-shell">
+        <p class="dw-kicker"><span><a href="{{ project_url | safe }}">{{ project.name }}</a></span><span>Changelog</span></p>
+        <h1 class="dw-hero__title">Changelog</h1>
+        <p class="dw-hero__summary">Every release of {{ project.name }}, newest first.{% if not dw_offline %} Releases marked <em>pending</em> are locked but not tagged; <em>planned</em> ones are declared but not locked.{% endif %}</p>
+    </div>
+</header>
+<div class="dw-shell dw-article">
+    {%- if not dw_offline and project.heads is defined and project.heads.development is defined %}
+    {%- set development = project.heads.development %}
+    <section class="dw-section" aria-labelledby="development-title">
+        <div class="dw-section__head"><h2 id="development-title">Development build</h2><p>rebuilt from the default branch</p></div>
+        <ol class="dw-releases">
+            <li class="dw-release dw-release--development">
+                <h3><span>{{ development.version }}</span><span class="dw-badge dw-badge--info">development</span><span class="dw-release__meta">{{ development.date }}</span></h3>
+                <p class="dw-release__summary">Whatever is on the default branch right now. It may be ahead of the last release, and it may be broken.</p>
+                {%- for artifact in development.artifacts %}{{ dw_macros::artifact(artifact=artifact, release=development, project=project) }}{% endfor %}
+            </li>
+        </ol>
+    </section>
+    {%- endif %}
+
+    <section class="dw-section" aria-labelledby="releases-title">
+        <div class="dw-section__head"><h2 id="releases-title">Releases</h2><p>{{ project.declared_releases | length }} declared</p></div>
+        {%- if project.declared_releases | length == 0 %}
+        <p>No releases yet.</p>
+        {%- else %}
+        <ol class="dw-releases">
+        {%- for declared in project.declared_releases %}
+            {%- set published = false %}
+            {%- if not dw_offline %}
+            {%- set matches = project.releases | default(value=[]) | filter(attribute="version", value=declared.version) %}
+            {%- if matches | length > 0 %}{% set published = matches | first %}{% endif %}
+            {%- endif %}
+            {{ dw_macros::release_entry(declared=declared, published=published, project=project) }}
+        {%- endfor %}
+        </ol>
+        {%- endif %}
+    </section>
+</div>
+{%- else %}
+<div class="dw-shell dw-article">
+    <h1>{{ page.title }}</h1>
+    <p>This changelog is generated from mod.toml. Run <code>./buildSite build</code> to generate it.</p>
+</div>
+{%- endif %}
+{%- endblock content %}
