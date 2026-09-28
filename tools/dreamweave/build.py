@@ -320,6 +320,15 @@ def collect_binaries(repository: Repository, project: Project) -> tuple[list[dic
     return artifacts, missing
 
 
+def binary_build_outputs(repository: Repository) -> str:
+    """What StroggForge's Rust workflow needs to build every binary project: binary_names, a JSON
+    list, and include_files, comma-separated as it expects. Empty lists when there is nothing to build."""
+    binaries = [project for project in repository.projects if project.package_format == "binary"]
+    names = sorted({project.package_binary for project in binaries})
+    include = sorted({path for project in binaries for path in project.package_include})
+    return f"binary_names={json.dumps(names)}\ninclude_files={','.join(include)}"
+
+
 def render_documentation(repository: Repository, projects: list[Project], packaged_versions: dict[str, Version]) -> dict[str, dict[str, bytes]]:
     documented = [project for project in projects if project.package_documentation]
     if not documented:

@@ -32,6 +32,9 @@ jobs:
   check:
     name: Validate and test
     runs-on: ubuntu-24.04
+    outputs:
+      binary_names: ${{ steps.binaries.outputs.binary_names }}
+      include_files: ${{ steps.binaries.outputs.include_files }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -55,6 +58,10 @@ jobs:
       - name: Validate every project
         run: ./buildSite check
 
+      - name: Find the programs to build
+        id: binaries
+        run: ./buildSite binaries >> "$GITHUB_OUTPUT"
+
       # A page still carrying V4 frontmatter fails the check, which suggests a mod.toml for it.
       - uses: actions/upload-artifact@v7
         if: failure()
@@ -66,10 +73,33 @@ jobs:
       - name: Run the template's tests
         run: python -m unittest discover -s tests -v
 
+  # Projects with [package] format = "binary" are programs. StroggForge's Rust workflow tests,
+  # builds, signs and scans them per platform, and leaves each platform's archive as a
+  # github-release-* artifact of this run: the jobs below hash and publish those exact files.
+  # It publishes them to the GitHub release itself too; the publish job below replaces that with
+  # the full release, archives and notes together.
+  binaries:
+    name: Build programs
+    needs: check
+    if: needs.check.outputs.binary_names != '[]'
+    permissions:
+      contents: write
+      id-token: write
+      pages: write
+    uses: DreamWeave-MP/StroggForge/.github/workflows/rustGlobalBuild.yml@v48
+    secrets: inherit
+    with:
+      binary_names: ${{ needs.check.outputs.binary_names }}
+      include_files: ${{ needs.check.outputs.include_files }}
+      # The site, its changelog and its publishing are this workflow's.
+      publish_docs: false
+      generate_changelog: false
+      cargo_publish: false
+
   release:
     name: Build and record the tagged release
-    if: github.ref_type == 'tag'
-    needs: check
+    needs: [check, binaries]
+    if: ${{ !cancelled() && github.ref_type == 'tag' && needs.check.result == 'success' && needs.binaries.result != 'failure' }}
     runs-on: ubuntu-24.04
     permissions:
       contents: write # the mod.lock commit on the default branch
@@ -95,6 +125,14 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: zola@${{ steps.zola.outputs.version }}
+
+      - name: Collect the programs the Rust workflow built
+        if: needs.binaries.result == 'success'
+        uses: actions/download-artifact@v8
+        with:
+          pattern: github-release-*
+          path: dist/binaries/
+          merge-multiple: true
 
       - name: Build the release from the tag
         env:
@@ -148,18 +186,26 @@ jobs:
         id: nexus
         run: echo "uploads=$(cat dist/nexus.json)" >> "$GITHUB_OUTPUT"
 
+      - name: Keep the Rust workflow's VirusTotal reports for the release notes
+        run: |
+          shopt -s nullglob
+          reports=(dist/binaries/*.vt.md)
+          if [ ${#reports[@]} -gt 0 ]; then cat "${reports[@]}" > dist/virustotal.md; fi
+
       - uses: actions/upload-artifact@v7
         with:
           name: release
-          path: dist/
+          path: |
+            dist/
+            !dist/binaries/
           if-no-files-found: error
 
   # Tag runs skip this: they finish by starting a default-branch run, which builds the site and
   # the development archives from a commit that includes the new record.
   site:
     name: Build the site
-    needs: check
-    if: github.ref_type != 'tag'
+    needs: [check, binaries]
+    if: ${{ !cancelled() && github.ref_type != 'tag' && needs.check.result == 'success' && needs.binaries.result != 'failure' }}
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -200,6 +246,14 @@ jobs:
           else
             echo "url=$(python -c 'import tomllib; print(tomllib.load(open("config.toml", "rb"))["base_url"])')" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Collect the programs the Rust workflow built
+        if: needs.binaries.result == 'success'
+        uses: actions/download-artifact@v8
+        with:
+          pattern: github-release-*
+          path: dist/binaries/
+          merge-multiple: true
 
       - name: Package development builds and write the protocol files
         env:
@@ -247,11 +301,19 @@ jobs:
         with:
           path: public/
 
+      - name: Keep the Rust workflow's VirusTotal reports for the release notes
+        run: |
+          shopt -s nullglob
+          reports=(dist/binaries/*.vt.md)
+          if [ ${#reports[@]} -gt 0 ]; then cat "${reports[@]}" > dist/virustotal.md; fi
+
       - uses: actions/upload-artifact@v7
         if: github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch
         with:
           name: development
-          path: dist/
+          path: |
+            dist/
+            !dist/binaries/
           if-no-files-found: ignore
 
   # dist/github-release names the GitHub release: the tag, or the development release, which
@@ -281,6 +343,18 @@ jobs:
           release=$(cat dist/github-release)
           shopt -s nullglob
           files=(dist/*.zip dist/*.sigstore.json)
+          # A program's VirusTotal reports follow its notes.
+          if [ -s dist/virustotal.md ]; then
+            if [ -s dist/release-notes.md ]; then
+              printf '\n' >> dist/release-notes.md
+              cat dist/virustotal.md >> dist/release-notes.md
+            fi
+            development_notes="The default branch at $GITHUB_SHA, built by $RUN_URL. It may be ahead of the last release, and it may be broken.
+
+          $(cat dist/virustotal.md)"
+          else
+            development_notes="The default branch at $GITHUB_SHA, built by $RUN_URL. It may be ahead of the last release, and it may be broken."
+          fi
 
           if [ "$GITHUB_REF_TYPE" = tag ]; then
             # Created once. A re-run's archives match the record, so replacing them changes nothing.
@@ -306,8 +380,7 @@ jobs:
             exit 0
           fi
           gh release create "$release" --prerelease --draft --target "$GITHUB_SHA" --title "Development build" \
-            --notes "The default branch at $GITHUB_SHA, built by $RUN_URL. It may be ahead of the last release, and it may be broken." \
-            --repo "$REPOSITORY"
+            --notes "$development_notes" --repo "$REPOSITORY"
           gh release upload "$release" "${files[@]}" --repo "$REPOSITORY"
           gh release edit "$release" --draft=false --repo "$REPOSITORY"
 

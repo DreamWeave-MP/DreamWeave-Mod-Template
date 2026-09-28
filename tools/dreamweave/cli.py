@@ -33,6 +33,7 @@ def command_parser() -> argparse.ArgumentParser:
     links_parser.add_argument("--base-url", help="the URL it was built for (default: DREAMWEAVE_BASE_URL or config.toml)")
 
     commands.add_parser("schemas", help="validate the generated index and manifests against the published schemas")
+    commands.add_parser("binaries", help="print the Rust workflow's inputs for binary projects, as GITHUB_OUTPUT lines")
 
 
     commands.add_parser("zola-version", help="print the Zola version archives are rendered with")
@@ -92,6 +93,10 @@ def main(arguments: list[str]) -> int:
                 print(f"{len(errors)} broken local link(s).", file=sys.stderr)
                 return 1
             print(f"Checked {checked} local links, assets and anchors.")
+        elif options.command == "binaries":
+            repository = build.load_repository(root, check_payloads=False)
+            repository.problems.raise_if_any()
+            print(build.binary_build_outputs(repository))
         elif options.command == "schemas":
             checked, errors = sitecheck.check_protocol_documents(root)
             if errors:
