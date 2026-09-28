@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {%- block content %}
-<div class="dw-shell dw-article">
+<div class="dw-shell"><div class="dw-article">
     <p class="dw-kicker"><span>Taxonomy</span></p>
     <h1>{{ taxonomy.name | capitalize }}</h1>
     <ul class="dw-linklist">
@@ -9,5 +9,5 @@
         <li><a href="{{ term.permalink | safe }}"><span>{{ term.name }}</span><small>{{ term.pages | length }}</small></a></li>
     {%- endfor %}
     </ul>
-</div>
+</div></div>
 {%- endblock content %}

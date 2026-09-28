@@ -3,6 +3,8 @@ title = "Protocol"
 description = "The DreamWeave mod distribution protocol, schema_version 2, for people implementing clients, indexes and mirrors."
 sort_by = "weight"
 weight = 200
+template = "docs/section.html"
+page_template = "docs/page.html"
 
 [extra]
 kind = "reference"

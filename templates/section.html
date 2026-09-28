@@ -7,7 +7,7 @@
         {%- if section.description %}<p class="dw-hero__summary">{{ section.description }}</p>{% endif %}
     </div>
 </header>
-<div class="dw-shell dw-article">
+<div class="dw-shell"><div class="dw-article">
     {%- if section.content %}<div class="dw-prose">{{ section.content | safe }}</div>{% endif %}
     {%- if paginator %}{% set listed = paginator.pages %}{% else %}{% set listed = section.pages %}{% endif %}
     <ol class="dw-catalog">
@@ -34,5 +34,5 @@
         {%- if paginator.next %}<a class="dw-button dw-button--small" href="{{ paginator.next | safe }}" rel="next">Next →</a>{% else %}<span></span>{% endif %}
     </nav>
     {%- endif %}
-</div>
+</div></div>
 {%- endblock content %}

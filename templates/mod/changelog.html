@@ -13,7 +13,7 @@
         <p class="dw-hero__summary">Every release of {{ project.name }}, newest first.{% if not dw_offline %} Releases marked <em>pending</em> are locked but not tagged; <em>planned</em> ones are declared but not locked.{% endif %}</p>
     </div>
 </header>
-<div class="dw-shell dw-article">
+<div class="dw-shell"><div class="dw-article">
     {%- if not dw_offline and project.heads is defined and project.heads.development is defined %}
     {%- set development = project.heads.development %}
     <section class="dw-section" aria-labelledby="development-title">
@@ -45,11 +45,11 @@
         </ol>
         {%- endif %}
     </section>
-</div>
+</div></div>
 {%- else %}
-<div class="dw-shell dw-article">
+<div class="dw-shell"><div class="dw-article">
     <h1>{{ page.title }}</h1>
     <p>This changelog is generated from mod.toml. Run <code>./buildSite build</code> to generate it.</p>
-</div>
+</div></div>
 {%- endif %}
 {%- endblock content %}
