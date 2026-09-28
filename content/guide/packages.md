@@ -119,10 +119,11 @@ be written down before the release exists.
 - Nothing is compressed.
 
 That last one is a trade. Deflate output differs between zlib and zlib-ng, and Fedora, among others,
-ships zlib-ng, so a compressed archive built on a laptop cannot be checked against one built in CI.
-On S3maphore, whose weight is audio, deflate saved 5%. Texture packs lose more; if that ever matters
-more than reproducibility, compression can come back behind a CI-only lock, and the protocol does
-not care either way: a client unzips what it verified.
+ships zlib-ng, so a compressed archive would only rebuild byte for byte on a machine with the same
+zlib: not on yours, and not necessarily on next year's CI runner. On S3maphore, whose weight is
+audio, deflate saved 5%. Texture packs lose more; if that ever matters more than reproducibility,
+the protocol does not care either way: a client unzips what it verified.
 
-Documentation is rendered by Zola, so `lock` insists on the same Zola version CI uses, which
-`./buildSite zola-version` prints.
+Documentation is rendered by Zola, so CI pins the Zola version archives are built with
+(`ZOLA_VERSION` in `tools/dreamweave/offline.py`). Your own `zola serve` never builds an archive, so
+any recent Zola previews the site.

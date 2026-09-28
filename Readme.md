@@ -14,23 +14,26 @@ read without scraping it.
    **Settings → Pages → Source** to **GitHub Actions**.
 2. In `config.toml`, set `github_username` and `github_project` to your repository. For comments,
    enable Discussions on it and install the [giscus app](https://github.com/apps/giscus).
-3. Run `./buildSite new-id` and put the result in `content/home/mod.toml` as `id`. Set `slug` to a
-   short name like `my_mod`: it names your archive and your release tags.
+3. Give `content/home/mod.toml` a fresh random UUID as its `id` (`uuidgen` makes one; so does CI's
+   error if you forget). Set `slug` to a short name like `my_mod`: it names your archive and your
+   release tags.
 4. Replace Candlelight's files in `content/home` with your mod, and rewrite `content/home/index.md`:
    `title` is the mod's name, `description` its summary, the body its page.
-5. Preview with `./buildSite serve`, then commit and push. The workflow publishes the page and a
-   development build.
+5. Preview with `zola serve`, then commit and push. The workflow validates everything and publishes
+   the page and a development build.
 6. Release: add a `[[releases]]` entry, then
 
    ```sh
-   ./buildSite lock my_mod
-   git add content/home/mod.lock && git commit -m "RELEASE: My Mod 1.0.0"
-   git tag my_mod-1.0.0 && git push --atomic origin HEAD my_mod-1.0.0
+   git commit -am "My Mod 1.0.0"
+   git tag my_mod-1.0.0 && git push origin HEAD my_mod-1.0.0
    ```
 
+   CI builds the archive from the tag, records its hash in `mod.lock` with a commit of its own, and
+   publishes it.
+
 [Start here](https://dreamweave-mp.github.io/DreamWeave-Mod-Template/guide/start-here/) walks
-through it properly. You need git and Python 3.11+ with PyYAML (`pip install -r tools/requirements.txt`),
-plus [Zola](https://www.getzola.org/) to preview. No Node, no Rust, no accounts.
+through it properly. You need git, plus [Zola](https://www.getzola.org/) to preview. Everything
+else runs in GitHub Actions: no Python, no Node, no Rust, no accounts.
 
 ## What you get
 
@@ -39,8 +42,8 @@ plus [Zola](https://www.getzola.org/) to preview. No Node, no Rust, no accounts.
   `openmw.cfg` lines, a changelog, and credits. Sections with nothing to say do not appear.
 - **Archives that ship their documentation**: the page and its docs rendered as offline HTML in
   `Documentation/`, next to your mod's files. Flat, BAIN, or BAIN with a generated FOMOD installer.
-- **Releases you can verify**: an archive's SHA-256 is recorded in `mod.lock` before its tag exists,
-  and CI refuses to publish a tag whose archive comes out different.
+- **Releases you can verify**: CI records each release's SHA-256 in `mod.lock` when its tag is
+  pushed, and from then on refuses to publish that version with any other bytes.
 - **A place on the network**: `dreamweave.json` and a manifest per project, linked from every page,
   describing identity, releases, artifacts, sources, dependencies and install data. Mirrors serve
   bytes by hash; they never become the authority.
@@ -53,19 +56,18 @@ plus [Zola](https://www.getzola.org/) to preview. No Node, no Rust, no accounts.
 - **Nothing phoning home.** No analytics, web fonts or CDN unless you configure them. Every page works
   without JavaScript, and comments are the only third-party embed.
 
-## Commands
+## What CI runs
 
-| Command | Does |
-|---|---|
-| `./buildSite check` | Validate every project, including its files against `mod.toml` |
-| `./buildSite serve` | Write preview data, run `zola serve`, regenerate when `mod.toml` changes |
-| `./buildSite build` | Package development builds and write the protocol files, as CI does |
-| `./buildSite lock <slug>` | Record the next release's archive hash before tagging it |
-| `./buildSite verify <tag>` | Rebuild a tagged release and fail unless it matches `mod.lock` (CI) |
-| `./buildSite links` | Check the built site's local links, anchors and HTML structure |
-| `./buildSite schemas` | Validate the generated index and manifests against the published schemas |
-| `./buildSite migrate <dir>` | Print a `mod.toml` for a V3 page |
-| `./buildSite new-id` | Print a fresh project id |
+You never run `./buildSite`; the workflow does. It is Python, and it lives in `tools/dreamweave/`.
+
+| Command | When | Does |
+|---|---|---|
+| `./buildSite check` | every push | Validate every project, including its files against `mod.toml`; suggest a `mod.toml` for V3 pages |
+| `./buildSite build` | every push | Package development builds and write the protocol files |
+| `./buildSite links` | every push | Check the built site's local links, anchors and HTML structure |
+| `./buildSite schemas` | every push | Validate the generated index and manifests against the published schemas |
+| `./buildSite release <tag>` | release tags | Build a release from its tag |
+| `./buildSite record` | release tags | Record that release in `mod.lock` on the default branch |
 
 ## Where things live
 
@@ -73,12 +75,12 @@ plus [Zola](https://www.getzola.org/) to preview. No Node, no Rust, no accounts.
 |---|---|
 | `content/<project>/index.md` | The mod's name, summary and page |
 | `content/<project>/mod.toml` | Everything structured about the mod |
-| `content/<project>/mod.lock` | What each published release contains (written by `lock`) |
+| `content/<project>/mod.lock` | What each published release contains (written by CI) |
 | `content/<project>/…` | The mod itself and its docs; all of it ships |
 | `config.toml` | The site: URL, title, repository, palette, header links |
 | `sass/brand.sass` | Your branding; the template never touches it |
 | `templates/`, `sass/`, `static/` | The template's presentation |
-| `tools/dreamweave/` | The build tool `./buildSite` runs |
+| `tools/dreamweave/` | The tooling CI runs through `./buildSite` |
 | `static/schemas/` | JSON Schemas for everything the site publishes |
 | `tests/` | The template's own tests: `python3 -m unittest discover -s tests` |
 

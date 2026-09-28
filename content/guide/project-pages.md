@@ -12,8 +12,8 @@ A project is a directory under `content/` with two files in it.
 | File | Owns | Read by |
 |---|---|---|
 | `index.md` | The display name (`title`), the one-line summary (`description`), tags, and the prose | Zola, and the tooling for name and summary |
-| `mod.toml` | Everything structured: identity, compatibility, relationships, components, install data, media, credits, releases | The tooling, which validates it and generates what Zola renders |
-| `mod.lock` | What each published release contains, including its archive's hash | Written by `./buildSite lock`, reviewed in git |
+| `mod.toml` | Everything structured: identity, compatibility, relationships, components, install data, media, credits, releases | Zola, which renders the page from it, and CI, which validates it and writes the manifest |
+| `mod.lock` | What each published release contains, including its archive's hash | Written by CI when a release tag is pushed; you never edit it |
 
 Nothing is written twice. Renaming the mod means changing `title`; the id, the slug and the
 release history do not move.
@@ -24,7 +24,8 @@ goes in.
 
 ## The landing page
 
-A project page is generated from `mod.toml` and the page's Markdown. It shows, in this order:
+A project page is generated from `mod.toml`, `mod.lock` and the page's Markdown, by Zola alone, so
+`zola serve` shows it as it will be published. It shows, in this order:
 
 | Section | Appears when | Built from |
 |---|---|---|

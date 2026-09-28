@@ -20,7 +20,7 @@ uses every key once, with comments.
 
 | Key | Type | Default | Meaning |
 |---|---|---|---|
-| `id` | UUID | required | The project's permanent identity. `./buildSite new-id` makes one. Never derived from the name, host or URL, and never changed. |
+| `id` | UUID | required | The project's permanent identity: a random UUID, from `uuidgen` or anything else that makes them (CI's error suggests one if it is missing). Never derived from the name, host or URL, and never changed. |
 | `slug` | `[a-z0-9_]+` | required | Archive name and release-tag prefix: `slug.zip`, tagged `slug-1.2.0`. No hyphens, because the tag's first hyphen separates slug from version. Changing it breaks old links, not the project. |
 | `type` | string | `"mod"` | `mod`, `library`, `framework`, `tool`, `assets`, `total-conversion` or `documentation`. |
 | `status` | string | `"active"` | `active`, `maintenance`, `experimental`, `deprecated` or `archived`. |

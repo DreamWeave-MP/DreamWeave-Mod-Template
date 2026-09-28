@@ -22,7 +22,7 @@ structure, not taste.
 
 "Ready" means a client starting from your page can find the manifest, pick a release for its
 channel, download it from a listed source, and verify it. A project with only a development channel
-is on the network; a project with a locked, tagged stable release is on it properly.
+is on the network; a project with a recorded stable release is on it properly.
 
 ## CHIMERA and other clients
 

@@ -12,7 +12,7 @@
     { "id": "mirrors", "kind": "cache", "role": "support", "title": "Mirrors and caches", "detail": "Serve bytes by SHA-256. Never trusted, always verified." }
   ],
   "edges": [
-    { "from": "repository", "to": "site", "label": "./buildSite build and Zola" },
+    { "from": "repository", "to": "site", "label": "CI builds it with Zola" },
     { "from": "site", "to": "clients", "kind": "support", "label": "direct discovery" },
     { "from": "site", "to": "indexes", "kind": "support", "label": "crawl dreamweave.json" },
     { "from": "clients", "to": "mirrors", "kind": "support", "label": "download by digest" }

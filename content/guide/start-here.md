@@ -7,10 +7,11 @@ weight = 10
 kind = "guide"
 +++
 
-You need a GitHub account, git, and Python 3.11 or newer with PyYAML
-(`python3 -m pip install -r tools/requirements.txt`). To preview locally you also need
-[Zola](https://www.getzola.org/documentation/getting-started/installation/). You do not need Node,
-Rust, a DreamWeave account, or any editor in particular.
+You need a GitHub account and git. To preview locally you also need
+[Zola](https://www.getzola.org/documentation/getting-started/installation/) 0.22 or newer, which is
+one binary.
+That is the whole list. Validating, packaging, hashing and publishing all happen in GitHub Actions,
+so there is no Python, Node or Rust to install, and no DreamWeave account.
 
 ## 1. Make your repository
 
@@ -56,15 +57,14 @@ The template ships two example projects. `content/home` is Candlelight, the comp
 `content/simplified` is Tallow, the minimal one. Turn `content/home` into your mod, and delete
 Tallow once you no longer need to crib from it.
 
-**Replace the id.** Every project has a permanent identity that no other project may share:
+**Replace the id.** Every project has a permanent identity that no other project may share: a
+random UUID, like `4d0c9f6e-2b1a-4c8e-9f3a-7e5d1b2c6a90`. Anything that makes them will do:
+`uuidgen` on Linux and macOS, `[guid]::NewGuid()` in PowerShell, or any online generator. Or don't
+bother: CI refuses the template's example ids, and its error hands you a fresh one to paste.
 
-```sh
-./buildSite new-id
-```
-
-Put the result in `content/home/mod.toml` as `id`, and set `slug` to a short lowercase name with
+Put it in `content/home/mod.toml` as `id`, and set `slug` to a short lowercase name with
 underscores. The slug becomes your archive's name (`my_mod.zip`) and your release tags
-(`my_mod-1.0.0`). The build refuses the template's example ids, so you cannot forget this one.
+(`my_mod-1.0.0`).
 
 **Rewrite the page.** In `content/home/index.md`, `title` is your mod's display name and
 `description` is its one-line summary. The body is the overview: what the mod does and why.
@@ -76,7 +76,7 @@ directory, your `scripts/`, `textures/` and content files go straight into `cont
 Then cut `mod.toml` down to what is true:
 
 ```toml
-id = "your id from ./buildSite new-id"
+id = "your fresh UUID"
 slug = "my_mod"
 
 [runtimes]
@@ -97,31 +97,37 @@ rest of what you can say about it, and [mod.toml reference](@/guide/mod-toml.md)
 ## 5. Preview
 
 ```sh
-./buildSite serve
+zola serve
 ```
 
-This validates everything, writes the preview data and starts Zola on <http://127.0.0.1:1111>.
-It regenerates when you save `mod.toml`. Mistakes show up in the terminal with the file, the key
-and what to do about them. `./buildSite check` runs the same validation without serving anything.
+Your site is on <http://127.0.0.1:1111>, and it reloads when you save. The project page is built
+from `mod.toml` and `mod.lock`, the same files CI reads, so what you see is what gets published.
+Three things only exist once CI has built the site: the development build, the comment thread, and
+the checks on the network page.
 
 ## 6. Push
 
-Commit and push to `main`. The workflow validates, packages a development build, builds the site
-and deploys it. Your page appears at `https://your-name.github.io/your-repository/home/`, and the
-development archive is on a GitHub release called `development`.
+Commit and push to your default branch. The workflow validates every project, packages a
+development build, builds the site and deploys it. Your page appears at
+`https://your-name.github.io/your-repository/home/`, and the development archive is on a GitHub
+release called `development`.
+
+If something is wrong, the run fails and says which file, which key, and what to do about it. Every
+push and pull request gets the same check, so a mistake never reaches the published site.
 
 ## 7. Release
 
 When you have a version worth calling one, [Releases](@/guide/releases.md) walks through it. The
-short version:
+short version: declare it in `mod.toml`, then push a tag.
 
 ```sh
-./buildSite lock my_mod
-git add content/home/mod.lock
-git commit -m "RELEASE: My Mod 1.0.0"
+git commit -am "My Mod 1.0.0"
 git tag my_mod-1.0.0
-git push --atomic origin HEAD my_mod-1.0.0
+git push origin HEAD my_mod-1.0.0
 ```
+
+CI builds the archive from the tag, records its hash in `mod.lock` with a commit of its own,
+publishes it, and updates the site. Run `git pull` before you next push, to pick up that commit.
 
 ## One mod or several
 

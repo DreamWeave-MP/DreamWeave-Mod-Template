@@ -103,9 +103,10 @@ network page have no thread. Docs pages have none unless their docs root sets
 offline documentation inside archives never loads comments.
 
 The DreamWeave giscus theme is served from your site (`giscus/<palette>.css`) and applies on the
-published site. A local preview cannot show it: giscus's iframe lives on a public origin, and browsers
-block public pages from fetching files on your machine, so previews use GitHub's dark theme and say
-so above the thread.
+published site. A plain `zola serve` has no thread at all, because the ids come from CI's lookup. A
+CI build served from your own machine does, but cannot show the theme: giscus's iframe lives on a
+public origin, and browsers block public pages from fetching files on your machine, so it uses
+GitHub's dark theme and says so above the thread.
 
 ## Analytics
 

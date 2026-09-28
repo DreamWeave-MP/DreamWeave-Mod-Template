@@ -4,9 +4,10 @@
 # The display name and one-line summary are NOT here. They are `title` and `description`
 # in index.md's frontmatter, so they are written exactly once.
 
-# Identity. Generated once with `./buildSite new-id` and never changed: not when the mod is
+# Identity. A random UUID, made once (uuidgen will do) and never changed: not when the mod is
 # renamed, not when it moves hosts, not when it lands on Nexus. Copying this value into another
-# project makes the two indistinguishable, so the build refuses the template's example ids.
+# project makes the two indistinguishable, so CI refuses the template's example ids, and its error
+# hands you a fresh one.
 id = "4d0c9f6e-2b1a-4c8e-9f3a-7e5d1b2c6a90"
 
 # Archive name and release-tag prefix: candlelight.zip, tagged candlelight-1.1.0. Not identity;
@@ -170,8 +171,9 @@ mod_id = 57511
 [provenance]
 sigstore = false
 
-# Releases. Notes are Markdown. Date, channel, notes and yank state can be corrected later;
-# what the release contains is frozen in mod.lock by `./buildSite lock candlelight`.
+# Releases. Notes are Markdown. Pushing the tag candlelight-<version> publishes one: CI builds it
+# and freezes what it contains in mod.lock. Date, channel, notes and yank state can be corrected
+# later.
 [[releases]]
 version = "1.0.0"
 date = 2026-09-14

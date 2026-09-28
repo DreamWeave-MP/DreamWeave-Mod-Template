@@ -1,5 +1,5 @@
 # Site configuration. This file is about the website; facts about a mod live in
-# content/<project>/mod.toml. Zola reads this file; so does ./buildSite.
+# content/<project>/mod.toml. Zola reads this file; so does CI.
 
 # Where the site lives. On GitHub Pages the workflow substitutes the real Pages URL, so this
 # value matters for local previews and for links inside the offline documentation that ships

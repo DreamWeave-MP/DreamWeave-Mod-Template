@@ -17,15 +17,17 @@ shape and not another.
 |---|---|---|
 | A project's display name, summary, prose | `content/<p>/index.md` | the author |
 | A project's identity and structured facts | `content/<p>/mod.toml` | the author |
-| What a published release contains, including digests | `content/<p>/mod.lock` | `./buildSite lock`, reviewed in git |
+| What a published release contains, including digests | `content/<p>/mod.lock` | CI, when a release tag is pushed, as a `github-actions[bot]` commit |
 | The site's URL, title, repository, palette | `config.toml` | the author |
 | Presentation | `templates/`, `sass/`, `static/` | the template; `sass/brand.sass` belongs to the author |
 | Protocol documents | `static/dreamweave.json`, `static/dreamweave/` | generated, gitignored |
 | Archives | `dist/` | generated, gitignored |
 | The protocol's structure | `static/schemas/` | the template |
 
-Every structured fact is written once. Pages render from the same generated data the manifests are
-written from, so the page cannot say one thing while the manifest says another.
+Every structured fact is written once. Pages and manifests are built from the same files: Zola's
+templates read `mod.toml` and `mod.lock` to render a page, CI's tooling reads them to write the
+manifest, and the tests check that the two say the same thing. That is also why an author's plain
+`zola serve` shows the page as it will be published.
 
 ## What `modManifest` represents
 
@@ -54,8 +56,8 @@ served from the project's own site, and it is the only authority for those claim
 
 | Part | Owns |
 |---|---|
-| `./buildSite` | Validation, packaging, locking, verifying, the protocol documents, the page data |
-| Zola | Rendering pages, the search index, resizing images, the offline documentation render |
+| `./buildSite` | Validation, packaging, recording releases, the protocol documents. It runs only in CI; authors never need Python |
+| Zola | Rendering pages from `mod.toml` and `mod.lock`, the search index, resizing images, the offline documentation render |
 | The workflow | Running the above on every push and tag, publishing releases, deploying Pages |
 | Client software (CHIMERA and others) | Discovery, trust policy, dependency resolution, choosing releases, downloading, verifying, installing |
 | St4sh and other indexes | Crawling, caching, search, curation, mirroring. Not identity, not release data |
@@ -93,13 +95,14 @@ the template stays readable, installable and verifiable if every one of them is 
 **`.well-known` discovery.** It only exists at an origin's root, which GitHub Pages project sites do
 not own.
 
-**Compressed archives.** Deflate differs between zlib builds, so a compressed archive's hash cannot
-be recorded before CI builds it. Stored archives cost 5% on an audio-heavy mod and make every release
-reproducible.
+**Compressed archives.** Deflate differs between zlib builds, so a compressed archive only
+reproduces on a machine with the same one. Stored archives cost 5% on an audio-heavy mod, and any
+machine rebuilds them byte for byte.
 
 **Hashes taken from the host.** Recording whatever digest GitHub reports would make the manifest's
 hash a property of the download location, which is exactly what a hash is supposed to be independent
-of. The lock is written before publication and checked by CI.
+of. CI records the digest of the archive it built from the tag, before publishing it, and re-running
+the tag's job reproduces it.
 
 **An initializer.** A setup script that rewrites the template drifts from the files it rewrites and
 becomes the first thing to break. The files are the configuration; validation says what is missing.

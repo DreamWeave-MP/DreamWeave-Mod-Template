@@ -6,8 +6,8 @@
   "direction": "horizontal",
   "nodes": [
     { "id": "source", "kind": "source", "title": "You write", "detail": "content/<mod>/index.md for people, content/<mod>/mod.toml for facts, and the mod's files beside them." },
-    { "id": "tooling", "kind": "tool", "title": "./buildSite", "detail": "Validates, packages byte-reproducible archives, renders offline docs, writes manifests and the site index." },
-    { "id": "site", "kind": "result", "title": "Zola renders", "detail": "The mod page, its docs, its changelog and the network page, all from the same generated data." },
+    { "id": "tooling", "kind": "tool", "title": "CI checks and packages", "detail": "Validates every push, packages byte-reproducible archives with offline docs, records each tagged release in mod.lock, writes the manifests." },
+    { "id": "site", "kind": "result", "title": "Zola renders", "detail": "The mod page, its docs, its changelog and the network page, from the same mod.toml and mod.lock. zola serve shows it locally." },
     { "id": "players", "kind": "result", "role": "support", "title": "Players", "detail": "Read the page, download the archive, follow the install section." },
     { "id": "clients", "kind": "service", "role": "support", "title": "Clients and indexes", "detail": "CHIMERA, St4sh and anything else read dreamweave.json and the manifests. No HTML scraping." },
     { "id": "mirrors", "kind": "cache", "role": "support", "title": "Mirrors", "detail": "Serve the same bytes under the same SHA-256. They never become the authority." }

@@ -19,9 +19,10 @@ player makes, and the protocol refuses to pretend otherwise.
 
 ## What every release has
 
-**A SHA-256 and a size for every artifact**, recorded in `mod.lock` in a reviewed commit before the
-release exists, and reproduced by CI before publication. A client that checks them knows it has the
-publisher's bytes, whichever mirror served them.
+**A SHA-256 and a size for every artifact**, recorded in `mod.lock` by CI from the archive it built
+from the tag, before the release is published. From then on that version cannot be published with
+other bytes. A client that checks them knows it has the publisher's bytes, whichever mirror served
+them.
 
 **The source revision**, the commit the release's tag points at, when the repository is public.
 Anyone can check out that commit and rebuild the archive: same commit, same bytes.

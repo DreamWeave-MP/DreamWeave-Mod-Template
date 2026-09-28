@@ -8,8 +8,9 @@ kind = "guide"
 +++
 
 V4 is a breaking version, and it is tagged as one. A site that is not ready to move keeps building
-from the V3 tag, unchanged. When you move, the build tells you what is left: every page that still
-carries V3 project frontmatter without a `mod.toml` is an error that names the page.
+from the V3 tag, unchanged. When you move, CI tells you what is left: every page that still carries
+V3 project frontmatter without a `mod.toml` is an error that names the page, and the same run
+writes you a suggested `mod.toml` for it. There is nothing to install or run yourself.
 
 ## What changed
 
@@ -17,13 +18,13 @@ carries V3 project frontmatter without a `mod.toml` is an error that names the p
 |---|---|
 | Project metadata in `index.md`'s `[extra]` | `mod.toml` next to `index.md` |
 | Identity: the title's slug | `id`, a UUID you choose once; `slug` names archives and tags |
-| `extra.version` | `[[releases]]`, locked with `./buildSite lock`, published with a tag |
+| `extra.version` | `[[releases]]`, published by pushing a tag; CI records each in `mod.lock` |
 | `install_info` | `[openmw]` or `[[components]]`, checked against the files |
 | Every directory under `content/` packaged, minus `excluded_dirs` | Every directory with a `mod.toml` |
 | Zip with deflate, built by walking the file system | Stored, byte-reproducible zip from committed files, with rendered docs |
 | `<repo>-<tag>.modManifest` release asset, `schema_version: "1"` | `dreamweave.json` and `dreamweave/projects/<id>.json` on the site, `schema_version: "2"` |
 | Commit-log changelog | Release notes in `mod.toml`, one changelog for the page, the manifest and the GitHub release |
-| `./buildSite --build --changelog --tag …` | `./buildSite check`, `build`, `lock`, `verify`, `serve`, `links` |
+| `./buildSite --build --changelog --tag …` | Nothing to run: CI validates, packages and records releases, and `zola serve` previews |
 | terminimal theme, `accent_color`, `background_color` | The template's own layout, `palette` and `accent`, tokens in `sass/brand.sass` |
 | `giscus = { repo_id, category_id, … }` with pasted ids | `[extra.comments]`; the build looks the ids up for your own repository |
 | GoatCounter pointing at DreamWeave's account by default | Off until you set your own code |
@@ -37,18 +38,15 @@ The shortcodes existing pages call, `install_instructions`, `credits`, `usage_no
 **1. Bring in the template.** Copy V4's `templates/`, `sass/`, `static/js/`, `static/docs/`,
 `static/schemas/`, `static/img/mark.svg`, `tools/`, `buildSite` and `.github/workflows/build_site.yml`
 into your repository, delete `themes/terminimal`, and merge `config.toml` by hand: keep your
-`base_url`, `title`, `github_username`, `github_project` and `ignored_content`; add
-`"**/mod.toml", "**/mod.lock"` to `ignored_content`; replace `accent_color` with `palette`; delete
-what the table above says is gone. Keep your own shortcodes and `data/`.
+`base_url`, `title`, `github_username`, `github_project` and `ignored_content`; replace
+`accent_color` with `palette`; delete what the table above says is gone. Keep your own shortcodes
+and `data/`.
 
-**2. Generate a mod.toml per project.**
-
-```sh
-./buildSite migrate content/s3maphore > content/s3maphore/mod.toml
-```
-
-`migrate` reads the page's V3 frontmatter and the repository's tags and prints a suggestion. It
-writes nothing itself. Its notes, on stderr, say what it could not decide. It:
+**2. Push, and let CI suggest a mod.toml per project.** The check fails on every V3 page, and the
+same run writes a suggestion for each: in the run's summary, and in its `mod-toml-suggestions`
+artifact, laid out like your repository. Download the artifact and unzip it at the repository root,
+and every page gets its `mod.toml`. The comments at the top of each file say what the converter
+could not decide. It reads the page's V3 frontmatter and the repository's tags, and:
 
 - picks a fresh `id`;
 - sets `slug` to whichever of the title's slug or the directory's name already owns
@@ -73,23 +71,17 @@ newest release.
 
 **4. Clean the page.** Delete the V3 keys the notes list from `index.md`'s `[extra]`.
 
-**5. Check.**
-
-```sh
-./buildSite check
-```
-
-Expect it to find real problems. Moving St4sh found a content file declared with the wrong case
+**5. Push again.** Expect CI to find real problems. Moving St4sh found a content file declared with the wrong case
 (`Baldurwind.omwaddon` against a committed `baldurwind.omwaddon`), content files that are gitignored
 build output and so were never in the V3 archives either, and docs linking to sibling pages as
-`page.md`, which Zola never resolves. `./buildSite links` finds the last kind across the built site.
+`page.md`, which Zola never resolves. The link check after the site build finds the last kind.
 
 ## What happens to old releases
 
 Tags from before V4 stay, and the changelog shows them marked **unverified**. The manifest leaves
 them out: nothing recorded what their archives contained, and a client that cannot verify an archive
 should not be offered it. Development builds count from the newest tag, so players already on 0.963
-see 0.9631-dev.N, not something older. Lock and tag the next release and it is on the network.
+see 0.9631-dev.N, not something older. Tag the next release and it is on the network.
 
 ## Coming from somewhere else
 
