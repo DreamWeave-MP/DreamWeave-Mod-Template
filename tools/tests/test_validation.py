@@ -236,7 +236,7 @@ class RepositoryRules(unittest.TestCase):
     def test_palette_must_exist(self):
         config = (self.scratch.root / "config.toml").read_text().replace("[extra]\n", '[extra]\npalette = "blue"\n', 1)
         (self.scratch.root / "config.toml").write_text(config)
-        self.assertError("'blue' is not one of purple, teal, gold, ember, moss")
+        self.assertError("'blue' is not one of purple, teal, gold, ember, moss, umber")
 
     def test_v4_pages_without_mod_toml_are_rejected(self):
         self.scratch.write("content/old/index.md", '+++\ntitle = "Old"\n[extra]\nversion = "0.5"\n+++\n')

@@ -42,7 +42,7 @@ github_project = "DreamWeave-Mod-Template"
 # Shown in the header. Defaults to `title`.
 logo_text = "DreamWeave Mod Template"
 
-# Palette: purple (DreamWeave), teal, gold, ember or moss. `accent` overrides the palette's
+# Palette: purple (DreamWeave), teal, gold, ember, moss or umber. `accent` overrides the palette's
 # accent with any #rrggbb color. Anything bigger belongs in sass/brand.sass.
 palette = "purple"
 # accent = "#b48cff"
