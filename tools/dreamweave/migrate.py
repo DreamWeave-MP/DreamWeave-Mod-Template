@@ -49,14 +49,15 @@ def tags_for(directory: Path, slug: str) -> list[tuple[str, str]]:
 
 
 def ordering_violations(history: list[tuple[str, str]], scheme: str) -> list[str]:
-    parsed = []
+    """Everything wrong with a history under one scheme: unparsable versions and misordered dates."""
+    parsed, problems = [], []
     for text, date in history:
         try:
             parsed.append((Version.parse(text, scheme), date))
         except VersionError:
-            return [f"{text} is not a {scheme} version"]
+            problems.append(f"{text} is not a {scheme} version")
     ordered = sorted(parsed, key=lambda item: (item[1], item[0].precedence_key()))
-    return [
+    return problems + [
         f"{later} ({later_date}) sorts below {earlier} ({earlier_date})"
         for (earlier, earlier_date), (later, later_date) in zip(ordered, ordered[1:])
         if later < earlier
@@ -128,21 +129,37 @@ def suggest(directory: Path) -> tuple[str, list[str]]:
         if "nexus_group_id" in extra:
             lines.append(f"file_group_id = {toml_string(str(extra['nexus_group_id']))}")
 
-    history = tags_for(directory, slug)
-    current_text = str(extra.get("version", "")).strip()
-    if current_text and all(text != current_text for text, _ in history):
-        page_date = frontmatter.get("date")
-        date = page_date.isoformat() if isinstance(page_date, datetime.date) else datetime.date.today().isoformat()
-        history.append((current_text, date))
-
-    numeric_problems = ordering_violations(history, NUMERIC)
-    decimal_problems = ordering_violations(history, DECIMAL)
+    tags = tags_for(directory, slug)
+    numeric_problems = ordering_violations(tags, NUMERIC)
+    decimal_problems = ordering_violations(tags, DECIMAL)
     scheme = NUMERIC
-    if numeric_problems and not decimal_problems:
+    if numeric_problems and len(decimal_problems) < len(numeric_problems):
         scheme = DECIMAL
         lines.insert(3, 'versioning = "decimal"  # these releases were numbered like decimals: 0.82 comes before 0.9')
-    elif numeric_problems:
-        notes.extend(f"release history does not sort under either scheme: {problem}. Fix or drop those entries." for problem in numeric_problems)
+
+    history = []
+    for text, date in tags:
+        try:
+            history.append((Version.parse(text, scheme), text, date))
+        except VersionError:
+            notes.append(f"tag {slug}-{text} is not a {scheme} version, so it is left out of [[releases]].")
+    for problem in ordering_violations([(text, date) for _, text, date in history], scheme)[:3]:
+        notes.append(f"historical tags are out of order ({problem}). That is only history: tags without a lock never enter the manifest.")
+
+    current_text = str(extra.get("version", "")).strip()
+    try:
+        current = Version.parse(current_text, scheme) if current_text else None
+    except VersionError:
+        current = None
+        notes.append(f"extra.version {current_text!r} is a placeholder, not a version; declare the first real release when it ships.")
+    if current is not None and all(version != current for version, _, _ in history):
+        newest = max((version for version, _, _ in history), default=None)
+        if newest is None or current > newest:
+            history.append((current, current_text, datetime.date.today().isoformat()))
+            notes.append(f"{current_text} has no tag yet, so it is declared as the next release, dated today. Lock and tag it when it ships.")
+        else:
+            notes.append(f"extra.version {current_text} sorts below the newest tag {newest}; it was never bumped, so it is not carried over.")
+    history = [(text, date) for _, text, date in history]
 
     for text, date in sorted(history, key=lambda item: item[1]):
         lines += ["", "[[releases]]", f"version = {toml_string(text)}", f"date = {date}"]
