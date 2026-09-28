@@ -181,6 +181,184 @@
       "critical_extensions": [
         "openmw"
       ]
+    },
+    {
+      "version": "1.1.0",
+      "locked_from": "3e10f2ae2b761606f8e3e6fa4421f2844f67b81d",
+      "artifacts": [
+        {
+          "id": "fomod",
+          "format": "fomod",
+          "filename": "candlelight.zip",
+          "media_type": "application/zip",
+          "size": 252703,
+          "digests": {
+            "sha256": "008883567e49ad8f1bc53f45e67f21498384cf0f8b9c1a236658f4bdb61fccb4"
+          },
+          "layout": {
+            "release_document": "dreamweave.release.json",
+            "documentation": "Documentation/index.html",
+            "installer": "fomod/ModuleConfig.xml"
+          }
+        }
+      ],
+      "runtimes": {
+        "openmw": ">=0.49"
+      },
+      "platforms": [],
+      "provides": [
+        "dreamweave:dynamic-lights"
+      ],
+      "relationships": [
+        {
+          "kind": "requires",
+          "project": "9b7e3f21-6c4d-4a8b-b1e2-3f5a7c9d0e14",
+          "name": "Tallow",
+          "version": ">=1.0",
+          "url": "https://dreamweave-mp.github.io/DreamWeave-Mod-Template/simplified/"
+        },
+        {
+          "kind": "recommends",
+          "name": "Tamriel Rebuilt",
+          "url": "https://www.tamriel-rebuilt.org/",
+          "reason": "Install the Tamriel Rebuilt component to light the mainland too."
+        },
+        {
+          "kind": "conflicts",
+          "name": "Other mods that script vanilla light records",
+          "reason": "Two scripts animating the same light fight every frame. Pick one."
+        },
+        {
+          "kind": "compatible",
+          "name": "OpenMW's own shadows and post-processing",
+          "reason": "Tested with shadows, per-pixel lighting and the default post-processing stack."
+        }
+      ],
+      "components": [
+        {
+          "id": "core",
+          "name": "Core",
+          "description": "The light scripts. Everything else is optional.",
+          "path": "00 Core",
+          "required": true,
+          "default": true,
+          "requires": [],
+          "conflicts": [],
+          "suggested_with": []
+        },
+        {
+          "id": "tamriel-rebuilt",
+          "name": "Tamriel Rebuilt patch",
+          "description": "Light records from the Tamriel Rebuilt mainland.",
+          "path": "10 Tamriel Rebuilt",
+          "required": false,
+          "default": false,
+          "requires": [],
+          "conflicts": [],
+          "suggested_with": []
+        },
+        {
+          "id": "flames-2k",
+          "name": "Flames, 2K",
+          "path": "20 Flames 2K",
+          "required": false,
+          "default": true,
+          "group": "flames",
+          "requires": [],
+          "conflicts": [],
+          "suggested_with": []
+        },
+        {
+          "id": "flames-4k",
+          "name": "Flames, 4K",
+          "description": "Sharper up close. Four times the VRAM for a candle.",
+          "path": "21 Flames 4K",
+          "required": false,
+          "default": false,
+          "group": "flames",
+          "requires": [],
+          "conflicts": [],
+          "suggested_with": []
+        }
+      ],
+      "groups": [
+        {
+          "id": "flames",
+          "name": "Flame textures",
+          "select": "exactly-one",
+          "description": "Pick one. Both replace the same files."
+        }
+      ],
+      "extensions": {
+        "openmw": {
+          "components": {
+            "core": {
+              "data_directories": [
+                "."
+              ],
+              "content_files": [
+                "Candlelight.omwscripts"
+              ],
+              "groundcover_files": [],
+              "fallback_archives": [],
+              "fallback_entries": {},
+              "config": false,
+              "requires_content": []
+            },
+            "tamriel-rebuilt": {
+              "data_directories": [
+                "."
+              ],
+              "content_files": [
+                "Candlelight - TR.omwscripts"
+              ],
+              "groundcover_files": [],
+              "fallback_archives": [],
+              "fallback_entries": {},
+              "config": false,
+              "requires_content": [
+                "TR_Mainland.esm"
+              ]
+            },
+            "flames-2k": {
+              "data_directories": [
+                "."
+              ],
+              "content_files": [],
+              "groundcover_files": [],
+              "fallback_archives": [],
+              "fallback_entries": {},
+              "config": false,
+              "requires_content": []
+            },
+            "flames-4k": {
+              "data_directories": [
+                "."
+              ],
+              "content_files": [],
+              "groundcover_files": [],
+              "fallback_archives": [],
+              "fallback_entries": {},
+              "config": false,
+              "requires_content": []
+            }
+          },
+          "requires_content": [
+            "Morrowind.esm"
+          ],
+          "settings": [
+            {
+              "category": "Shaders",
+              "key": "force per pixel lighting",
+              "value": "true"
+            }
+          ],
+          "lua_api": ">=60"
+        }
+      },
+      "critical_extensions": [
+        "openmw"
+      ]
     }
   ]
 }
