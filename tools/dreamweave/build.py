@@ -283,6 +283,8 @@ def verify_tag(repository: Repository, tag: str) -> list[Path]:
         raise SystemExit(f"{tag}: mod.toml's install or compatibility data changed after the lock was written. Re-run ./buildSite lock.")
     print(f"{tag} reproduces mod.lock: {result.size} bytes sha256 {result.sha256}")
     write_nexus_uploads(repository, project, version, artifact)
+    write_release_notes(repository, project, version, artifact)
+    write_signing_list(repository, [(project, artifact)])
     return [result.path]
 
 
@@ -295,12 +297,51 @@ def build_development(repository: Repository, include_archives: bool) -> dict[st
         return artifacts
 
     documentation = render_documentation(repository, targets, versions)
+    built = []
     for project in targets:
         result, artifact = build_archive(repository, project, versions[project.id], None, documentation.get(project.page_path, {}))
         artifacts[project.id] = artifact
+        built.append((project, artifact))
         print(f"Built {project.slug} {versions[project.id]}: {result.size} bytes sha256 {result.sha256}")
-
+    write_signing_list(repository, built)
     return artifacts
+
+
+def write_release_notes(repository: Repository, project: Project, version: Version, artifact: dict) -> Path:
+    """dist/release-notes.md: the GitHub Release body, from the same notes as the changelog."""
+    declared = project.declared_release(version)
+    notes = records.notes_document(declared)
+    lines = [f"## {project.name} {version}", ""]
+    if "summary" in notes:
+        lines += [notes["summary"], ""]
+    if "highlights" in notes:
+        lines += [notes["highlights"], ""]
+    for key, heading in (("breaking", "Breaking changes"), ("added", "Added"), ("changed", "Changed"), ("fixed", "Fixed"), ("known_issues", "Known issues")):
+        if key in notes:
+            lines += [f"### {heading}", "", *(f"- {line}" for line in notes[key]), ""]
+    if "migration" in notes:
+        lines += ["### Migration", "", notes["migration"], ""]
+    if "notes" in notes:
+        lines += [notes["notes"], ""]
+    base_url = site_base_url(repository)
+    lines += [
+        "---",
+        "",
+        f"`{artifact['filename']}` · {artifact['size']} bytes · SHA-256 `{artifact['digests']['sha256']}`",
+        "",
+        f"Project page: {base_url}/{project.page_path} · Manifest: {base_url}/dreamweave/projects/{project.id}.json",
+    ]
+    path = repository.root / DIST / "release-notes.md"
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return path
+
+
+def write_signing_list(repository: Repository, built: list[tuple[Project, dict]]) -> Path:
+    """dist/sign.txt: archives whose projects asked for Sigstore signatures, one file name per line."""
+    names = [artifact["filename"] for project, artifact in built if project.sigstore]
+    path = repository.root / DIST / "sign.txt"
+    path.write_text("".join(f"{name}\n" for name in names), encoding="utf-8")
+    return path
 
 
 def write_nexus_uploads(repository: Repository, project: Project, version: Version, artifact: dict) -> None:
