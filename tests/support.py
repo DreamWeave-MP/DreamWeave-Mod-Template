@@ -35,6 +35,17 @@ github_username = "someone"
 github_project = "cool-mods"
 """
 
+# Sites made from the template may drop the network page, so the tests bring their own.
+NETWORK_PAGE = """+++
+title = "Network"
+template = "dreamweave/network.html"
+
+[extra]
+comments = false
++++
+What this site publishes.
+"""
+
 
 def git(root: Path, *arguments: str) -> str:
     process = subprocess.run(["git", *arguments], cwd=root, capture_output=True, text=True)
@@ -67,7 +78,7 @@ class Scratch:
         (self.root / "config.toml").write_text(SITE_CONFIG)
         (self.root / ".gitignore").write_text((REPOSITORY / ".gitignore").read_text())
         self.write("content/_index.md", '+++\ntitle = "Cool Mods"\nsort_by = "title"\npaginate_by = 2\n+++\n')
-        self.write("content/network.md", (REPOSITORY / "content/network.md").read_text())
+        self.write("content/network.md", NETWORK_PAGE)
         git(self.root, "init", "-q", "-b", "main")
         git(self.root, "config", "user.email", "test@example.invalid")
         git(self.root, "config", "user.name", "Test")
