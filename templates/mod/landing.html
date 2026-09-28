@@ -51,7 +51,11 @@
                 {%- if primary and not dw_offline %}
                 {%- set primary_artifact = primary.artifacts | first %}
                 {%- set primary_source = primary_artifact.sources | filter(attribute="kind", value="publisher") | first %}
+                {%- if stable %}
                 <a class="dw-button dw-button--primary" href="{{ primary_source.url | safe }}">Download {{ primary.version }} <span class="dw-button__meta">{{ primary_artifact.size | filesizeformat }}</span></a>
+                {%- else %}
+                <a class="dw-button" href="{{ primary_source.url | safe }}" title="There is no stable release yet. This is the latest build of the default branch.">Development build {{ primary.version }} <span class="dw-button__meta">{{ primary_artifact.size | filesizeformat }}</span></a>
+                {%- endif %}
                 <a class="dw-button" href="modl://{{ project.game }}/?url={{ primary_source.url | safe }}" title="Hand the archive to umo or ModdingLinked MO2">Mod manager</a>
                 {%- endif %}
                 <a class="dw-button" href="#install">Install guide</a>
