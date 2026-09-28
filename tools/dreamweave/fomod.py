@@ -23,7 +23,7 @@ GROUP_TYPES = {
 
 def info_xml(project: Project, version: Version, website: str) -> bytes:
     authors = ", ".join(person.name for person in project.maintainers) or project.name
-    machine_version = ".".join(str(number) for number in version.release)
+    machine_version = ".".join(version.release_text)
     lines = [
         '<?xml version="1.0" encoding="utf-8"?>',
         "<fomod>",

@@ -108,9 +108,9 @@
       "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
     },
     "version": {
-      "description": "Dot-separated release numbers (1 to 6), optional -prerelease and +build. Compared number by number; SemVer 2.0.0 rules for pre-releases; build metadata ignored.",
+      "description": "Dot-separated release numbers (1 to 6), optional -prerelease and +build. How release numbers compare depends on the project's versioning scheme (numeric or decimal); pre-releases follow SemVer 2.0.0; build metadata is ignored.",
       "type": "string",
-      "pattern": "^(?:0|[1-9][0-9]*)(?:\\.(?:0|[1-9][0-9]*)){0,5}(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$"
+      "pattern": "^(?:0|[1-9][0-9]*)(?:\\.[0-9]+){0,5}(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$"
     },
     "url": {
       "type": "string",

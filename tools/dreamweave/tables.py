@@ -7,7 +7,7 @@ import uuid
 from urllib.parse import urlsplit
 
 from .problems import Problems
-from .versions import Constraint, Version, VersionError
+from .versions import DECIMAL, NUMERIC, Constraint, Version, VersionError
 
 TOKEN_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 EXTENSION_NAMESPACE_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]*(\.[a-z0-9][a-z0-9-]*)+$")
@@ -122,22 +122,22 @@ class Table:
             return None
         return value.isoformat()
 
-    def version(self, key: str) -> Version | None:
+    def version(self, key: str, scheme: str = NUMERIC) -> Version | None:
         value = self.raw(key)
         if value is None:
             return None
         try:
-            return Version.parse(value)
+            return Version.parse(value, scheme)
         except VersionError as error:
             self.problems.error(self.child_where(key), str(error))
             return None
 
-    def constraint(self, key: str, default: object = MISSING) -> Constraint | None:
+    def constraint(self, key: str, default: object = MISSING, scheme: str = NUMERIC) -> Constraint | None:
         value = self.raw(key, default)
         if value is None or value is default:
             return value
         try:
-            return Constraint.parse(value)
+            return Constraint.parse(value, scheme)
         except VersionError as error:
             self.problems.error(self.child_where(key), str(error))
             return None

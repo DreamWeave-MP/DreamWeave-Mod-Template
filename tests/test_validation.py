@@ -60,7 +60,12 @@ class ProjectRules(unittest.TestCase):
 
     def test_a_newer_release_cannot_sort_below_an_older_one(self):
         releases = '[[releases]]\nversion = "0.82"\ndate = 2026-01-01\n[[releases]]\nversion = "0.9"\ndate = 2026-02-01\n'
-        self.assertError(MINIMAL + releases, "0.9 < 0.82")
+        self.assertError(MINIMAL + releases, 'set versioning = "decimal"')
+
+    def test_decimal_versioning_accepts_decimal_histories(self):
+        releases = '[[releases]]\nversion = "0.82"\ndate = 2026-01-01\n[[releases]]\nversion = "0.9"\ndate = 2026-02-01\n'
+        self.assertEqual(self.errors_for(MINIMAL + 'versioning = "decimal"\n' + releases), [])
+        self.assertError(MINIMAL + 'versioning = "decimal"\n' + releases.replace('"0.9"', '"0.8"'), "sorts below 0.82 (2026-01-01) under decimal")
 
     def test_development_releases_are_not_declared(self):
         self.assertError(MINIMAL + '[[releases]]\nversion = "1.0"\nchannel = "development"\ndate = 2026-01-01\n', "built from your default branch")

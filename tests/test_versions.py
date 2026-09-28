@@ -1,7 +1,7 @@
 import unittest
 
 from support import REPOSITORY  # noqa: F401  (puts tools/ on sys.path)
-from dreamweave.versions import Constraint, Version, VersionError
+from dreamweave.versions import DECIMAL, Constraint, Version, VersionError
 
 
 class VersionOrdering(unittest.TestCase):
@@ -40,6 +40,50 @@ class VersionOrdering(unittest.TestCase):
         self.assertLess(beta, development)
         self.assertLess(development, Version.parse("2.0.0-beta.2"))
         self.assertLess(development, Version.parse("2.0.0"))
+
+
+class DecimalOrdering(unittest.TestCase):
+    """St4sh numbers releases like decimals: 0.5, 0.51, 0.54, 0.6, 0.63, 0.9, 0.96, 0.961."""
+
+    def parse(self, text):
+        return Version.parse(text, DECIMAL)
+
+    def test_later_numbers_compare_like_decimal_fractions(self):
+        history = ["0.5", "0.51", "0.52", "0.54", "0.6", "0.61", "0.63", "0.9", "0.91", "0.96", "0.961", "0.963", "0.97", "1.0", "1.05", "1.1"]
+        versions = [self.parse(text) for text in history]
+        self.assertEqual(versions, sorted(versions))
+
+    def test_trailing_zeros_do_not_count_but_leading_ones_do(self):
+        self.assertEqual(self.parse("0.5"), self.parse("0.50"))
+        self.assertLess(self.parse("0.05"), self.parse("0.5"))
+        self.assertEqual(self.parse("1"), self.parse("1.0"))
+
+    def test_the_first_number_is_an_integer(self):
+        self.assertLess(self.parse("9.9"), self.parse("10.1"))
+
+    def test_leading_zeros_are_only_meaningful_in_decimal(self):
+        self.assertEqual(str(self.parse("0.05")), "0.05")
+        with self.assertRaisesRegex(VersionError, 'versioning = "decimal"'):
+            Version.parse("0.05")
+
+    def test_development_builds_sort_after_the_release_and_before_any_successor(self):
+        released = self.parse("0.963")
+        development = released.next_development(2)
+        self.assertEqual(str(development), "0.9631-dev.2")
+        for successor in ("0.9631", "0.964", "0.97", "1.0"):
+            with self.subTest(successor=successor):
+                self.assertLess(released, development)
+                self.assertLess(development, self.parse(successor))
+        self.assertEqual(str(self.parse("1").next_development(1)), "1.001-dev.1")
+
+    def test_schemes_do_not_mix(self):
+        with self.assertRaises(TypeError):
+            Version.parse("0.9") < self.parse("0.9")
+
+    def test_constraints_use_the_target_scheme(self):
+        constraint = Constraint.parse(">=0.9", DECIMAL)
+        self.assertTrue(constraint.allows(self.parse("0.963")))
+        self.assertFalse(constraint.allows(self.parse("0.85")))
 
 
 class Constraints(unittest.TestCase):

@@ -32,7 +32,8 @@
       "required": [
         "id",
         "name",
-        "slug"
+        "slug",
+        "versioning"
       ],
       "additionalProperties": false,
       "properties": {
@@ -46,6 +47,12 @@
         "slug": {
           "type": "string",
           "pattern": "^[a-z0-9][a-z0-9_]*$"
+        },
+        "versioning": {
+          "enum": [
+            "numeric",
+            "decimal"
+          ]
         }
       }
     },
@@ -139,14 +146,14 @@
       "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
     },
     "version": {
-      "description": "Dot-separated release numbers (1 to 6), optional -prerelease and +build. Compared number by number; SemVer 2.0.0 rules for pre-releases; build metadata ignored.",
+      "description": "Dot-separated release numbers (1 to 6), optional -prerelease and +build. How release numbers compare depends on the project's versioning scheme (numeric or decimal); pre-releases follow SemVer 2.0.0; build metadata is ignored.",
       "type": "string",
-      "pattern": "^(?:0|[1-9][0-9]*)(?:\\.(?:0|[1-9][0-9]*)){0,5}(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$"
+      "pattern": "^(?:0|[1-9][0-9]*)(?:\\.[0-9]+){0,5}(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$"
     },
     "constraint": {
-      "description": "* or comma-separated comparators (=, !=, >, >=, <, <=) that must all hold.",
+      "description": "* or comma-separated comparators (=, !=, >, >=, <, <=) that must all hold, evaluated with the target project's versioning scheme.",
       "type": "string",
-      "pattern": "^\\s*(?:\\*|(?:>=|<=|!=|=|>|<)\\s*(?:0|[1-9][0-9]*)(?:\\.(?:0|[1-9][0-9]*)){0,5}(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?(?:\\s*,\\s*(?:>=|<=|!=|=|>|<)\\s*(?:0|[1-9][0-9]*)(?:\\.(?:0|[1-9][0-9]*)){0,5}(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?)*)\\s*$"
+      "pattern": "^\\s*(?:\\*|(?:>=|<=|!=|=|>|<)\\s*(?:0|[1-9][0-9]*)(?:\\.[0-9]+){0,5}(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?(?:\\s*,\\s*(?:>=|<=|!=|=|>|<)\\s*(?:0|[1-9][0-9]*)(?:\\.[0-9]+){0,5}(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?)*)\\s*$"
     },
     "token": {
       "type": "string",
@@ -801,7 +808,8 @@
         "links",
         "integrations",
         "media",
-        "credits"
+        "credits",
+        "versioning"
       ],
       "additionalProperties": false,
       "properties": {
@@ -953,6 +961,13 @@
               }
             }
           }
+        },
+        "versioning": {
+          "description": "How this project's release numbers compare. numeric: as integers (0.9 < 0.82). decimal: after the first, like digits after a decimal point (0.82 < 0.9).",
+          "enum": [
+            "numeric",
+            "decimal"
+          ]
         }
       }
     }

@@ -129,7 +129,7 @@ def payload_release_document(project: Project, version: Version, semantics: dict
     document = {
         "schema_version": SCHEMA_VERSION,
         "document": "release-payload",
-        "project": {"id": project.id, "name": project.name, "slug": project.slug},
+        "project": {"id": project.id, "name": project.name, "slug": project.slug, "versioning": project.versioning},
         "version": str(version),
         "format": project.package_format,
         **semantics,
@@ -179,7 +179,7 @@ def read_lock(project: Project, root: Path, problems: Problems) -> list[LockedRe
     for index, record in enumerate(document.get("releases", [])):
         record_where = f"{where} releases[{index}]"
         try:
-            version = Version.parse(record.get("version"))
+            version = Version.parse(record.get("version"), project.versioning)
         except VersionError as error:
             problems.error(record_where, str(error))
             continue
@@ -326,15 +326,15 @@ def release_document(project: Project, site: SiteConfig, release: PublishedRelea
     return document
 
 
-def channel_heads(releases: list[dict]) -> dict:
+def channel_heads(releases: list[dict], scheme: str) -> dict:
     heads: dict = {}
     for release in releases:
         if release["status"] != "available":
             continue
         channel = release["channel"]
-        version = Version.parse(release["version"])
+        version = Version.parse(release["version"], scheme)
         current = heads.get(channel)
-        if current is None or version > Version.parse(current["version"]):
+        if current is None or version > Version.parse(current["version"], scheme):
             heads[channel] = {"version": release["version"]}
     return dict(sorted(heads.items()))
 
@@ -381,6 +381,7 @@ def project_manifest(project: Project, site: SiteConfig, base_url: str, releases
     project_document.update({
         "type": project.type,
         "status": project.status,
+        "versioning": project.versioning,
         "game": project.game,
     })
     if project.license:
@@ -398,13 +399,13 @@ def project_manifest(project: Project, site: SiteConfig, base_url: str, releases
         for credit in project.credits
     ]
 
-    ordered = sorted(releases, key=lambda release: Version.parse(release["version"]).precedence_key(), reverse=True)
+    ordered = sorted(releases, key=lambda release: Version.parse(release["version"], project.versioning).precedence_key(), reverse=True)
     return {
         "schema_version": SCHEMA_VERSION,
         "document": "project",
         "generator": GENERATOR,
         "project": project_document,
-        "channels": channel_heads(ordered),
+        "channels": channel_heads(ordered, project.versioning),
         "releases": ordered,
     }
 

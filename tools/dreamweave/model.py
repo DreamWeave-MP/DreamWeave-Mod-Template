@@ -13,7 +13,7 @@ import yaml
 
 from .problems import Problems
 from .tables import EXTENSION_NAMESPACE_PATTERN, TOKEN_PATTERN, Table, check_url, check_uuid
-from .versions import Constraint, Version
+from .versions import DECIMAL, NUMERIC, SCHEMES, Constraint, Version
 
 MOD_TOML = "mod.toml"
 MOD_LOCK = "mod.lock"
@@ -182,6 +182,7 @@ class Project:
     tags: list[str]
     type: str
     status: str
+    versioning: str
     game: str
     license: str | None
     maintainers: list[Person]
@@ -338,6 +339,7 @@ def read_project(table: Table, directory: str, name: str, summary: str | None, t
     slug = table.string("slug", pattern=SLUG_PATTERN, describe="a slug: lowercase letters, digits and '_' (no '-': release tags are <slug>-<version>)")
     project_type = table.choice("type", PROJECT_TYPES, "mod")
     status = table.choice("status", PROJECT_STATUSES, "active")
+    versioning = table.choice("versioning", SCHEMES, NUMERIC)
     game = table.string("game", "morrowind", pattern=TOKEN_PATTERN, describe="a lowercase game token like morrowind")
     license_expression = table.string("license", None)
 
@@ -490,7 +492,7 @@ def read_project(table: Table, directory: str, name: str, summary: str | None, t
 
     releases = []
     for release_table in table.table_list("releases"):
-        release = read_release(release_table, problems)
+        release = read_release(release_table, problems, versioning)
         release_table.finish()
         if release:
             releases.append(release)
@@ -520,6 +522,7 @@ def read_project(table: Table, directory: str, name: str, summary: str | None, t
         tags=tags,
         type=project_type,
         status=status,
+        versioning=versioning,
         game=game or "morrowind",
         license=license_expression,
         maintainers=maintainers,
@@ -559,7 +562,9 @@ def read_relationship(kind: str, table: Table, problems: Problems) -> Relationsh
     project_id = table.uuid("id", None)
     capability = table.string("capability", None, pattern=CAPABILITY_PATTERN, describe="a capability name")
     name = table.string("name", None)
-    version = table.constraint("version", None)
+    # The target's versioning scheme is in its own manifest, so only the syntax is checked here;
+    # the decimal grammar is the more permissive of the two.
+    version = table.constraint("version", None, scheme=DECIMAL)
     url = table.url("url", None)
     reason = table.string("reason", None)
 
@@ -635,13 +640,13 @@ def read_media(table: Table, problems: Problems) -> Media | None:
     )
 
 
-def read_release(table: Table, problems: Problems) -> DeclaredRelease | None:
-    version = table.version("version")
+def read_release(table: Table, problems: Problems, scheme: str) -> DeclaredRelease | None:
+    version = table.version("version", scheme)
     channel = table.string("channel", "stable", pattern=CHANNEL_PATTERN, describe="a lowercase channel name like stable or beta")
     date = table.date("date")
     replacement = None
     if table.has("replacement"):
-        replacement = table.version("replacement")
+        replacement = table.version("replacement", scheme)
 
     notes = ReleaseNotes(
         summary=table.string("summary", None),
@@ -780,8 +785,10 @@ def check_project_structure(project: Project, where: str, problems: Problems) ->
             if later.version < earlier.version:
                 problems.error(
                     where,
-                    f"{channel} release {later.version} ({later.date}) sorts below {earlier.version} ({earlier.date}). "
-                    "Versions compare number by number, so 0.9 < 0.82; pick a version that sorts after the last one",
+                    f"{channel} release {later.version} ({later.date}) sorts below {earlier.version} ({earlier.date}) under "
+                    f"{project.versioning} versioning. "
+                    + ("If this project numbers releases like decimals (0.82 then 0.9), set versioning = \"decimal\"; otherwise pick a version that sorts after the last one"
+                       if project.versioning == NUMERIC else "Pick a version that sorts after the last one"),
                 )
     for release in project.releases:
         if release.replacement and not any(release.replacement == other.version for other in project.releases):

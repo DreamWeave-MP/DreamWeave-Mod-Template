@@ -162,7 +162,9 @@ def development_version(repository: Repository, project: Project, state: Release
     base = max((release.locked.version for release in state.published), default=None)
     since = project.release_tag(base) if base is not None else None
     count = gitrepo.count_commits(repository.head, since, project.directory)
-    return (base or Version.parse("0.0.0")).next_development(count)
+    if base is None:
+        base = Version.parse("0.0.0" if project.versioning == "numeric" else "0", project.versioning)
+    return base.next_development(count)
 
 
 def archive_entries(repository: Repository, project: Project, version: Version, revision: str | None, documentation: dict[str, bytes]) -> tuple[list[ArchiveEntry], dict]:
@@ -220,7 +222,7 @@ def lock_release(repository: Repository, slug: str, version_text: str | None) ->
     locked_versions = {release.version for release in repository.locks[project.id]}
     candidates = [release for release in project.releases if release.version not in locked_versions]
     if version_text:
-        wanted = Version.parse(version_text)
+        wanted = Version.parse(version_text, project.versioning)
         candidates = [release for release in candidates if release.version == wanted]
         if not candidates:
             raise SystemExit(f"{project.slug} {wanted} is not an unlocked release in {project.directory}/mod.toml.")
@@ -256,7 +258,7 @@ def verify_tag(repository: Repository, tag: str) -> list[Path]:
     if not separator:
         raise SystemExit(f"Tag {tag!r} is not <slug>-<version>.")
     project = repository.project_by_slug(slug)
-    version = Version.parse(version_text)
+    version = Version.parse(version_text, project.versioning)
     record = next((release for release in repository.locks[project.id] if release.version == version), None)
     if record is None:
         raise SystemExit(f"{project.directory}/mod.lock has no record for {version}. Run ./buildSite lock {slug} before tagging.")
