@@ -546,3 +546,13 @@ pre:hover > .dw-copy, pre > .dw-copy:focus-visible
 
     &:hover
       color: var(--dw-accent)
+
+// Wide tables scroll inside their own box instead of widening the page
+
+.dw-table-scroll
+  max-width: 100%
+  overflow-x: auto
+  margin: 0 0 1em
+
+  > table
+    margin: 0

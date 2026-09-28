@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% import "macros/dw.html" as dw_macros %}
+
+{%- block discovery %}
+{%- if dw and page.colocated_path and page.colocated_path in dw.projects %}
+<link rel="alternate" type="application/vnd.dreamweave.project+json" title="{{ page.title }} manifest" href="{{ dw.projects[page.colocated_path].manifest_url | safe }}">
+{%- endif %}
+{%- endblock discovery %}
+
+{%- block og_image %}
+{%- if dw and page.colocated_path and page.colocated_path in dw.projects %}
+{%- set og_items = dw.projects[page.colocated_path].media | filter(attribute="kind", value="image") %}
+{%- if og_items | length > 0 %}
+{%- set og_featured = og_items | filter(attribute="featured", value=true) %}{% if og_featured | length > 0 %}{% set og_item = og_featured | first %}{% else %}{% set og_item = og_items | first %}{% endif %}
+{%- set og = resize_image(path="content/" ~ page.colocated_path ~ og_item.file, width=1200, op="fit_width", format="jpg", quality=82) %}
+<meta property="og:image" content="{{ og.url | safe }}">
+<meta name="twitter:card" content="summary_large_image">
+{%- endif %}
+{%- endif %}
+{%- endblock og_image %}
+
+{%- block offline_banner %}
+{%- if dw_offline and dw and page.colocated_path and page.colocated_path in dw.projects %}
+{%- set banner_project = dw.projects[page.colocated_path] %}
+<div class="dw-offline"><div class="dw-shell">Offline documentation for {{ page.title }}{% if banner_project.packaged_version %} {{ banner_project.packaged_version }}{% endif %}, shipped inside the archive. The live page is <a href="{{ page.permalink | safe }}">{{ page.permalink }}</a>.</div></div>
+{%- endif %}
+{%- endblock offline_banner %}
+
+{%- block content %}
+{%- if dw and page.colocated_path and page.colocated_path in dw.projects %}
+{%- set project = dw.projects[page.colocated_path] %}
+{%- include "mod/landing.html" %}
+{%- else %}
+<div class="dw-shell">
+    <article class="dw-article">
+        <header>
+            {%- if page.date %}<p class="dw-kicker"><span>{{ page.date | date(format="%Y-%m-%d") }}</span>{% if page.reading_time %}<span>{{ page.reading_time }} min read</span>{% endif %}</p>{% endif %}
+            <h1>{{ page.title }}</h1>
+            {%- if page.description %}<p class="dw-hero__summary">{{ page.description }}</p>{% endif %}
+        </header>
+        <div class="dw-prose">{{ page.content | safe }}</div>
+        {%- if page.taxonomies.tags is defined %}
+        <ul class="dw-tags">{% for tag in page.taxonomies.tags %}<li><a href="{{ get_taxonomy_url(kind='tags', name=tag) | safe }}">{{ tag }}</a></li>{% endfor %}</ul>
+        {%- endif %}
+    </article>
+</div>
+{%- endif %}
+{%- endblock content %}

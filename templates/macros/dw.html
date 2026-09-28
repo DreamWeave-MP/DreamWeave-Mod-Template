@@ -18,7 +18,7 @@
 {%- endmacro constraint %}
 
 {% macro status(state, label="") -%}
-<span class="dw-status dw-status--{{ state }}">{{ label | default(value=state) }}</span>
+<span class="dw-status dw-status--{{ state }}">{% if label %}{{ label }}{% else %}{{ state }}{% endif %}</span>
 {%- endmacro status %}
 
 {% macro short_digest(digest) -%}
