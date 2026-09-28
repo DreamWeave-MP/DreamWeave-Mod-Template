@@ -34,7 +34,7 @@
 ```sh
 python3 -m unittest discover -s tests      # protocol, validation and release lifecycle (needs zola)
 ./buildSite check
-./buildSite build && zola build && ./buildSite links
+./buildSite build && ./buildSite schemas && zola build && ./buildSite links
 actionlint                                 # workflow, including embedded shellcheck
 stylua --check $(git ls-files 'content/*.lua')
 ```

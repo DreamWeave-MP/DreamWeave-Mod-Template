@@ -59,7 +59,8 @@ plus [Zola](https://www.getzola.org/) to preview. No Node, no Rust, no accounts.
 | `./buildSite build` | Package development builds and write the protocol files, as CI does |
 | `./buildSite lock <slug>` | Record the next release's archive hash before tagging it |
 | `./buildSite verify <tag>` | Rebuild a tagged release and fail unless it matches `mod.lock` (CI) |
-| `./buildSite links` | Check the built site's local links and anchors |
+| `./buildSite links` | Check the built site's local links, anchors and HTML structure |
+| `./buildSite schemas` | Validate the generated index and manifests against the published schemas |
 | `./buildSite migrate <dir>` | Print a `mod.toml` for a V3 page |
 | `./buildSite new-id` | Print a fresh project id |
 
