@@ -316,6 +316,13 @@ class ReleaseLifecycle(unittest.TestCase):
         self.assertIn('id="v1-0-0"', page, "without the generated changelog page, the project page lists every release")
         self.assertNotIn("changelog/", page)
 
+    def test_a_leftover_offline_view_does_not_break_the_site(self):
+        # An interrupted CI build leaves the offline documentation's view behind.
+        self.scratch.write("static/dreamweave/view.json", '{"offline": true, "generator": "x", "projects": {"lantern/": {"packaged_version": "1.0.0"}}}')
+        page = self.zola_build()
+        self.assertNotIn("Offline documentation", page)
+        self.assertIn("Distribution metadata", (self.root / "public/network/index.html").read_text())
+
     def test_the_page_says_what_the_manifest_says(self):
         self.scratch.add_project("hearth", HEARTH, title="Hearth", files=HEARTH_FILES)
         self.scratch.commit("Add Hearth")

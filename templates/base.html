@@ -3,6 +3,8 @@
     false under a plain `zola serve`: everything else comes from the site's own files. -#}
 {%- set_global dw = load_data(path="static/dreamweave/view.json", required=false) -%}
 {%- set_global dw_offline = config.extra.dreamweave_offline | default(value=false) -%}
+{#- A view written for the other mode is left over from an interrupted build: ignore it. -#}
+{%- if dw and dw.offline != dw_offline %}{% set_global dw = false %}{% endif -%}
 {#- Pages that describe a project set `project` (and `ci`, its CI facts) here, before anything
     renders. See templates/macros/project.html. -#}
 {%- block model %}{% endblock model -%}
