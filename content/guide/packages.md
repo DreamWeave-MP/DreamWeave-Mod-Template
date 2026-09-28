@@ -1,6 +1,6 @@
 +++
 title = "Packages"
-description = "Flat, BAIN and FOMOD archives, programs built per platform, components, what ships, and why archives are not compressed."
+description = "Flat, BAIN and FOMOD archives, programs built per platform, Rust libraries on crates.io, components, what ships, and why archives are not compressed."
 weight = 40
 
 [extra]
@@ -9,7 +9,8 @@ kind = "guide"
 
 A mod is packaged as one zip, named after its slug. What differs between mods is how the inside is
 laid out and how much of that layout a player gets to choose from. A modding tool written in Rust is
-a program instead: one zip per platform, built from source. [Programs](#programs) covers those.
+a program instead: one zip per platform, built from source. [Programs](#programs) covers those, and
+[Libraries](#libraries) covers Rust crates, which crates.io distributes and this site documents.
 
 ## Formats
 
@@ -19,6 +20,7 @@ a program instead: one zip per platform, built from source. [Programs](#programs
 | `bain` | Numbered top-level directories, one per component | Wrye Bash picks sub-packages; OpenMW gets a `data=` line per directory you want |
 | `fomod` | The `bain` tree plus a generated `fomod/` installer | MO2 and Vortex run the installer; Wrye Bash and hand installs still see the tree |
 | `binary` | A program for one platform, and the files it ships with | Nobody installs it: unzip and run. See [Programs](#programs) |
+| `crate` | No archive: a Rust library on crates.io | `cargo add`. See [Libraries](#libraries) |
 
 Most mods are `flat`. S3maphore, with a core and seventeen optional playlist packs, is `bain`.
 Choose `fomod` when players install through MO2 or Vortex and there are real choices to make: the
@@ -62,6 +64,40 @@ The Rust project lives at the repository root, beside the site. `[[platforms]]` 
 Rust workflow builds: Windows and Linux on x86_64, macOS on both Intel and Apple silicon. Each entry
 must come back from the build, or the release is refused. There are no components, no FOMOD and no
 `Documentation/` in a program's archives: `include` is how its documentation travels with it.
+
+`[build]` passes two more settings to StroggForge: `dependents`, the GitHub repositories to open an
+issue in when a release is tagged, and `benchmarks = true`, which runs `cargo bench` and attaches
+the results to each release.
+
+## Libraries
+
+A Rust library is published to crates.io, and Cargo is its installer. The site is what docs.rs
+would otherwise be: the project page, the guides, and an API reference you write as pages, with
+the same search, callouts and schematics as any other documentation here.
+
+```toml
+type = "library"
+
+[package]
+format = "crate"
+crate = "openmw-config"                  # the name on crates.io
+
+[build]
+dependents = ["DreamWeave-MP/S3lightfixes"]
+benchmarks = true
+```
+
+StroggForge's library workflow runs as one of the site's jobs: it tests the crate on Windows,
+macOS and Linux, runs Clippy and `cargo audit`, and dry-runs the publish on every push. A crate
+keeps the tags crates are released under, the bare version: declare the release in `[[releases]]`,
+then push `2.0.1`, and the workflow publishes that version to crates.io, then rebuilds the site to
+list it.
+
+Nothing is archived and nothing goes in `mod.lock`. crates.io serves and hashes each version, so
+the manifest lists no releases and names the crate in `links.crate` instead. The page offers
+`cargo add` rather than a download, and each release in the changelog links to its version on
+crates.io. A crate has no components, no `[openmw]` data, no development channel and no mirrors,
+and a repository publishes at most one: the bare version tags would not say which.
 
 ## Components
 

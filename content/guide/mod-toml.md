@@ -134,11 +134,21 @@ Each component has an `[components.openmw]` table with the install keys:
 
 | Key | Default | Meaning |
 |---|---|---|
-| `format` | `"flat"` | `flat`, `bain` or `fomod` for game data; `binary` for a program built from Rust source. See [Packages](@/guide/packages.md). |
-| `documentation` | `true` | Render the page and its docs into `Documentation/` inside the archive. Not for `binary`, whose archives the Rust workflow builds. |
-| `development` | `true` | Publish a rolling build of the default branch on the `development` channel. |
+| `format` | `"flat"` | `flat`, `bain` or `fomod` for game data; `binary` for a program built from Rust source; `crate` for a Rust library on crates.io. See [Packages](@/guide/packages.md). |
+| `documentation` | `true` | Render the page and its docs into `Documentation/` inside the archive. Not for `binary`, whose archives the Rust workflow builds, or `crate`, which has none. |
+| `development` | `true` | Publish a rolling build of the default branch on the `development` channel. Not for `crate`. |
 | `binary` | | `binary` only: the Cargo binary. Its archives are `<binary>-<OS>-<ARCH>.zip`, one per `[[platforms]]` entry. |
 | `include` | `[]` | `binary` only: files and directories, from the repository root, packed beside the program: `["README.md", "LICENSE", "resources"]`. |
+| `crate` | | `crate` only: the package's name on crates.io, as in its `Cargo.toml`. Its releases are tagged with the bare version. |
+
+## `[build]`
+
+For `binary` and `crate` projects: what StroggForge's Rust workflows do besides building.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `dependents` | `[]` | GitHub repositories, `owner/name`, told about each tagged release with an issue. |
+| `benchmarks` | `false` | Run `cargo bench` and attach `BENCHMARKS.md` to each release. |
 
 ## `[install]`
 

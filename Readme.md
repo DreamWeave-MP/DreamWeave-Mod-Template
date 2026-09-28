@@ -44,6 +44,7 @@ else runs in GitHub Actions: no Python, no Node, no Rust, no accounts.
   `Documentation/`, next to your mod's files. Flat, BAIN, or BAIN with a generated FOMOD installer.
 - **Modding tools too**: a Rust program in the same repository is built per platform by
   StroggForge, recorded and published like any release, with a download per platform on its page.
+  A Rust library goes to crates.io, and its site becomes its API reference.
 - **Releases you can verify**: CI records each release's SHA-256 in `mod.lock` when its tag is
   pushed, and from then on refuses to publish that version with any other bytes.
 - **A place on the network**: `dreamweave.json` and a manifest per project, linked from every page,
