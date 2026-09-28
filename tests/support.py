@@ -75,7 +75,7 @@ class Scratch:
 
     def commit(self, message: str = "fixture") -> str:
         git(self.root, "add", "-A")
-        git(self.root, "commit", "-q", "-m", message)
+        git(self.root, "commit", "-q", "--allow-empty", "-m", message)
         return git(self.root, "rev-parse", "HEAD")
 
     def add_project(self, directory: str, mod_toml: str, title: str = "Lantern", description: str = "Lights.", files: dict | None = None) -> None:

@@ -94,6 +94,8 @@ def load_repository(root: Path, check_payloads: bool = True) -> Repository:
     check_version_three_pages(root, projects, problems)
     head = gitrepo.resolve_revision("HEAD")
     locks = {project.id: records.read_lock(project, root, problems) for project in projects}
+    for project in projects:
+        check_release_order(project, locks[project.id], problems)
 
     repository = Repository(root=root, site=site, projects=projects, locks=locks, head=head, problems=problems)
     if check_payloads:
@@ -102,10 +104,39 @@ def load_repository(root: Path, check_payloads: bool = True) -> Repository:
     return repository
 
 
+def check_release_order(project: Project, locked: list[records.LockedRelease], problems: Problems) -> None:
+    """Within a channel, a later release must sort higher, or clients pick the wrong update.
+
+    Only releases that are or can still be published count: tags pushed before any lock existed
+    are history that can never enter the manifest, so their order is not a client's problem.
+    """
+    locked_versions = {release.version for release in locked}
+    publishable = [
+        release for release in project.releases
+        if release.version in locked_versions or gitrepo.tag_revision(project.release_tag(release.version)) is None
+    ]
+    by_channel: dict[str, list] = {}
+    for release in publishable:
+        by_channel.setdefault(release.channel, []).append(release)
+    for channel, channel_releases in by_channel.items():
+        ordered = sorted(channel_releases, key=lambda release: (release.date, release.version.precedence_key()))
+        for earlier, later in zip(ordered, ordered[1:]):
+            if later.version < earlier.version:
+                hint = (
+                    'If this project numbers releases like decimals (0.82 then 0.9), set versioning = "decimal"; otherwise pick a version that sorts after the last one'
+                    if project.versioning == "numeric" else "Pick a version that sorts after the last one"
+                )
+                problems.error(
+                    f"{project.directory}/mod.toml",
+                    f"{channel} release {later.version} ({later.date}) sorts below {earlier.version} ({earlier.date}) under {project.versioning} versioning. {hint}",
+                )
+
+
 def check_version_three_pages(root: Path, projects: list[Project], problems: Problems) -> None:
-    """V3 kept project metadata in page frontmatter. V4 does not read it, so it must not linger."""
+    """V3 kept project metadata in the frontmatter of content/<project>/index.md. V4 does not read
+    it, so it must not linger. V3 only ever treated direct children of content/ as projects."""
     project_directories = {root / project.directory for project in projects}
-    for index in sorted((root / "content").rglob("index.md")):
+    for index in sorted((root / "content").glob("*/index.md")):
         if index.parent in project_directories:
             continue
         try:

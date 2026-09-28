@@ -776,20 +776,6 @@ def check_project_structure(project: Project, where: str, problems: Problems) ->
             if version == other:
                 problems.error(where, f"releases {version} and {other} have the same precedence; versions must be unique")
 
-    by_channel: dict[str, list[DeclaredRelease]] = {}
-    for release in project.releases:
-        by_channel.setdefault(release.channel, []).append(release)
-    for channel, channel_releases in by_channel.items():
-        ordered = sorted(channel_releases, key=lambda release: (release.date, release.version.precedence_key()))
-        for earlier, later in zip(ordered, ordered[1:]):
-            if later.version < earlier.version:
-                problems.error(
-                    where,
-                    f"{channel} release {later.version} ({later.date}) sorts below {earlier.version} ({earlier.date}) under "
-                    f"{project.versioning} versioning. "
-                    + ("If this project numbers releases like decimals (0.82 then 0.9), set versioning = \"decimal\"; otherwise pick a version that sorts after the last one"
-                       if project.versioning == NUMERIC else "Pick a version that sorts after the last one"),
-                )
     for release in project.releases:
         if release.replacement and not any(release.replacement == other.version for other in project.releases):
             problems.error(where, f"release {release.version} names replacement {release.replacement}, which is not declared")
