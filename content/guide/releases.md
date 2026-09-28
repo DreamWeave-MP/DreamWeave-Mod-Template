@@ -122,7 +122,7 @@ pinned it.
 ## What CI does with a tag
 
 Only tags shaped like releases start a run: `<slug>-<version>`, with the version starting with a
-digit. Anything else, like the template's own `V5`, is ignored.
+digit. Anything else, like a `V5` tag, is ignored.
 
 1. Validates the repository and runs the template's tests.
 2. Checks out the tag and builds the release: the archive, its offline documentation, and the
@@ -137,5 +137,5 @@ digit. Anything else, like the template's own `V5`, is ignored.
 7. Starts a run on the default branch, which rebuilds the development build and the site from a
    commit that includes the record, and deploys them.
 
-Tags pushed before V4 still show in the changelog, marked **unverified**. The manifest leaves them
+Tags pushed before V5 still show in the changelog, marked **unverified**. The manifest leaves them
 out, because nothing records what their archives contained.

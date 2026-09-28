@@ -1,20 +1,22 @@
 +++
-title = "Migrating from V3"
-description = "Move a V3 site, St4sh-sized or not, onto mod.toml without losing its history."
+title = "Migrating from V4"
+description = "Move a V4 or V3 site, St4sh-sized or not, onto mod.toml without losing its history."
 weight = 110
 
 [extra]
 kind = "guide"
 +++
 
-V4 is a breaking version, and it is tagged as one. A site that is not ready to move keeps building
-from the V3 tag, unchanged. When you move, CI tells you what is left: every page that still carries
-V3 project frontmatter without a `mod.toml` is an error that names the page, and the same run
-writes you a suggested `mod.toml` for it. There is nothing to install or run yourself.
+V5 is a breaking version. A site that is not ready to move keeps building from the template's V4
+branch, unchanged. V3 sites use the same frontmatter as V4, so everything here applies to them too.
+
+When you move, CI tells you what is left: every page that still carries V4 project frontmatter
+without a `mod.toml` is an error that names the page, and the same run writes you a suggested
+`mod.toml` for it. There is nothing to install or run yourself.
 
 ## What changed
 
-| V3 | V4 |
+| V4 | V5 |
 |---|---|
 | Project metadata in `index.md`'s `[extra]` | `mod.toml` next to `index.md` |
 | Identity: the title's slug | `id`, a UUID you choose once; `slug` names archives and tags |
@@ -35,21 +37,21 @@ The shortcodes existing pages call, `install_instructions`, `credits`, `usage_no
 
 ## Step by step
 
-**1. Bring in the template.** Copy V4's `templates/`, `sass/`, `static/js/`, `static/docs/`,
+**1. Bring in the template.** Copy V5's `templates/`, `sass/`, `static/js/`, `static/docs/`,
 `static/schemas/`, `static/img/`, `tools/`, `tests/`, `buildSite`, `.gitignore` and
 `.github/workflows/build_site.yml` into your repository, and `content/network.md` if you want the
-network page. Delete `themes/terminimal`, V3's `sass/custom.sass`, `mods.sass` and `search.sass`,
-its `static/js/` scripts, and the `changelog.md` V3 generated in each project directory. Merge
+network page. Delete `themes/terminimal`, V4's `sass/custom.sass`, `mods.sass` and `search.sass`,
+its `static/js/` scripts, and the `changelog.md` V4 generated in each project directory. Merge
 `config.toml` by hand: keep your `base_url`, `title`, `github_username`, `github_project` and
 `ignored_content`; replace `accent_color` with `palette`; delete what the table above says is gone.
 Keep your own shortcodes and `data/`, and move your own styles into `sass/brand.sass`, rewritten
 against the `--dw-` tokens.
 
-**2. Push, and let CI suggest a mod.toml per project.** The check fails on every V3 page, and the
+**2. Push, and let CI suggest a mod.toml per project.** The check fails on every V4 page, and the
 same run writes a suggestion for each: in the run's summary, and in its `mod-toml-suggestions`
 artifact, laid out like your repository. Download the artifact and unzip it at the repository root,
 and every page gets its `mod.toml`. The comments at the top of each file say what the converter
-could not decide. It reads the page's V3 frontmatter and the repository's tags, and:
+could not decide. It reads the page's V4 frontmatter and the repository's tags, and:
 
 - picks a fresh `id`;
 - sets `slug` to whichever of the title's slug or the directory's name already owns
@@ -57,12 +59,12 @@ could not decide. It reads the page's V3 frontmatter and the repository's tags, 
   `birr-*`, while its title would slug to `beta_icons_restored_and_reimagined`);
 - turns those tags into `[[releases]]` with their dates, and sets `versioning = "decimal"` when the
   history only sorts that way (S3maphore: 0.54, 0.6, 0.63, 0.9, 0.963);
-- keeps every V3 data directory installed, so the archive installs exactly as before, and carries
+- keeps every V4 data directory installed, so the archive installs exactly as before, and carries
   content files, fallback entries and Nexus ids across;
 - skips placeholder versions like `UNRELEASED`, and a frontmatter version that was never bumped past
   the last tag.
 
-**Comments.** Replace the V3 `giscus = {…}` line with `[extra.comments]` (see
+**Comments.** Replace the V4 `giscus = {…}` line with `[extra.comments]` (see
 [Customizing](@/guide/customizing.md#comments)); the build refuses the old one. Pasted ids are how a
 copied config sends comments to the wrong repository: St4sh's config carried the Mod Template's
 `repo_id`, so the one St4sh page thread that exists was created in the Mod Template's Discussions.
@@ -72,16 +74,16 @@ Threads are still matched by page path, so threads created in the right reposito
 `[[components]]` with `format = "bain"` or `"fomod"` if players should choose. Add notes to the
 newest release.
 
-**4. Clean the page.** Delete the V3 keys the notes list from `index.md`'s `[extra]`.
+**4. Clean the page.** Delete the V4 keys the notes list from `index.md`'s `[extra]`.
 
 **5. Push again.** Expect CI to find real problems. Moving St4sh found a content file declared with the wrong case
 (`Baldurwind.omwaddon` against a committed `baldurwind.omwaddon`), content files that are gitignored
-build output and so were never in the V3 archives either, and docs linking to sibling pages as
+build output and so were never in the V4 archives either, and docs linking to sibling pages as
 `page.md`, which Zola never resolves. The link check after the site build finds the last kind.
 
 ## What happens to old releases
 
-Tags from before V4 stay, and the changelog shows them marked **unverified**. The manifest leaves
+Tags from before V5 stay, and the changelog shows them marked **unverified**. The manifest leaves
 them out: nothing recorded what their archives contained, and a client that cannot verify an archive
 should not be offered it. Development builds count from the newest tag, so players already on 0.963
 see 0.9631-dev.N, not something older. Tag the next release and it is on the network.

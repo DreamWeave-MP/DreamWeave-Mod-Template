@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://dreamweave-mp.github.io/DreamWeave-Mod-Template/modManifest.schema.json",
   "title": "modManifest",
-  "description": "SUPERSEDED by schemas/modManifest-2.schema.json. The V3 per-release manifest (<repo>-<tag>.modManifest), kept at its published URL for tools that still read old release assets. Describes all mods included in a given release.",
+  "description": "SUPERSEDED by schemas/modManifest-2.schema.json. The V4 template's per-release manifest (<repo>-<tag>.modManifest), kept at its published URL for tools that still read old release assets. Describes all mods included in a given release.",
   "type": "object",
   "required": [
     "schema_version",

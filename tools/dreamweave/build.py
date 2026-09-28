@@ -49,7 +49,7 @@ class Repository:
     problems: Problems = field(default_factory=Problems)
     comments_setting: comments.CommentsSetting | None = None
     resolved_comments: dict | None = None
-    version_three_pages: list[Path] = field(default_factory=list)
+    legacy_pages: list[Path] = field(default_factory=list)
 
     def comments(self) -> dict:
         """The embed settings for comments, looked up once per run. See comments.py."""
@@ -106,7 +106,7 @@ def load_repository(root: Path, check_payloads: bool = True) -> Repository:
         if (root / project.directory / "changelog.md").is_file():
             problems.error(
                 f"{project.directory}/changelog.md",
-                f"collides with the changelog page CI generates at /{project.page_path}changelog/. V3 wrote this file "
+                f"collides with the changelog page CI generates at /{project.page_path}changelog/. V4 wrote this file "
                 "from commit messages; the changelog now comes from [[releases]] in mod.toml. Delete it",
             )
         for item in project.media:
@@ -115,7 +115,7 @@ def load_repository(root: Path, check_payloads: bool = True) -> Repository:
             if item.thumbnail:
                 check_media_file(root, project, item.thumbnail, problems)
 
-    version_three_pages = check_version_three_pages(root, projects, problems)
+    legacy_pages = check_legacy_pages(root, projects, problems)
     head = gitrepo.resolve_revision("HEAD")
     locks = {project.id: records.read_lock(project, root, problems) for project in projects}
     for project in projects:
@@ -124,7 +124,7 @@ def load_repository(root: Path, check_payloads: bool = True) -> Repository:
     comments_setting = comments.read_comments_setting(site, problems)
     repository = Repository(
         root=root, site=site, projects=projects, locks=locks, head=head, problems=problems,
-        comments_setting=comments_setting, version_three_pages=version_three_pages,
+        comments_setting=comments_setting, legacy_pages=legacy_pages,
     )
     if check_payloads:
         for project in projects:
@@ -161,9 +161,10 @@ def check_release_order(project: Project, locked: list[records.LockedRelease], p
                 )
 
 
-def check_version_three_pages(root: Path, projects: list[Project], problems: Problems) -> list[Path]:
-    """V3 kept project metadata in the frontmatter of content/<project>/index.md. V4 does not read
-    it, so it must not linger. V3 only ever treated direct children of content/ as projects.
+def check_legacy_pages(root: Path, projects: list[Project], problems: Problems) -> list[Path]:
+    """The V4 template, like V3 before it, kept project metadata in the frontmatter of
+    content/<project>/index.md. V5 does not read it, so it must not linger. V4 only ever treated
+    direct children of content/ as projects.
     Returns their directories, for which `check` writes suggested mod.toml files."""
     project_directories = {root / project.directory for project in projects}
     stale_directories = []
@@ -179,8 +180,8 @@ def check_version_three_pages(root: Path, projects: list[Project], problems: Pro
             stale_directories.append(index.parent)
             problems.error(
                 index.relative_to(root).as_posix(),
-                f"has V3 project frontmatter ({', '.join(stale)}) but no mod.toml. CI's check suggests one in the run's summary "
-                "and its mod-toml-suggestions artifact; see content/guide/migration.md, or keep building this site from the V3 tag",
+                f"has V4 project frontmatter ({', '.join(stale)}) but no mod.toml. CI's check suggests one in the run's summary "
+                "and its mod-toml-suggestions artifact; see content/guide/migration.md, or keep building this site from the template's V4 branch",
             )
     return stale_directories
 

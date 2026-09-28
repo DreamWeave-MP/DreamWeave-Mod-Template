@@ -1,4 +1,4 @@
-{#- The document shell every page extends. Blocks keep their V3 names: extra_head, header,
+{#- The document shell every page extends. Blocks keep their V4 names: extra_head, header,
     content, footer, extra_body. `dw` is what only CI knows (static/dreamweave/view.json), and is
     false under a plain `zola serve`: everything else comes from the site's own files. -#}
 {%- set_global dw = load_data(path="static/dreamweave/view.json", required=false) -%}

@@ -55,7 +55,7 @@ jobs:
       - name: Validate every project
         run: ./buildSite check
 
-      # A page still carrying V3 frontmatter fails the check, which suggests a mod.toml for it.
+      # A page still carrying V4 frontmatter fails the check, which suggests a mod.toml for it.
       - uses: actions/upload-artifact@v7
         if: failure()
         with:

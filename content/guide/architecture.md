@@ -67,7 +67,7 @@ served from the project's own site, and it is the only authority for those claim
 `schema_version` is a major version; within it the core is frozen and unknown core fields are
 errors. New data goes into namespaced extensions, which clients ignore unless the release marks them
 critical, and graduates into the core at the next major version. A client that meets a newer major
-version stops and says so. The V3 manifest's schema stays at its published URL.
+version stops and says so. The V4 template's per-release manifest schema stays at its published URL.
 
 ## Rejected designs
 

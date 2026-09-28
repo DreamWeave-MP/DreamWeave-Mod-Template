@@ -58,7 +58,7 @@ class ProjectRules(unittest.TestCase):
     def test_display_name_comes_from_frontmatter(self):
         self.assertError(MINIMAL, "display name", frontmatter='description = "x"')
 
-    def test_v3_frontmatter_beside_mod_toml_is_rejected(self):
+    def test_v4_frontmatter_beside_mod_toml_is_rejected(self):
         self.assertError(MINIMAL, "legacy release field", frontmatter='title = "Lantern"\n[extra]\nversion = "1.0"')
 
     def test_versions_must_be_unique_by_precedence(self):
@@ -203,7 +203,7 @@ class RepositoryRules(unittest.TestCase):
         self.assertTrue(any("id 0b8f1c2d-3e4a-4b5c-8d6e-7f8091a2b3c4 is already used by content/" in error for error in errors), errors)
         self.assertTrue(any("slug 'lantern' is already used by content/" in error for error in errors), errors)
 
-    def test_a_v3_changelog_file_is_refused(self):
+    def test_a_v4_changelog_file_is_refused(self):
         self.scratch.add_project("lantern", LANTERN, files={**LANTERN_FILES, "changelog.md": "+++\ntitle = \"Changelog\"\n+++\n"})
         self.assertError("collides with the changelog page CI generates at /lantern/changelog/")
 
@@ -226,20 +226,20 @@ class RepositoryRules(unittest.TestCase):
         (self.scratch.root / "config.toml").write_text(config)
         self.assertError("'blue' is not one of purple, teal, gold, ember, moss")
 
-    def test_v3_pages_without_mod_toml_are_rejected(self):
+    def test_v4_pages_without_mod_toml_are_rejected(self):
         self.scratch.write("content/old/index.md", '+++\ntitle = "Old"\n[extra]\nversion = "0.5"\n+++\n')
-        self.assertError("has V3 project frontmatter")
+        self.assertError("has V4 project frontmatter")
 
-    def test_the_check_suggests_a_mod_toml_for_each_v3_page(self):
+    def test_the_check_suggests_a_mod_toml_for_each_v4_page(self):
         self.scratch.write("content/old/index.md", '+++\ntitle = "Old Lamp"\n[extra]\nversion = "0.6"\n[extra.install_info]\ncontent_files = ["Old.omwscripts"]\n+++\nBody.\n')
         self.scratch.write("content/old/Old.omwscripts", "PLAYER: scripts/old.lua\n")
-        self.scratch.commit("V3 page")
+        self.scratch.commit("V4 page")
         git(self.scratch.root, "tag", "old_lamp-0.5")
         process = build_site(self.scratch.root, "check", check=False)
         self.assertNotEqual(process.returncode, 0)
         self.assertIn("mod-toml-suggestions", process.stderr)
         suggestion = (self.scratch.root / "dist/migration/content/old/mod.toml").read_text()
-        self.assertTrue(suggestion.startswith("# Suggested from the V3 frontmatter"))
+        self.assertTrue(suggestion.startswith("# Suggested from the V4 frontmatter"))
         self.assertIn("# - ", suggestion, "what the converter could not decide travels with the file")
         self.assertIn('slug = "old_lamp"', suggestion)
 

@@ -1,6 +1,6 @@
 """Comments: GitHub Discussions on the site's own repository, embedded with giscus.
 
-giscus needs the repository's and the category's GraphQL ids. V3 had authors paste them into
+giscus needs the repository's and the category's GraphQL ids. V4 had authors paste them into
 config.toml, and pasted ids are how St4sh's page threads ended up in the Mod Template's Discussions.
 Now the ids are looked up from giscus for the repository config.toml names (which CI checks is the
 repository it runs in), so a copied config can only ever post into its own repository.
@@ -34,7 +34,7 @@ def read_comments_setting(site: SiteConfig, problems: Problems) -> CommentsSetti
     if "giscus" in site.extra:
         problems.error(
             "config.toml [extra] giscus",
-            "is the V3 comments setting, with pasted repository and category ids. V4 looks the ids up for this "
+            "is the V4 comments setting, with pasted repository and category ids. V5 looks the ids up for this "
             "site's own repository, so a copied config cannot send comments to someone else's Discussions (St4sh's did). "
             "Replace it with [extra.comments]; see the guide's Customizing page",
         )

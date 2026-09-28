@@ -93,7 +93,7 @@ The body is ordinary Markdown, plus these shortcodes:
 
 `<!-- more -->` ends the summary used on the catalog.
 
-The V3 shortcodes `install_instructions`, `credits` and `usage_note` still work, so existing pages
+The V4 shortcodes `install_instructions`, `credits` and `usage_note` still work, so existing pages
 keep rendering. `install_instructions` now points at the generated Install section rather than
 drawing a second one.
 

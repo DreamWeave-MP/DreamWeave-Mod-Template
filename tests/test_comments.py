@@ -61,9 +61,9 @@ class Lookup(unittest.TestCase):
         self.assertEqual(result["state"], "off")
         self.assertTrue(any("'Comments' is not a Discussions category" in error and "General, Q&A" in error for error in problems.errors), problems.errors)
 
-    def test_v3_pasted_ids_are_refused(self):
+    def test_v4_pasted_ids_are_refused(self):
         _, problems = self.resolve({"giscus": {"repo_id": "R_kgDOQtd5bg", "category_id": "DIC_kwDOQtd5bs4C0JZa"}}, lambda repository: TEMPLATE_ANSWER)
-        self.assertTrue(any("V3 comments setting" in error for error in problems.errors), problems.errors)
+        self.assertTrue(any("V4 comments setting" in error for error in problems.errors), problems.errors)
 
     def test_unknown_keys_are_errors(self):
         _, problems = self.resolve({"comments": {"repo_id": "R_x"}}, lambda repository: TEMPLATE_ANSWER)
@@ -89,7 +89,7 @@ class Rendering(unittest.TestCase):
         view_path.write_text(json.dumps(view))
         subprocess.run(["zola", "build"], cwd=self.root, check=True, capture_output=True)
 
-    def test_project_pages_embed_giscus_with_v3_thread_matching(self):
+    def test_project_pages_embed_giscus_with_v4_thread_matching(self):
         self.render_with_comments()
         page = (self.root / "public/lantern/index.html").read_text()
         for attribute in ('data-repo="someone/cool-mods"', 'data-repo-id="R_test"', 'data-category-id="DIC_test"', 'data-mapping="pathname"', 'data-strict="0"', 'data-loading="lazy"'):

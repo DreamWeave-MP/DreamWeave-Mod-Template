@@ -97,7 +97,7 @@ are no ids to paste, and why a copied `config.toml` cannot post into someone els
 giscus is not installed yet, or unreachable, the build warns and leaves comments out; a category
 name that does not exist is an error.
 
-Threads are matched by page path, as in V3, so existing threads keep their pages. Changelogs and the
+Threads are matched by page path, as in V4, so existing threads keep their pages. Changelogs and the
 network page have no thread. Docs pages have none unless their docs root sets
 `docs_comments = true`, and any page can opt out with `comments = false` in its `[extra]`. The
 offline documentation inside archives never loads comments.

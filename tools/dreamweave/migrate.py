@@ -1,11 +1,11 @@
-"""Suggested mod.toml files for V3 pages, written by CI's check for the author to review.
+"""Suggested mod.toml files for V4 pages, written by CI's check for the author to review.
 
-A V3 page without a mod.toml fails the check, and the same run writes a suggestion for it under
+A V4 page without a mod.toml fails the check, and the same run writes a suggestion for it under
 dist/migration/ (uploaded as an artifact, laid out like the repository) and into the run's
 summary. Nothing here touches the repository itself: the author reviews and commits.
 
-The slug keeps V3's title slug so existing <slug>-<version> tags stay this project's history.
-Every data directory V3 listed stays installed, so the archive and install behave as before;
+The slug keeps V4's title slug so existing <slug>-<version> tags stay this project's history.
+Every data directory V4 listed stays installed, so the archive and install behave as before;
 splitting them into optional components is a decision for the author, not for a converter.
 """
 
@@ -21,7 +21,7 @@ from pathlib import Path
 from .model import read_frontmatter
 from .versions import DECIMAL, NUMERIC, Version, VersionError
 
-V3_EXTRA_KEYS = (
+LEGACY_EXTRA_KEYS = (
     "version", "install_info", "nexus_id", "nexus_group_id", "offsite_host", "is_binary", "game",
     "hide_download_bar", "stable_title", "dev_title", "show_only_description", "use_toc", "content_files",
 )
@@ -71,18 +71,18 @@ def ordering_violations(history: list[tuple[str, str]], scheme: str) -> list[str
 
 
 def suggest(directory: Path) -> str:
-    """A mod.toml for a V3 page, with what the converter could not decide as comments on top."""
+    """A mod.toml for a V4 page, with what the converter could not decide as comments on top."""
     body, notes = suggestion(directory)
-    header = [f"# Suggested from the V3 frontmatter in {directory.name}/index.md. Review every line, then commit it as mod.toml."]
+    header = [f"# Suggested from the V4 frontmatter in {directory.name}/index.md. Review every line, then commit it as mod.toml."]
     for note in notes:
         header += textwrap.wrap(note, width=98, initial_indent="# - ", subsequent_indent="#   ")
     return "\n".join(header) + "\n" + body
 
 
 def write_suggestions(root: Path, directories: list[Path]) -> list[Path]:
-    """dist/migration/<page directory>/mod.toml for each V3 page, and the same in the run's summary."""
+    """dist/migration/<page directory>/mod.toml for each V4 page, and the same in the run's summary."""
     written = []
-    summary = ["## Suggested mod.toml files", "", "These pages still carry V3 frontmatter. Download the `mod-toml-suggestions` artifact and unzip it at the repository root, or copy from below. Review each file before committing it: content/guide/migration.md explains every line.", ""]
+    summary = ["## Suggested mod.toml files", "", "These pages still carry V4 frontmatter. Download the `mod-toml-suggestions` artifact and unzip it at the repository root, or copy from below. Review each file before committing it: content/guide/migration.md explains every line.", ""]
     for directory in directories:
         relative = directory.relative_to(root).as_posix()
         text = suggest(directory)
@@ -125,7 +125,7 @@ def suggestion(directory: Path) -> tuple[str, list[str]]:
         if offsite.get("provider", "github") == "github":
             lines.append(f'source = "https://github.com/{offsite["owner"]}/{offsite["repo"]}"')
         notes.append(
-            "offsite_host: V4 packages what is in this repository. A mod released from another repository "
+            "offsite_host: V5 packages what is in this repository. A mod released from another repository "
             "should publish its own mod.toml and manifest there; this page can link to it instead."
         )
 
@@ -142,7 +142,7 @@ def suggestion(directory: Path) -> tuple[str, list[str]]:
         lines.append(f"content_files = {toml_list(content_files)}")
     if config:
         if config != ["."]:
-            notes.append(f"install_info.config listed {config}; V4 supports an openmw.cfg in the project root (config = true). Move the others or drop them.")
+            notes.append(f"install_info.config listed {config}; V5 supports an openmw.cfg in the project root (config = true). Move the others or drop them.")
         lines.append("config = true")
     if fallback_entries:
         lines.append("")
@@ -151,7 +151,7 @@ def suggestion(directory: Path) -> tuple[str, list[str]]:
             lines.append(f"{toml_string(key)} = {toml_string(str(value))}")
     if len(data_directories) > 1:
         notes.append(
-            f"{len(data_directories)} data directories are all installed together, as in V3. To let players choose, "
+            f"{len(data_directories)} data directories are all installed together, as in V4. To let players choose, "
             'switch to [package] format = "bain" or "fomod" and declare [[components]]; see the guide.'
         )
 
@@ -198,11 +198,11 @@ def suggestion(directory: Path) -> tuple[str, list[str]]:
         lines += ["", "[[releases]]", f"version = {toml_string(text)}", f"date = {date}"]
     if history:
         notes.append(
-            "Tagged releases published before V4 have no recorded hash, so the manifest leaves them out and the "
+            "Tagged releases published before V5 have no recorded hash, so the manifest leaves them out and the "
             "changelog marks them unverified. Tag your next release to publish it to the network."
         )
 
-    stale = [key for key in V3_EXTRA_KEYS if key in extra]
+    stale = [key for key in LEGACY_EXTRA_KEYS if key in extra]
     if stale:
         notes.append(f"Then delete these from index.md's [extra]: {', '.join(stale)}.")
     return "\n".join(lines) + "\n", notes

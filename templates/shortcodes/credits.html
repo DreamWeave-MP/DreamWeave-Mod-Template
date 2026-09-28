@@ -1,5 +1,5 @@
 {#- {% credits(default=true) %}One credit per line{% end %}
-    default=true adds config.toml's `default_credits` lines first, as in V3. Projects with mod.toml
+    default=true adds config.toml's `default_credits` lines first, as in V4. Projects with mod.toml
     can list [[credits]] there instead; the landing page shows those. -#}
 {%- set lines = body | default(value="") | trim | split(pat="
 ") -%}

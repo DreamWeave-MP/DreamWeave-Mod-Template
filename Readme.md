@@ -62,7 +62,7 @@ You never run `./buildSite`; the workflow does. It is Python, and it lives in `t
 
 | Command | When | Does |
 |---|---|---|
-| `./buildSite check` | every push | Validate every project, including its files against `mod.toml`; suggest a `mod.toml` for V3 pages |
+| `./buildSite check` | every push | Validate every project, including its files against `mod.toml`; suggest a `mod.toml` for V4 pages |
 | `./buildSite build` | every push | Package development builds and write the protocol files |
 | `./buildSite links` | every push | Check the built site's local links, anchors and HTML structure |
 | `./buildSite schemas` | every push | Validate the generated index and manifests against the published schemas |
@@ -93,7 +93,7 @@ The [guide](https://dreamweave-mp.github.io/DreamWeave-Mod-Template/guide/) cove
 [packages](https://dreamweave-mp.github.io/DreamWeave-Mod-Template/guide/packages/),
 [dependencies](https://dreamweave-mp.github.io/DreamWeave-Mod-Template/guide/dependencies/),
 [customizing](https://dreamweave-mp.github.io/DreamWeave-Mod-Template/guide/customizing/),
-[migrating from V3](https://dreamweave-mp.github.io/DreamWeave-Mod-Template/guide/migration/),
+[migrating from V4](https://dreamweave-mp.github.io/DreamWeave-Mod-Template/guide/migration/),
 and the [architecture](https://dreamweave-mp.github.io/DreamWeave-Mod-Template/guide/architecture/).
 It is also in this repository under `content/guide/`; delete it from your copy if you like.
 

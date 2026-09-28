@@ -16,7 +16,7 @@ The JSON Schemas are normative for structure; this page is normative for meaning
 {
   "schema_version": "2",
   "document": "project",
-  "generator": "DreamWeave Mod Template 4.0.0",
+  "generator": "DreamWeave Mod Template 5.0.0",
   "project": { ... },
   "channels": { "stable": { "version": "1.1.0" }, "development": { "version": "1.1.1-dev.3" } },
   "releases": [ ... ]

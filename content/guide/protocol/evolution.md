@@ -47,7 +47,7 @@ Clients never infer a version from which fields happen to be present.
 ## Deprecation
 
 A field is deprecated by saying so on these pages for at least one major version before it is
-removed. Its meaning does not change while it is deprecated. The V3 per-release `.modManifest`
+removed. Its meaning does not change while it is deprecated. The V4 template's per-release `.modManifest`
 (`schema_version: "1"`) is superseded by this version; its schema stays published at its original
 URL for tools that read old release assets.
 

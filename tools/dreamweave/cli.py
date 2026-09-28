@@ -68,7 +68,7 @@ def main(arguments: list[str]) -> int:
             repository.comments()
             for note in repository.problems.notes:
                 print(f"note: {note}")
-            for path in migrate.write_suggestions(root, repository.version_three_pages):
+            for path in migrate.write_suggestions(root, repository.legacy_pages):
                 print(f"Suggested {path.relative_to(root)}")
             repository.problems.raise_if_any()
             print(f"OK: {len(repository.projects)} project(s).")

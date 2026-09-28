@@ -15,7 +15,7 @@ from .problems import Problems
 from .versions import Version, VersionError
 
 SCHEMA_VERSION = "2"
-GENERATOR = "DreamWeave Mod Template 4.0.0"
+GENERATOR = "DreamWeave Mod Template 5.0.0"
 MEDIA_TYPE_ZIP = "application/zip"
 SIGSTORE_ISSUER = "https://token.actions.githubusercontent.com"
 WORKFLOW_PATH = ".github/workflows/build_site.yml"

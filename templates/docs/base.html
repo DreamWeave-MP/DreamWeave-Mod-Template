@@ -99,7 +99,7 @@
             <article class="docs-article">
                 {% block docs_content %}{% endblock docs_content %}
             </article>
-            {#- V3 docs pages had no comments. A docs root turns them on with docs_comments = true. -#}
+            {#- V4 docs pages had no comments. A docs root turns them on with docs_comments = true. -#}
             {%- if docs_root and docs_root.extra.docs_comments | default(value=false) and page and page.extra.comments | default(value=true) %}{% include "comments.html" %}{% endif %}
         </div>
 
