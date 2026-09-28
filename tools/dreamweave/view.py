@@ -65,9 +65,10 @@ def config_lines(project: Project, install_root: str) -> list[dict]:
 
 def declared_release_views(project: Project, state, offline_mode: bool, packaged: Version | None) -> list[dict]:
     published = {str(release.locked.version) for release in state.published}
+    packaging_declared_release = packaged is not None and any(release.version == packaged for release in project.releases)
     views = []
     for release in sorted(project.releases, key=lambda release: release.version.precedence_key(), reverse=True):
-        if offline_mode and packaged is not None and release.version > packaged:
+        if offline_mode and packaging_declared_release and release.version > packaged:
             continue
         view: dict = {
             "version": str(release.version),
