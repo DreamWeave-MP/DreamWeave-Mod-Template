@@ -7,8 +7,15 @@
 {%- endmacro type_label %}
 
 {% macro format_label(format) -%}
-{%- if format == "fomod" %}FOMOD + BAIN{% elif format == "bain" %}BAIN{% else %}Single directory{% endif -%}
+{%- if format == "fomod" %}FOMOD + BAIN{% elif format == "bain" %}BAIN{% elif format == "binary" %}Program{% else %}Single directory{% endif -%}
 {%- endmacro format_label %}
+
+{#- What a person calls a platform, not what a compiler does. -#}
+{% macro platform_label(os, arch) -%}
+{%- if os == "windows" %}Windows{% if arch == "aarch64" %} on Arm{% endif -%}
+{%- elif os == "macos" %}macOS, {% if arch == "aarch64" %}Apple silicon{% else %}Intel{% endif -%}
+{%- else %}Linux{% if arch == "aarch64" %} on Arm{% endif %}{% endif -%}
+{%- endmacro platform_label %}
 
 {% macro runtime_label(runtime) -%}
 {%- if runtime == "openmw" %}OpenMW{% elif runtime == "mwse" %}MWSE{% elif runtime == "tes3mp" %}TES3MP{% elif runtime == "morrowind" %}Morrowind.exe{% else %}{{ runtime }}{% endif -%}
@@ -58,11 +65,13 @@
 <div class="dw-artifact">
     <div class="dw-artifact__head">
         <span class="dw-artifact__name">{{ artifact.filename }}</span>
-        <span class="dw-artifact__meta">{{ artifact.size | filesizeformat }} · {{ artifact.format }}</span>
+        <span class="dw-artifact__meta">{{ artifact.size | filesizeformat }} · {% if artifact.platform is defined %}{{ dw_macros::platform_label(os=artifact.platform.os, arch=artifact.platform.arch) }}{% else %}{{ artifact.format }}{% endif %}</span>
     </div>
     <div class="dw-artifact__actions">
-        <a class="dw-button{% if primary %} dw-button--primary{% endif %} dw-button--small" href="{{ publisher.url | safe }}">Download {{ release.version }}</a>
+        <a class="dw-button{% if primary %} dw-button--primary{% endif %} dw-button--small" href="{{ publisher.url | safe }}"{% if artifact.platform is defined %} data-platform="{{ artifact.platform.os }}"{% endif %}>Download {{ release.version }}</a>
+        {%- if artifact.format != "binary" %}
         <a class="dw-button dw-button--small" href="modl://{{ project.game }}/?url={{ publisher.url | safe }}" title="Hand this archive to umo or ModdingLinked MO2">Mod manager</a>
+        {%- endif %}
     </div>
     <details>
         <summary>Verify · sha256 {{ dw_macros::short_digest(digest=artifact.digests.sha256) }}</summary>

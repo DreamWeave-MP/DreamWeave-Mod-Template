@@ -265,6 +265,31 @@ class ReleaseLifecycle(unittest.TestCase):
         if jsonschema:
             self.assertEqual(schema_errors(manifest, "modManifest-2.schema.json"), [])
 
+    def test_a_programs_page_offers_every_platform(self):
+        self.add_broom()
+        git(self.root, "tag", "broom-1.0.0")
+        self.stage_binaries("1.0.0")
+        git(self.root, "checkout", "-q", "broom-1.0.0")
+        build_site(self.root, "release", "broom-1.0.0")
+        git(self.root, "checkout", "-q", "main")
+        build_site(self.root, "record")
+        self.scratch.commit("RELEASE: Broom 1.0.0")
+        build_site(self.root, "build")
+        subprocess.run(["zola", "build"], cwd=self.root, check=True, capture_output=True)
+        page = html.unescape((self.root / "public/broom/index.html").read_text())
+        hero = re.search(r'<div class="dw-actions dw-platforms".*?</div>', page, re.S).group(0)
+        self.assertIn('data-platform="windows" href="https://github.com/someone/cool-mods/releases/download/broom-1.0.0/broom-Windows-X64.zip"', hero)
+        self.assertIn(">Linux <", hero)
+        self.assertNotIn("Mod manager", page, "a program is not handed to a mod manager")
+        self.assertNotIn("OpenMW, by hand", page)
+        self.assertIn("broom-&lt;platform&gt;.zip", (self.root / "public/broom/index.html").read_text())
+        self.assertIn("<dt>Package</dt><dd>Program <small>2 platforms</small>", page)
+
+    def test_the_rust_workflow_is_told_what_to_build(self):
+        self.assertEqual(build_site(self.root, "binaries").stdout, "binary_names=[]\ninclude_files=\n")
+        self.add_broom()
+        self.assertEqual(build_site(self.root, "binaries").stdout, 'binary_names=["broom"]\ninclude_files=README.md\n')
+
     def test_a_binary_project_without_its_build_has_no_development_channel(self):
         self.add_broom()
         output = build_site(self.root, "build").stdout

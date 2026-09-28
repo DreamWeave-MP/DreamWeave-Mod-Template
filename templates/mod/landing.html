@@ -41,15 +41,26 @@
                 <div><dt>Lua API</dt><dd>{{ project.openmw.lua_api }}</dd></div>
                 {%- endif %}
                 {%- if "install" in sections or "components" in sections %}
-                <div><dt>Package</dt><dd>{{ dw_macros::format_label(format=project.format) }}{% if not project.implicit_component %} <small>{{ project.components | length }} components</small>{% endif %}</dd></div>
+                <div><dt>Package</dt><dd>{{ dw_macros::format_label(format=project.format) }}{% if project.format == "binary" %} <small>{{ project.platforms | length }} platform{{ project.platforms | length | pluralize }}</small>{% elif not project.implicit_component %} <small>{{ project.components | length }} components</small>{% endif %}</dd></div>
                 {%- endif %}
                 {%- if project.license %}
                 <div><dt>License</dt><dd>{{ project.license }}</dd></div>
                 {%- endif %}
             </dl>
 
+            {%- if primary and not dw_offline and project.format == "binary" %}
+            {#- A program: one button per platform, on a row of their own. The script marks the
+                visitor's own; without it they are all equal. -#}
+            <div class="dw-actions dw-platforms" aria-label="Downloads">
+                <span class="dw-actions__label">{% if stable %}Download {{ primary.version }}{% else %}Development build {{ primary.version }}{% endif %}</span>
+                {%- for artifact in primary.artifacts %}
+                {%- set platform_source = artifact.sources | filter(attribute="kind", value="publisher") | first %}
+                <a class="dw-button" data-platform="{{ artifact.platform.os }}" href="{{ platform_source.url | safe }}"{% if not stable %} title="There is no stable release yet. This is the latest build of the default branch."{% endif %}>{{ dw_macros::platform_label(os=artifact.platform.os, arch=artifact.platform.arch) }} <span class="dw-button__meta">{{ artifact.size | filesizeformat }}</span></a>
+                {%- endfor %}
+            </div>
+            {%- endif %}
             <div class="dw-actions">
-                {%- if primary and not dw_offline %}
+                {%- if primary and not dw_offline and project.format != "binary" %}
                 {%- set primary_artifact = primary.artifacts | first %}
                 {%- set primary_source = primary_artifact.sources | filter(attribute="kind", value="publisher") | first %}
                 {%- if stable %}

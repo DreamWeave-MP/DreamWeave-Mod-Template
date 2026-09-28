@@ -137,6 +137,23 @@
   flex-wrap: wrap
   gap: .5rem
 
+.dw-actions__label
+  align-self: center
+  margin-right: .25rem
+  color: var(--dw-text-muted)
+  font-family: var(--dw-font-mono)
+  font-size: .78rem
+  letter-spacing: .08em
+  text-transform: uppercase
+
+// A program's downloads, one per platform, above the page's other actions.
+.dw-platforms
+  margin-bottom: .6rem
+
+// The visitor's own platform, as the script guesses it.
+.dw-button.is-yours
+  @extend .dw-button--primary
+
 // Status strip: the at-a-glance row under a project title ----------------------------------
 
 .dw-strip

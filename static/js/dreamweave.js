@@ -1,5 +1,6 @@
 // DreamWeave Mod Template: progressive enhancement. Every page works without this file;
-// it adds search, copy buttons, the screenshot viewer and the openmw.cfg configurator.
+// it adds search, copy buttons, the screenshot viewer, the openmw.cfg configurator, and marks
+// the visitor's own platform among a program's downloads.
 (() => {
   'use strict';
 
@@ -195,6 +196,22 @@
     document.addEventListener('click', event => {
       if (!event.target.closest('.dw-search')) results.hidden = true;
     });
+  }
+
+  // Platform downloads ------------------------------------------------------------------------
+  // A program has one archive per platform. Mark the ones for the visitor's platform; hide none,
+  // because the guess can be wrong. Phones get no mark: no archive here runs on one.
+
+  const platform = (() => {
+    const hint = `${navigator.userAgentData?.platform || ''} ${navigator.platform || ''} ${navigator.userAgent || ''}`.toLowerCase();
+    if (/android|iphone|ipad/.test(hint)) return null;
+    if (hint.includes('win')) return 'windows';
+    if (hint.includes('mac')) return 'macos';
+    if (/linux|x11/.test(hint)) return 'linux';
+    return null;
+  })();
+  if (platform) {
+    for (const link of document.querySelectorAll(`a[data-platform="${platform}"]`)) link.classList.add('is-yours');
   }
 
   // Screenshot viewer -------------------------------------------------------------------------

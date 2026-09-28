@@ -60,7 +60,13 @@
  "page_path": {{ path | json_encode | safe }},
  "manifest_url": {{ get_url(path="dreamweave/projects/" ~ id ~ ".json", trailing_slash=false) | json_encode | safe }},
  "format": {{ m.package.format | default(value="flat") | json_encode | safe }},
+ {%- if m.package.format is defined and m.package.format == "binary" %}
+ "documentation_packaged": false,
+ "binary": {{ m.package.binary | default(value="") | json_encode | safe }},
+ "include": {{ m.package.include | default(value=[]) | json_encode | safe }},
+ {%- else %}
  "documentation_packaged": {{ m.package.documentation | default(value=true) | json_encode | safe }},
+ {%- endif %}
  "maintainers": [
   {%- for person in m.maintainers | default(value=[]) -%}
   {%- if not loop.first %},{% endif %}{"name": {{ person.name | default(value="") | json_encode | safe }}{% if person.url is defined %}, "url": {{ person.url | json_encode | safe }}{% endif %}}
@@ -277,6 +283,7 @@
  {%- set download = repository ~ "/releases/download/" ~ tag ~ "/" ~ artifact.filename -%}
  {%- set bundle = download ~ ".sigstore.json" -%}
  {"id": {{ artifact.id | json_encode | safe }}, "format": {{ artifact.format | json_encode | safe }}, "filename": {{ artifact.filename | json_encode | safe }}, "size": {{ artifact.size | json_encode | safe }}, "digests": {{ artifact.digests | json_encode | safe }},
+  {%- if artifact.platform is defined %} "platform": {{ artifact.platform | json_encode | safe }},{% endif %}
   "sources": [{"url": {{ download | json_encode | safe }}, "kind": "publisher"}
   {%- for mirror in mirrors -%}
   {%- set mirror_url = mirror.url | replace(from="{slug}", to=slug) | replace(from="{version}", to=record.version) | replace(from="{tag}", to=tag) | replace(from="{filename}", to=artifact.filename) | replace(from="{sha256}", to=artifact.digests.sha256) -%}

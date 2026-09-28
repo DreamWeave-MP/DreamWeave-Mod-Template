@@ -17,7 +17,7 @@
                 <li>OpenMW Lua API<span class="dw-constraint">{{ project.openmw.lua_api }}</span></li>
                 {%- endif %}
                 {%- for platform in project.platforms %}
-                <li>{{ platform.os }} <span class="dw-constraint">{{ platform.arch }}</span></li>
+                <li>{{ dw_macros::platform_label(os=platform.os, arch=platform.arch) }}</li>
                 {%- endfor %}
                 {%- for file in content_requirements %}
                 <li><code>{{ file }}</code> <span class="dw-method__hint">active in the load order</span></li>

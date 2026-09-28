@@ -6,6 +6,30 @@
     <div class="dw-section__head"><h2 id="install-title">Install</h2><p>{{ dw_macros::format_label(format=project.format) }}{% if not dw_offline and primary %} · {{ primary.version }}{% endif %}</p></div>
 
     <div class="dw-methods">
+    {%- if project.format == "binary" %}
+        <details class="dw-method" name="dw-install-method" open>
+            <summary><span class="dw-method__name">Download and run</span><span class="dw-method__hint">a program: one archive per platform, no installer</span></summary>
+            <div class="dw-method__body">
+                {%- if not dw_offline and primary %}
+                <div class="dw-actions dw-platforms">
+                {%- for artifact in primary.artifacts %}
+                    {%- set platform_source = artifact.sources | filter(attribute="kind", value="publisher") | first %}
+                    <a class="dw-button dw-button--small" data-platform="{{ artifact.platform.os }}" href="{{ platform_source.url | safe }}">{{ dw_macros::platform_label(os=artifact.platform.os, arch=artifact.platform.arch) }} <span class="dw-button__meta">{{ artifact.size | filesizeformat }}</span></a>
+                {%- endfor %}
+                </div>
+                {%- endif %}
+                <ol class="dw-steps">
+                    <li>{% if dw_offline %}This is the archive for one platform{% elif primary %}Download the archive for your platform{% else %}Download the archive for your platform once a build is published{% endif %}{% if project.platforms | length > 0 %}: {% for platform in project.platforms %}{{ dw_macros::platform_label(os=platform.os, arch=platform.arch) }}{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}.</li>
+                    <li>Unzip it wherever you keep your tools. Nothing goes into the game's folders.</li>
+                    <li>Run <code>{{ project.binary }}</code>, or <code>{{ project.binary }}.exe</code> on Windows. From a terminal, <code>{{ project.binary }} --help</code> lists what it can do.</li>
+                </ol>
+                {%- if project.links.documentation is defined %}
+                <p>Then the <a href="{{ project.links.documentation | safe }}">documentation</a> takes it from there.</p>
+                {%- endif %}
+            </div>
+        </details>
+    {%- endif %}
+
     {%- if project.format == "fomod" %}
         <details class="dw-method" name="dw-install-method" open>
             <summary><span class="dw-method__name">Mod Organizer 2 or Vortex</span><span class="dw-method__hint">FOMOD installer, asks which components you want</span></summary>
@@ -19,7 +43,7 @@
         </details>
     {%- endif %}
 
-    {%- if project.openmw %}
+    {%- if project.openmw and project.format != "binary" %}
         <details class="dw-method" name="dw-install-method"{% if project.format != "fomod" %} open{% endif %}>
             <summary><span class="dw-method__name">OpenMW, by hand</span><span class="dw-method__hint">extract, then add these lines to openmw.cfg</span></summary>
             <div class="dw-method__body">
@@ -102,6 +126,16 @@
 
     <h3>What is in the archive</h3>
     <div class="dw-tree" role="group" aria-label="Archive layout">
+        {%- if project.format == "binary" %}
+        <ul><li><span class="dw-tree__dir">{{ project.binary }}-&lt;platform&gt;.zip</span><span class="dw-tree__note">one per platform</span>
+            <ul>
+                <li>{{ project.binary }}<span class="dw-tree__note">the program; {{ project.binary }}.exe on Windows</span></li>
+            {%- for included in project.include %}
+                <li>{{ included }}</li>
+            {%- endfor %}
+            </ul>
+        </li></ul>
+        {%- else %}
         <ul><li><span class="dw-tree__dir">{{ project.slug }}.zip</span>
             <ul>
             {%- if project.implicit_component %}
@@ -124,6 +158,7 @@
                 <li>dreamweave.release.json<span class="dw-tree__note">what this archive is, for tools</span></li>
             </ul>
         </li></ul>
+        {%- endif %}
     </div>
 
     {%- for key in ["post_install", "upgrade", "uninstall", "notes"] %}
