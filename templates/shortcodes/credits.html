@@ -1,6 +1,10 @@
-{#- {% credits() %}One credit per line{% end %}. Projects with mod.toml list credits there instead. -#}
+{#- {% credits(default=true) %}One credit per line{% end %}
+    default=true adds config.toml's `default_credits` lines first, as in V3. Projects with mod.toml
+    can list [[credits]] there instead; the landing page shows those. -#}
 {%- set lines = body | default(value="") | trim | split(pat="
 ") -%}
+{%- if default is defined and default and config.extra.default_credits is defined %}{% set lines = config.extra.default_credits | trim | split(pat="
+") | concat(with=lines) %}{% endif -%}
 <section class="dw-section" aria-label="Credits">
   <div class="dw-section__head"><h2 id="credits">Credits</h2></div>
   <ul class="dw-credits">

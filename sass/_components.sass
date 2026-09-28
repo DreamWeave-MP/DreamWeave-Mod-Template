@@ -556,3 +556,26 @@ pre:hover > .dw-copy, pre > .dw-copy:focus-visible
 
   > table
     margin: 0
+
+// Images placed with the image and figure shortcodes ---------------------------------------
+
+.dw-image, .dw-figure img
+  display: block
+  max-width: 100%
+  height: auto
+  margin: 1.2em auto
+  border-radius: var(--dw-radius)
+
+.dw-image--left
+  margin-left: 0
+
+.dw-image--right
+  margin-right: 0
+
+.dw-figure
+  margin: 1.2em 0
+
+  figcaption
+    color: var(--dw-text-muted)
+    font-size: .85rem
+    text-align: center
