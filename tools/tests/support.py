@@ -8,7 +8,7 @@ import tempfile
 import textwrap
 from pathlib import Path
 
-REPOSITORY = Path(__file__).resolve().parents[1]
+REPOSITORY = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPOSITORY / "tools"))
 
 # The tests build throwaway repositories, never the one CI is running in. A runner's GITHUB_*

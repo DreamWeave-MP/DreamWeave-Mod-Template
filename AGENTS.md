@@ -46,7 +46,7 @@
 ## Verification
 
 ```sh
-python3 -m unittest discover -s tests      # protocol, validation and release lifecycle (needs zola)
+python3 -m unittest discover -s tools/tests  # protocol, validation and release lifecycle (needs zola)
 ./buildSite check
 ./buildSite build && ./buildSite schemas && zola build && ./buildSite links
 rm -rf static/dreamweave* && zola build     # what an author's `zola serve` sees

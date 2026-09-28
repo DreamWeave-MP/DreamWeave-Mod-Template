@@ -84,7 +84,7 @@ You never run `./buildSite`; the workflow does. It is Python, and it lives in `t
 | `templates/`, `sass/`, `static/` | The template's presentation |
 | `tools/dreamweave/` | The tooling CI runs through `./buildSite` |
 | `static/schemas/` | JSON Schemas for everything the site publishes |
-| `tests/` | The template's own tests: `python3 -m unittest discover -s tests` |
+| `tools/tests/` | The template's own tests: `python3 -m unittest discover -s tools/tests` |
 
 ## Documentation
 

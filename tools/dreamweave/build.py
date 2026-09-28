@@ -37,10 +37,6 @@ GITHUB_RELEASE = DIST / "github-release"
 # Where the workflow puts the archives StroggForge's Rust workflow built for binary projects.
 BINARIES = DIST / "binaries"
 
-# Everything an archive's bytes can depend on: the payload, and everything the offline documentation
-# render reads. A stray note at the repository root is not one of them.
-ARCHIVE_INPUTS = ("content", "templates", "sass", "static", "data", "config.toml", "tools", "buildSite")
-
 
 @dataclass
 class Repository:

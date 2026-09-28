@@ -71,7 +71,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: Run the template's tests
-        run: python -m unittest discover -s tests -v
+        run: python -m unittest discover -s tools/tests -v
 
   # Projects with [package] format = "binary" are programs. StroggForge's Rust workflow tests,
   # builds, signs and scans them per platform, and leaves each platform's archive as a

@@ -38,7 +38,7 @@ The shortcodes existing pages call, `install_instructions`, `credits`, `usage_no
 ## Step by step
 
 **1. Bring in the template.** Copy V5's `templates/`, `sass/`, `static/js/`, `static/docs/`,
-`static/schemas/`, `static/img/`, `tools/`, `tests/`, `buildSite`, `.gitignore` and
+`static/schemas/`, `static/img/`, `tools/` (with its tests), `buildSite`, `.gitignore` and
 `.github/workflows/build_site.yml` into your repository, and `content/network.md` if you want the
 network page. Delete `themes/terminimal`, V4's `sass/custom.sass`, `mods.sass` and `search.sass`,
 its `static/js/` scripts, and the `changelog.md` V4 generated in each project directory. Merge
