@@ -225,14 +225,19 @@
   background: none
   color: var(--accent)
 
+// A table is as wide as its content needs, up to the column, and scrolls past that. overflow-wrap
+// is break-word, not anywhere: anywhere lets automatic layout shrink columns mid-word.
 .docs-article table
-  width: 100%
+  display: block
   max-width: 100%
-  table-layout: fixed
+  overflow-x: auto
 
 .docs-article th,
 .docs-article td
-  overflow-wrap: anywhere
+  overflow-wrap: break-word
+
+.docs-article td code
+  overflow-wrap: normal
 
 .docs-article table,
 .docs-article th,
