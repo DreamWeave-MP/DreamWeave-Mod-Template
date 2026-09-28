@@ -29,6 +29,10 @@ VIEW_FILE = GENERATED_ROOT / "view.json"
 INDEX_FILE = Path("static") / "dreamweave.json"
 DIST = Path("dist")
 
+# Everything an archive's bytes can depend on: the payload, and everything the offline documentation
+# render reads. A stray note at the repository root is not one of them.
+ARCHIVE_INPUTS = ("content", "templates", "sass", "static", "data", "config.toml", "tools", "buildSite")
+
 
 @dataclass
 class Repository:
@@ -274,7 +278,7 @@ def lock_release(repository: Repository, slug: str, version_text: str | None) ->
             f"Tag {tag} already exists, so {release.version} was published before it was locked. Its archive came from "
             "whatever built it then; rebuilding now would record a hash that does not match the published file."
         )
-    dirty = gitrepo.dirty_paths(["."])
+    dirty = gitrepo.dirty_paths([path for path in ARCHIVE_INPUTS if (repository.root / path).exists()])
     if dirty:
         listing = "\n  ".join(dirty[:20])
         raise SystemExit(f"Commit or stash your changes first. The lock records what is committed, and these are not:\n  {listing}")
