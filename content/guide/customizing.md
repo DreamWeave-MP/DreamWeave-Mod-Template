@@ -67,7 +67,8 @@ favicon = "img/favicon.png"
 
 Everything under `templates/` can be overridden by editing it; Zola has no theme layer in between.
 `base.html` defines the blocks every page fills: `title`, `extra_head`, `discovery`, `header`,
-`search`, `offline_banner`, `content`, `comments`, `footer` and `extra_body`. The project page is
+`search`, `offline_banner`, `content`, `footer` and `extra_body`. Comments are
+`templates/comments.html`, included at the end of each page's body column. The project page is
 `templates/mod/`, split into `landing.html`, `install.html`, `compatibility.html` and `rail.html`.
 
 The docs shell (`templates/docs/`, `sass/docs.sass`, `static/docs/docs.js`) is shared with other
@@ -101,8 +102,10 @@ network page have no thread. Docs pages have none unless their docs root sets
 `docs_comments = true`, and any page can opt out with `comments = false` in its `[extra]`. The
 offline documentation inside archives never loads comments.
 
-The DreamWeave giscus theme is served from your site (`giscus/<palette>.css`), so it only applies on
-the published https site. A local preview uses giscus's own dark theme.
+The DreamWeave giscus theme is served from your site (`giscus/<palette>.css`) and applies on the
+published site. A local preview cannot show it: giscus's iframe lives on a public origin, and browsers
+block public pages from fetching files on your machine, so previews use GitHub's dark theme and say
+so above the thread.
 
 ## Analytics
 

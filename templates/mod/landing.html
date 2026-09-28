@@ -182,6 +182,7 @@
         </section>
     {%- endif %}
     {%- endfor %}
+    {%- if page.extra.comments | default(value=true) %}{% include "comments.html" %}{% endif %}
     </div>
 
     {%- include "mod/rail.html" %}

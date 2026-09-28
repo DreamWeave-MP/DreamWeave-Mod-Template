@@ -96,6 +96,9 @@ class Rendering(unittest.TestCase):
             self.assertIn(attribute, page)
         self.assertIn('data-theme="https://example.github.io/cool-mods/giscus/purple.css"', page)
         self.assertIn('href="#comments"', page)
+        comments, rail = page.index('id="comments"'), page.index('class="dw-project__rail"')
+        self.assertLess(comments, rail, "the thread belongs in the body column, before the rail, not below the page")
+        self.assertNotIn("dw-comments__preview", page, "an https site uses its own theme and needs no preview note")
 
     def test_changelogs_and_offline_documentation_have_no_comments(self):
         self.render_with_comments()

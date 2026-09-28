@@ -86,9 +86,6 @@
 <main class="dw-main" id="main" tabindex="-1">
 {%- block content %}{% endblock content %}
 </main>
-{%- block comments %}
-{%- if page and page.extra.comments | default(value=true) %}{% include "comments.html" %}{% endif %}
-{%- endblock comments %}
 {%- block footer %}
 <footer class="dw-footer">
     <div class="dw-shell dw-footer__inner">
