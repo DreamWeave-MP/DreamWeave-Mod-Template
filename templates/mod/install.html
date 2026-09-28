@@ -1,4 +1,5 @@
-{#- Installation, generated from the package format and the component model. -#}
+{#- Installation, generated from the package format and the component model. The methods share a
+    <details name>, so opening one closes the others without any script. -#}
 {%- set bain_like = project.format == "bain" or project.format == "fomod" -%}
 {%- set has_choices = optional_components | length > 0 -%}
 <section class="dw-section" id="install" aria-labelledby="install-title">
@@ -6,7 +7,7 @@
 
     <div class="dw-methods">
     {%- if project.format == "fomod" %}
-        <details class="dw-method" open>
+        <details class="dw-method" name="dw-install-method" open>
             <summary><span class="dw-method__name">Mod Organizer 2 or Vortex</span><span class="dw-method__hint">FOMOD installer, asks which components you want</span></summary>
             <div class="dw-method__body">
                 <ol class="dw-steps">
@@ -19,7 +20,7 @@
     {%- endif %}
 
     {%- if project.openmw %}
-        <details class="dw-method"{% if project.format != "fomod" %} open{% endif %}>
+        <details class="dw-method" name="dw-install-method"{% if project.format != "fomod" %} open{% endif %}>
             <summary><span class="dw-method__name">OpenMW, by hand</span><span class="dw-method__hint">extract, then add these lines to openmw.cfg</span></summary>
             <div class="dw-method__body">
                 <ol class="dw-steps">
@@ -73,7 +74,7 @@
     {%- endif %}
 
     {%- if bain_like %}
-        <details class="dw-method">
+        <details class="dw-method" name="dw-install-method">
             <summary><span class="dw-method__name">Wrye Bash</span><span class="dw-method__hint">BAIN package with numbered sub-packages</span></summary>
             <div class="dw-method__body">
                 <ol class="dw-steps">
@@ -86,7 +87,7 @@
     {%- endif %}
 
     {%- if not dw_offline %}
-        <details class="dw-method">
+        <details class="dw-method" name="dw-install-method">
             <summary><span class="dw-method__name">DreamWeave clients</span><span class="dw-method__hint">CHIMERA and other tools that read the manifest</span></summary>
             <div class="dw-method__body">
                 <p>Give the tool this page's address, or the manifest directly. It finds the release for its channel, checks compatibility and dependencies, downloads from any listed source and refuses bytes whose SHA-256 does not match.</p>
