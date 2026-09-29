@@ -91,7 +91,11 @@
         </a>
         <nav class="dw-nav" id="dw-nav" aria-label="Site">
             {%- for item in menu_items %}
-            {%- if item.url is starting_with("@/") %}{% set item_url = get_url(path=item.url) %}{% else %}{% set item_url = item.url %}{% endif %}
+            {#- `@/…` is a content file, a full URL, `/…` or `#…` stays as written, and anything else is
+                a path in the site, like `tags/`, under the base URL. -#}
+            {%- if item.url is starting_with("@/") %}{% set item_url = get_url(path=item.url) %}
+            {%- elif item.url is starting_with("http://") or item.url is starting_with("https://") or item.url is starting_with("/") or item.url is starting_with("#") %}{% set item_url = item.url %}
+            {%- else %}{% set item_url = get_url(path=item.url) %}{% endif %}
             <a href="{{ item_url | safe }}"{% if current_url and item_url == current_url %} aria-current="page"{% endif %}>{{ item.name }}</a>
             {%- endfor %}
         </nav>

@@ -63,11 +63,15 @@ logo_text = "Ashlands Lighting"
 menu_items = [
     { name = "Candlelight", url = "@/home/index.md" },
     { name = "Guide", url = "@/guide/_index.md" },
+    { name = "Tags", url = "tags/" },
     { name = "Discord", url = "https://discord.gg/…" },
 ]
 footer_text = "Made in the Ashlands"
 favicon = "img/favicon.png"
 ```
+
+A menu `url` is a content file (`@/…`, which may end in an `#anchor`), a path in the site such as
+`tags/`, which is put under the base URL, or a full URL, `/…` or `#…`, used as written.
 
 On a phone the header keeps the logo and folds the rest: search behind a button, and four menu
 items or more behind a **Menu** button. Three or fewer stay a row of links that scrolls sideways
