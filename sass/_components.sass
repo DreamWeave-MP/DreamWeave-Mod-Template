@@ -784,6 +784,23 @@
       border-color: var(--dw-accent-line)
       color: var(--dw-accent)
 
+// Every term of a taxonomy, with its count.
+.dw-tags--cloud
+  gap: var(--dw-space-2)
+
+  a
+    gap: .6em
+    min-height: var(--dw-control)
+    padding: 0 .6em 0 .9em
+    font-size: var(--dw-step--1)
+
+  small
+    border-radius: var(--dw-radius-pill)
+    padding: 0 .55em
+    background: var(--dw-bg-3)
+    color: var(--dw-text-faint)
+    font-size: .85em
+
 // A small target keeps its look and gets a finger-sized hit area.
 @media (pointer: coarse)
   .dw-tags a::after, .dw-kicker a::after

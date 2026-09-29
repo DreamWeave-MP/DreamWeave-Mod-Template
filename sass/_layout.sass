@@ -367,3 +367,40 @@ a:hover > .dw-footer__emblem
     overflow: visible
     margin: 0
     padding: 0
+
+// A page with nothing to show: the 404.
+.dw-empty
+  display: grid
+  justify-items: center
+  max-width: 40rem
+  padding-block: clamp(2rem, 8vh, 6rem)
+  text-align: center
+
+  h1
+    margin: 0 0 var(--dw-space-3)
+
+  p
+    color: var(--dw-text-muted)
+    text-wrap: balance
+
+  .dw-actions
+    justify-content: center
+    margin-top: var(--dw-space-3)
+
+.dw-empty .dw-empty__code
+  margin: 0
+  background: linear-gradient(180deg, var(--dw-accent), var(--dw-accent-strong))
+  -webkit-background-clip: text
+  background-clip: text
+  color: transparent
+  font-family: var(--dw-font-display)
+  font-size: clamp(5rem, 3rem + 10vw, 9rem)
+  font-weight: 700
+  letter-spacing: -.04em
+  line-height: 1
+  text-shadow: 0 0 60px color-mix(in oklab, var(--dw-accent) 30%, transparent)
+
+@media (forced-colors: active)
+  .dw-empty .dw-empty__code
+    background: none
+    color: CanvasText
