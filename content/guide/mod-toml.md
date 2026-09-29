@@ -183,6 +183,9 @@ Markdown shown in the Install section: `notes`, `post_install`, `upgrade`, `unin
 | `tag` | string | the project's usual tag | The git tag the release was published under, when that is another spelling, like `v0.3.3` for a project whose tags are now bare. Each release's tag is its own. |
 | `replacement` | version | none | What to use instead of a yanked or deprecated release. |
 
+HTML written into release notes, or into the install notes, shows as text, as it does in every
+DreamWeave client. Markdown covers the rest.
+
 ## `[extensions."your.namespace"]`
 
 Data for tools this template does not know about, under a dotted namespace you own

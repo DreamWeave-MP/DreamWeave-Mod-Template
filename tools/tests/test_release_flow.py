@@ -136,7 +136,7 @@ summary = "First."
 [[releases]]
 version = "1.1.0"
 date = 2026-02-03
-summary = "Second."
+summary = "Second, with `ledger::count` and *less* allocation."
 """
 HEARTH_FILES = {"00 Core/Hearth.omwscripts": "PLAYER: x.lua\n", "10 Light/a.txt": "a", "11 Heavy/b.txt": "b", "20 Embers/c.txt": "c"}
 
@@ -538,6 +538,7 @@ class ReleaseLifecycle(unittest.TestCase):
         self.assertIn("<dt>Package</dt><dd>Rust crate</dd>", page)
         self.assertNotIn("<span>Morrowind</span>", page, "a library that names no game is not labelled with one")
         self.assertIn('Pushing its tag, 1.1.0, publishes it">unreleased', page)
+        self.assertIn('<p class="dw-release__summary">Second, with <code>ledger::count</code> and <em>less</em> allocation.</p>', page, "a release summary is Markdown")
         self.assertIn('<a href="#v1-0-0">1.0.0</a>', page)
         self.assertIn(f"Verify · sha256 {hashlib.sha256(b'ledger 1.0.0').hexdigest()[:12]}", page)
         self.assertNotIn("What is in the archive", page)
@@ -734,7 +735,7 @@ class ReleaseLifecycle(unittest.TestCase):
         hostile = "O'Brien's </script><script>alert(1)</script>"
         index = (self.root / "content/lantern/index.md").read_text().replace('title = "Lantern"', f"title = {json.dumps(hostile)}")
         (self.root / "content/lantern/index.md").write_text(index)
-        mod_toml = (self.root / "content/lantern/mod.toml").read_text().replace('summary = "First."', 'summary = "<img src=x onerror=alert(2)>"')
+        mod_toml = (self.root / "content/lantern/mod.toml").read_text().replace('summary = "First."', 'summary = "<img src=x onerror=alert(2)> in `Vec<u8>`, see <https://example.com/>"\nhighlights = "<script>alert(3)</script>"\nfixed = ["<b onmouseover=alert(4)>bold</b>"]')
         (self.root / "content/lantern/mod.toml").write_text(mod_toml)
         self.scratch.commit("Hostile text")
         build_site(self.root, "build")
@@ -742,6 +743,10 @@ class ReleaseLifecycle(unittest.TestCase):
         page = (self.root / "public/lantern/index.html").read_text()
         self.assertNotIn("<script>alert(1)", page)
         self.assertNotIn("<img src=x onerror", page)
+        self.assertNotIn("<script>alert(3)", page, "embedded HTML in release notes is shown as text")
+        self.assertNotIn("<b onmouseover", page)
+        self.assertIn("<code>Vec&lt;u8&gt;</code>", page, "a code span keeps its brackets")
+        self.assertIn('href="https://example.com/">https://example.com/</a>', page, "an autolink stays a link")
         self.assertNotIn("&amp;#x27;", page, "text must be escaped once, not twice")
         self.assertIn("O&#x27;Brien", page)
         install_model = re.search(r'<script type="application/json" data-install-model>(.*?)</script>', page, re.S).group(1)
