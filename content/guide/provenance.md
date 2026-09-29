@@ -37,15 +37,20 @@ sigstore = true
 CI then signs each archive with [Sigstore](https://www.sigstore.dev/)'s keyless signing, the same
 mechanism StroggForge uses for DreamWeave's Rust binaries. There is no key to manage or leak: the
 signature is tied to the GitHub Actions workflow that ran, recorded in Sigstore's public
-transparency log, and uploaded next to the archive as `<file>.sigstore.json`. The manifest lists it
-with the identity to expect:
+transparency log, and uploaded next to the archive as `<file>.sigstore.json`.
+
+The signing runs in StroggForge's `modGlobalBuild` workflow, which your `build_site.yml` calls, so
+the certificate names that workflow, at the StroggForge version your site pins, as the signer, and
+records your repository and tag as what it ran for. `mod.lock` keeps each release's signer, so
+moving the pin later does not change what older releases say. The manifest lists the identity to
+expect:
 
 ```json
 {
   "format": "sigstore-bundle",
   "url": "https://github.com/OWNER/REPO/releases/download/my_mod-1.0.0/my_mod.zip.sigstore.json",
   "issuer": "https://token.actions.githubusercontent.com",
-  "identity": "https://github.com/OWNER/REPO/.github/workflows/build_site.yml@refs/tags/my_mod-1.0.0"
+  "identity": "https://github.com/DreamWeave-MP/StroggForge/.github/workflows/modGlobalBuild.yml@refs/tags/v49"
 }
 ```
 
@@ -55,12 +60,17 @@ Verify one yourself:
 cosign verify-blob my_mod.zip \
   --bundle my_mod.zip.sigstore.json \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-  --certificate-identity https://github.com/OWNER/REPO/.github/workflows/build_site.yml@refs/tags/my_mod-1.0.0
+  --certificate-identity https://github.com/DreamWeave-MP/StroggForge/.github/workflows/modGlobalBuild.yml@refs/tags/v49 \
+  --certificate-github-workflow-repository OWNER/REPO \
+  --certificate-github-workflow-ref refs/tags/my_mod-1.0.0
 ```
 
-That proves the archive was built by that workflow, in that repository, for that tag. It ties the
-signature to a GitHub repository, which is provenance, not identity: the project id does not change
-if the repository does. Signing publishes the repository and workflow in a public log, so leave it
+That proves the archive was built by that workflow, in that repository, for that tag. Always check
+the repository: the identity alone names StroggForge's workflow, which every site calls. The
+release's `source` in the manifest has the repository and tag to check against.
+
+A signature ties the archive to a GitHub repository, which is provenance, not identity: the project
+id does not change if the repository does. Signing publishes the repository and workflow in a public log, so leave it
 off for anything you would rather keep out of one.
 
 ## Publisher keys

@@ -42,9 +42,13 @@ absolute paths, `..` segments, or symlinks, whatever the manifest says.
 ## Signatures
 
 `format: "sigstore-bundle"`: `url` is a Sigstore bundle for the artifact; `issuer` is the OIDC
-issuer and `identity` the certificate identity to require, typically the GitHub Actions workflow
-that built the artifact, at the tag's ref. A client that verifies it learns that this workflow in
-this repository produced these bytes. It learns nothing about whether to trust that repository.
+issuer and `identity` the certificate identity to require: the GitHub Actions workflow that signed
+the artifact, at its ref. That is often a reusable workflow that many repositories call, such as
+StroggForge's `modGlobalBuild`, so the identity alone does not name the repository. A client MUST
+also require the certificate's workflow repository to be the one the release's `source.repository`
+names, and SHOULD require its workflow ref to be `refs/tags/` and the release's `source.tag`. A client that verifies all of that learns
+that this workflow, run for this repository, produced these bytes. It learns nothing about whether
+to trust that repository.
 
 A client MAY require signatures by policy. A missing signature MUST NOT be treated as a failed
 digest: the digest already establishes integrity against the manifest.

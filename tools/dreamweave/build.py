@@ -464,7 +464,10 @@ def build_release(repository: Repository, tag: str) -> Path | None:
         documentation = render_documentation(repository, [project], {project.id: version})
         result, artifact = build_archive(repository, project, version, revision, documentation.get(project.page_path, {}))
         artifacts = [artifact]
-    locked = records.LockedRelease(version=version, locked_from=revision, artifacts=artifacts, semantics=records.release_semantics(project))
+    locked = records.LockedRelease(
+        version=version, locked_from=revision, artifacts=artifacts, semantics=records.release_semantics(project),
+        signing_identity=records.signing_identity(project, repository.site, f"refs/tags/{tag}"),
+    )
     path = repository.root / RELEASE_RECORD
     path.write_text(records.dumps({"project": project.id, "name": project.name, "tag": tag, "release": locked.to_document()}), encoding="utf-8")
     for artifact in artifacts:
@@ -643,10 +646,14 @@ def write_site(repository: Repository, development_artifacts: dict[str, list[dic
         ]
         if project.package_development and project.id in development_artifacts:
             version = development_version(repository, project, state)
-            locked = records.LockedRelease(version=version, locked_from=repository.head, artifacts=development_artifacts[project.id], semantics=records.release_semantics(project))
+            development_ref = os.environ.get("DREAMWEAVE_DEVELOPMENT_REF", "refs/heads/main")
+            locked = records.LockedRelease(
+                version=version, locked_from=repository.head, artifacts=development_artifacts[project.id], semantics=records.release_semantics(project),
+                signing_identity=records.signing_identity(project, repository.site, development_ref),
+            )
             release_name = repository.site.development_release
             development = records.PublishedRelease(declared=None, locked=locked, tag=release_name, revision=repository.head, channel=DEVELOPMENT_CHANNEL, date=gitrepo.commit_time(repository.head)[:10])
-            releases.append(records.release_document(project, repository.site, development, release_name, os.environ.get("DREAMWEAVE_DEVELOPMENT_REF", "refs/heads/main")))
+            releases.append(records.release_document(project, repository.site, development, release_name, development_ref))
 
         manifest = records.project_manifest(project, repository.site, base_url, releases)
         manifest_text = records.dumps(manifest)

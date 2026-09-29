@@ -7,6 +7,7 @@ that an author may need to correct later.
 """
 
 import json
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -20,6 +21,10 @@ MEDIA_TYPE_ZIP = "application/zip"
 MEDIA_TYPE_CRATE = "application/gzip"
 SIGSTORE_ISSUER = "https://token.actions.githubusercontent.com"
 WORKFLOW_PATH = ".github/workflows/build_site.yml"
+# Set by StroggForge's modGlobalBuild. A keyless signature made in a reusable workflow names that
+# workflow, at the version the site pins, as the signer; each release keeps the identity it was
+# signed with, because the pin moves.
+SIGNING_IDENTITY_VARIABLE = "DREAMWEAVE_SIGNING_IDENTITY"
 ARTIFACT_KEYS = ("id", "format", "filename", "media_type", "size", "digests")
 SEMANTIC_KEYS = ("runtimes", "platforms", "provides", "relationships", "components", "groups", "extensions")
 
@@ -150,11 +155,13 @@ class LockedRelease:
     locked_from: str
     artifacts: list[dict]
     semantics: dict
+    signing_identity: str = ""
 
     def to_document(self) -> dict:
         return {
             "version": str(self.version),
             "locked_from": self.locked_from,
+            **({"signing_identity": self.signing_identity} if self.signing_identity else {}),
             "artifacts": self.artifacts,
             **self.semantics,
         }
@@ -216,7 +223,7 @@ def parse_locked_release(record: dict, project: Project, where: str, problems: P
         problems.error(where, f"is missing {', '.join(missing)}")
         return None
     semantics = {key: record[key] for key in (*SEMANTIC_KEYS, "critical_extensions") if key in record}
-    return LockedRelease(version=version, locked_from=record.get("locked_from", ""), artifacts=artifacts, semantics=semantics)
+    return LockedRelease(version=version, locked_from=record.get("locked_from", ""), artifacts=artifacts, semantics=semantics, signing_identity=record.get("signing_identity", ""))
 
 
 def write_lock(project: Project, root: Path, releases: list[LockedRelease]) -> Path:
@@ -265,14 +272,26 @@ def artifact_sources(project: Project, site: SiteConfig, release_name: str, arti
     return sources
 
 
-def artifact_signatures(project: Project, site: SiteConfig, release_name: str, artifact: dict, ref: str) -> list[dict]:
+def signing_identity(project: Project, site: SiteConfig, ref: str) -> str:
+    """The certificate identity this run signs with, or "" when the project is not signed."""
+    if not project.sigstore:
+        return ""
+    return os.environ.get(SIGNING_IDENTITY_VARIABLE) or workflow_identity(site, ref)
+
+
+def workflow_identity(site: SiteConfig, ref: str) -> str:
+    """The identity of releases signed by the site's own workflow, before modGlobalBuild signed them."""
+    return f"{site.repository_url}/{WORKFLOW_PATH}@{ref}"
+
+
+def artifact_signatures(project: Project, site: SiteConfig, release: PublishedRelease, release_name: str, artifact: dict, ref: str) -> list[dict]:
     if not project.sigstore or artifact["format"] == "crate":
         return []
     return [{
         "format": "sigstore-bundle",
         "url": f"{site.repository_url}/releases/download/{release_name}/{artifact['filename']}.sigstore.json",
         "issuer": SIGSTORE_ISSUER,
-        "identity": f"{site.repository_url}/{WORKFLOW_PATH}@{ref}",
+        "identity": release.locked.signing_identity or workflow_identity(site, ref),
     }]
 
 
@@ -329,7 +348,7 @@ def release_document(project: Project, site: SiteConfig, release: PublishedRelea
             **({"platform": artifact["platform"]} if "platform" in artifact else {}),
             **({"layout": artifact["layout"]} if "layout" in artifact else {}),
             "sources": artifact_sources(project, site, release_name, artifact),
-            "signatures": artifact_signatures(project, site, release_name, artifact, ref),
+            "signatures": artifact_signatures(project, site, release, release_name, artifact, ref),
         }
         for artifact in release.locked.artifacts
     ]

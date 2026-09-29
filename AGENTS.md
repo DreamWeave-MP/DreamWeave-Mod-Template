@@ -7,7 +7,7 @@
   writes the distribution protocol documents (`static/dreamweave.json`,
   `static/dreamweave/projects/<id>.json`) and what only CI knows (`static/dreamweave/view.json`).
 - Authors never run Python. Their tools are an editor, git and `zola serve`; `./buildSite` runs only
-  in the workflow. Nothing an author must do may need it, and a plain `zola serve` must render every
+  in CI. Nothing an author must do may need it, and a plain `zola serve` must render every
   page: templates build the project model from `mod.toml` and `mod.lock` themselves
   (`templates/macros/project.html`), and `view.json` only adds CI facts.
 - Human intent: `content/<project>/index.md` (display name, summary, prose) and `mod.toml`
@@ -16,6 +16,12 @@
   generated files.
 - The protocol is specified in `content/guide/protocol/` and `static/schemas/`. Code, schemas and
   spec change together or not at all.
+- CI lives in StroggForge (`~/GitHub/rust-reimplementations/StroggForge`, sibling checkout):
+  `build_site.yml` only calls its `modGlobalBuild`, and its Rust workflows call the same one with
+  `mod_template: true`. The `./buildSite` commands and `dist/` files that workflow uses are an
+  interface; change them together with StroggForge, and move the pinned tag with its bump.
+- StroggForge builds, signs and publishes Rust programs and crates; the template only records them.
+  No Rust build inputs belong in `mod.toml` or `./buildSite`.
 
 ## Invariants that are easy to break
 

@@ -58,8 +58,8 @@ served from the project's own site, and it is the only authority for those claim
 |---|---|
 | `./buildSite` | Validation, packaging, recording releases, the protocol documents. It runs only in CI; authors never need Python |
 | Zola | Rendering pages from `mod.toml` and `mod.lock`, the search index, resizing images, the offline documentation render |
-| StroggForge's Rust workflows | Testing, building, signing and scanning programs, once per platform, when a project is `format = "binary"`; testing a `format = "crate"` library and publishing it to crates.io |
-| The workflow | Running the above on every push and tag, publishing releases, deploying Pages |
+| StroggForge's `modGlobalBuild` | Running `./buildSite` on every push and tag: recording and publishing mod releases, deploying Pages. `build_site.yml` calls it |
+| StroggForge's Rust workflows | Testing, building, signing, scanning and publishing programs and crates. With `mod_template` they hand the published release to `modGlobalBuild`, which records it |
 | Client software (CHIMERA and others) | Discovery, trust policy, dependency resolution, choosing releases, downloading, verifying, installing |
 | St4sh and other indexes | Crawling, caching, search, curation, mirroring. Not identity, not release data |
 

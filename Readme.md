@@ -61,7 +61,8 @@ else runs in GitHub Actions: no Python, no Node, no Rust, no accounts.
 
 ## What CI runs
 
-You never run `./buildSite`; the workflow does. It is Python, and it lives in `tools/dreamweave/`.
+You never run `./buildSite`; CI does, through StroggForge's `modGlobalBuild` workflow, which
+`.github/workflows/build_site.yml` calls. It is Python, and it lives in `tools/dreamweave/`.
 
 | Command | When | Does |
 |---|---|---|

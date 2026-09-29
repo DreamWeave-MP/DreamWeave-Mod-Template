@@ -237,6 +237,24 @@ class ReleaseLifecycle(unittest.TestCase):
             self.assertEqual(schema_errors(manifest, "modManifest-2.schema.json"), [])
             self.assertEqual(schema_errors(load(self.root, "static/dreamweave.json"), "dreamweave-index-2.schema.json"), [])
 
+    def test_a_release_keeps_the_identity_that_signed_it(self):
+        mod_toml = self.root / "content/lantern/mod.toml"
+        mod_toml.write_text(mod_toml.read_text().replace("[[releases]]", "[provenance]\nsigstore = true\n\n[[releases]]", 1))
+        self.scratch.commit("Sign Lantern")
+        signer = "https://github.com/DreamWeave-MP/StroggForge/.github/workflows/modGlobalBuild.yml@refs/tags/v{}"
+        git(self.root, "tag", "lantern-1.0.0")
+        git(self.root, "checkout", "-q", "lantern-1.0.0")
+        build_site(self.root, "release", "lantern-1.0.0", env={"DREAMWEAVE_SIGNING_IDENTITY": signer.format(49)})
+        git(self.root, "checkout", "-q", "main")
+        build_site(self.root, "record")
+        self.scratch.commit("RELEASE: Lantern 1.0.0")
+        self.assertEqual(load(self.root, "content/lantern/mod.lock")["releases"][0]["signing_identity"], signer.format(49))
+
+        build_site(self.root, "build", env={"DREAMWEAVE_SIGNING_IDENTITY": signer.format(50)})
+        releases = {release["channel"]: release for release in self.manifest()["releases"]}
+        self.assertEqual(releases["stable"]["artifacts"][0]["signatures"][0]["identity"], signer.format(49), "the pin moved after 1.0.0 was signed")
+        self.assertEqual(releases["development"]["artifacts"][0]["signatures"][0]["identity"], signer.format(50))
+
     def test_extension_data_reaches_the_manifest_unchanged(self):
         mod_toml = (self.root / "content/lantern/mod.toml").read_text()
         extension = '[extensions."org.tes3mp"]\nserver_side = true\nsync = ["time", "weather"]\n\n'
