@@ -117,6 +117,11 @@
       background: var(--dw-accent-soft)
       color: var(--dw-accent)
 
+// A tablet held sideways gets the desktop header, and still a finger's worth of link.
+@media (pointer: coarse)
+  .dw-nav a
+    min-height: var(--dw-touch)
+
 .dw-header .dw-search
   grid-area: search
 
