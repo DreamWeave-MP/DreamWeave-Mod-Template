@@ -14,7 +14,8 @@ content and branding. Branding is meant to be possible without forking a single 
 
 ```toml
 [extra]
-palette = "teal"        # purple (default), teal, gold, ember, moss or umber
+palette = "teal"        # purple (default), teal, gold, ember, moss, umber, grove, prism, slate,
+                        # crimson, indigo, azure or frost
 accent = "#7fded0"      # optional: any #rrggbb, overriding the palette's accent
 ```
 
