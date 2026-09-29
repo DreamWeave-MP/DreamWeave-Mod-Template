@@ -887,6 +887,8 @@ def check_project_structure(project: Project, where: str, problems: Problems) ->
     if project.package_format == "flat" and project.groups:
         problems.error(where, "a flat package has one component, so [[groups]] have nothing to choose between")
 
+    if project.sigstore and project.package_format in RUST_FORMATS:
+        problems.error(where, "[provenance] sigstore signs mod archives. StroggForge signs a program's binaries with its own Cosign bundles, and crates.io serves a crate; leave it out")
     if project.package_format != "binary" and any(not platform.is_desktop for platform in project.platforms):
         problems.error(where, "android and handheld variants are builds of a program; only format = \"binary\" packages list them")
     if project.package_format == "binary":

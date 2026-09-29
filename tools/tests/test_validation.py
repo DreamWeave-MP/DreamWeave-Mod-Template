@@ -162,6 +162,7 @@ class ProjectRules(unittest.TestCase):
         self.assertError(crate + '[[platforms]]\nos = "linux"\narch = "x86_64"\n', "no [[platforms]]")
         # StroggForge's inputs live in the repository's Rust workflow, not in mod.toml.
         self.assertError(crate + '[build]\nbenchmarks = true\n', "build")
+        self.assertError(crate + '[provenance]\nsigstore = true\n', "sigstore signs mod archives")
 
     def test_platform_variants(self):
         program = MINIMAL + 'type = "tool"\n[package]\nformat = "binary"\nbinary = "broom"\ncrate = "broom"\n[[platforms]]\nos = "linux"\narch = "x86_64"\n'
