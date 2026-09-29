@@ -731,6 +731,14 @@ class ReleaseLifecycle(unittest.TestCase):
             for group in newest["groups"]:
                 self.assertIn(f"{group['name']} · {group['select']}", html.unescape(page))
 
+    def test_requirement_badges(self):
+        index = self.root / "content/lantern/index.md"
+        index.write_text(index.read_text() + '\n{{ requires(name="Tallow", url="https://example.com/tallow", note="Scheduling") }}\n{{ requires_openmw() }}\n')
+        subprocess.run(["zola", "build"], cwd=self.root, check=True, capture_output=True)
+        page = (self.root / "public/lantern/index.html").read_text()
+        self.assertIn('<a class="dw-requires" href="https://example.com/tallow"><span class="dw-requires__name">Tallow</span><span class="dw-requires__note">Scheduling</span></a>', page)
+        self.assertIn('OpenMW 0.49+</span><span class="dw-requires__note">Required for use</span>', page, "the OpenMW badge follows [runtimes] in mod.toml")
+
     def test_author_text_is_escaped(self):
         hostile = "O'Brien's </script><script>alert(1)</script>"
         index = (self.root / "content/lantern/index.md").read_text().replace('title = "Lantern"', f"title = {json.dumps(hostile)}")

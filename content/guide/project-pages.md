@@ -89,12 +89,25 @@ The body is ordinary Markdown, plus these shortcodes:
 | `{%/* tree() */%}` an indented listing `{%/* end */%}` | A directory tree: two spaces per level, a trailing `/` marks a directory, two spaces before a note |
 | `{{/* schematic(data_path="data/schematics/x.json") */}}` | A flow diagram drawn from data |
 | `{{/* pipeline(data_path="data/pipeline/x.json") */}}` | Stages in a row joined by arrows, with pieces hanging off them; see the header of `templates/shortcodes/pipeline.html` for the file |
+| `{{/* requires(name="...", url="@/lib/index.md", note="...") */}}` | A badge for something the project needs: a page of this site or any address, with an `icon` if you like and a `note` on what it is for |
+| `{{/* requires_openmw() */}}` | A badge for the OpenMW it needs, linking to OpenMW's downloads. It reads `openmw` under `[runtimes]` in the page's `mod.toml`, so it follows it; `version="0.51"` names one instead |
 | `{{/* api_signature(value="...") */}}` | A highlighted signature line |
 | `{{/* image(src="/img/x.png", alt="...") */}}` and `{{/* figure(...) */}}` | An image, with or without a caption |
 
 A pipeline, drawn from `data/pipeline/release.json`:
 
 {{ pipeline(data_path="data/pipeline/release.json") }}
+
+Requirement badges, on consecutive lines so they share a row. On a project page, leave out
+`version` and `requires_openmw` shows the `openmw` requirement from its `mod.toml`:
+
+```md
+{{/* requires(name="Tallow", url="@/simplified/index.md", note="Scheduling") */}}
+{{/* requires_openmw(version="0.49+") */}}
+```
+
+{{ requires(name="Tallow", url="@/simplified/index.md", note="Scheduling") }}
+{{ requires_openmw(version="0.49+") }}
 
 `<!-- more -->` ends the summary used on the catalog.
 
