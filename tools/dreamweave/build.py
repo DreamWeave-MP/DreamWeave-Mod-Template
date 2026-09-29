@@ -105,9 +105,12 @@ def load_repository(root: Path, check_payloads: bool = True) -> Repository:
                 f"id {project.id} belongs to the template's example project {EXAMPLE_PROJECT_IDS[project.id]}. "
                 f"Every project needs its own identity: replace it with a fresh one, like {uuid.uuid4()}",
             )
-        for included in project.package_include:
-            if included.startswith("/") or ".." in included.split("/") or not (root / included).exists():
-                problems.error(f"{project.directory}/mod.toml [package] include", f"{included!r} is not a file or directory in the repository; include paths start at its root")
+        if project.package_include:
+            build_directory = binary_build_directory(root, project)
+            where = "the repository" if build_directory == root else f"{project.package_binary}/, the directory StroggForge builds the program in"
+            for included in project.package_include:
+                if included.startswith("/") or ".." in included.split("/") or not included_path_exists(build_directory, included):
+                    problems.error(f"{project.directory}/mod.toml [package] include", f"{included!r} is not a file or directory in {where}; include paths start there")
         if (root / project.directory / "changelog.md").is_file():
             problems.error(
                 f"{project.directory}/changelog.md",
@@ -173,6 +176,21 @@ def check_release_order(project: Project, locked: list[records.LockedRelease], p
                     f"{project.directory}/mod.toml",
                     f"{channel} release {later.version} ({later.date}) sorts below {earlier.version} ({earlier.date}) under {project.versioning} versioning. {hint}",
                 )
+
+
+def binary_build_directory(root: Path, project: Project) -> Path:
+    """Where StroggForge builds a program, and so where its include paths start: the directory
+    named after the binary when the repository has one, as a workspace member, else the root."""
+    candidate = root / project.package_binary if project.package_binary else root
+    return candidate if candidate.is_dir() else root
+
+
+def included_path_exists(base: Path, included: str) -> bool:
+    """As StroggForge finds it: the path as written, else an entry of that name in any case."""
+    path = base / included
+    if path.exists():
+        return True
+    return path.parent.is_dir() and any(entry.name.lower() == path.name.lower() for entry in path.parent.iterdir())
 
 
 def check_legacy_pages(root: Path, projects: list[Project], problems: Problems) -> list[Path]:

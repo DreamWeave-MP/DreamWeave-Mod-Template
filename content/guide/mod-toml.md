@@ -140,7 +140,7 @@ Each component has an `[components.openmw]` table with the install keys:
 | `documentation` | `true` | Render the page and its docs into `Documentation/` inside the archive. Not for `binary`, whose archives the Rust workflow builds, or `crate`, which has none. |
 | `development` | `true` | Publish a rolling build of the default branch on the `development` channel. Not for `crate`. |
 | `binary` | | `binary` only: the Cargo binary. Its archives are `<binary>-<OS>-<ARCH>.zip`, one per `[[platforms]]` entry. |
-| `include` | `[]` | `binary` only: files and directories, from the repository root, packed beside the program: `["README.md", "LICENSE", "resources"]`. |
+| `include` | `[]` | `binary` only: files and directories packed beside the program: `["README.md", "LICENSE", "resources"]`. Paths start where StroggForge builds it: the directory named after the binary when the repository has one, as a workspace member, else the repository root. A name matches in any case. |
 | `crate` | | `crate` and `binary`: the package's name on crates.io, as in its `Cargo.toml`. Required for a `crate`; for a `binary`, it adds `cargo install` to the page. |
 
 A Rust project's build settings, such as dependents to notify, benchmarks or extra targets, are

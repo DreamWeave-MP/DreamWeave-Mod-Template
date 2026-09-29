@@ -42,7 +42,7 @@ type = "tool"
 [package]
 format = "binary"
 binary = "morrobroom"                                  # the Cargo binary
-include = ["README.md", "LICENSE", "resources"]        # packed beside it, from the repository root
+include = ["README.md", "LICENSE", "resources"]        # packed beside it, from where it is built
 
 [[platforms]]
 os = "windows"
