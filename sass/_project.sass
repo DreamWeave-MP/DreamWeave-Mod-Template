@@ -11,11 +11,19 @@
   padding: clamp(2rem, 1.2rem + 3.5vw, 4.5rem) 0 clamp(1.75rem, 1rem + 3vw, 3.5rem)
   background: radial-gradient(ellipse 60% 90% at 100% 0%, color-mix(in oklab, var(--dw-accent) 12%, transparent), transparent 70%), radial-gradient(ellipse 45% 70% at 0% 100%, color-mix(in oklab, var(--dw-accent) 5%, transparent), transparent 70%), radial-gradient(color-mix(in oklab, var(--dw-text) 7%, transparent) 1px, transparent 1.5px) 0 0 / 24px 24px, linear-gradient(180deg, var(--dw-bg-1), var(--dw-bg-0))
 
+// Text and picture side by side, the facts in a row across both.
 .dw-hero__grid
   display: grid
   grid-template-columns: minmax(0, 1fr) minmax(0, 32rem)
   gap: var(--dw-space-6) clamp(2rem, 4vw, 4rem)
   align-items: center
+
+  > .dw-strip
+    grid-column: 1 / -1
+    margin: 0
+
+.dw-hero__grid--text
+  grid-template-columns: minmax(0, 1fr)
 
 .dw-hero__title
   margin: 0 0 var(--dw-space-3)
@@ -571,6 +579,63 @@
 
   .dw-release
     padding: .9rem 1rem 1rem
+
+// The changelog page: the releases beside an index of versions on a wide screen.
+.dw-changelog
+  display: grid
+  grid-template-columns: minmax(0, 56rem) minmax(0, 14rem)
+  gap: var(--dw-space-7)
+  align-items: start
+
+.dw-changelog__main
+  min-width: 0
+
+  > .dw-section:first-child
+    margin-top: 0
+
+.dw-changelog__index
+  position: sticky
+  top: var(--dw-space-4)
+  max-height: calc(100vh - 2rem)
+  overflow-y: auto
+  scrollbar-width: thin
+
+  ol
+    margin: 0
+    border-left: 1px solid var(--dw-line)
+    padding: 0
+    list-style: none
+    font-family: var(--dw-font-mono)
+    font-size: var(--dw-step--1)
+
+  li
+    margin: 0
+
+  a
+    display: flex
+    gap: .75em
+    align-items: baseline
+    justify-content: space-between
+    margin-left: -1px
+    border-left: 2px solid transparent
+    padding: .3em .75em
+    color: var(--dw-text-muted)
+    text-decoration: none
+
+    &:hover
+      border-left-color: var(--dw-accent)
+      color: var(--dw-accent)
+
+  small
+    color: var(--dw-text-faint)
+    font-size: var(--dw-step--2)
+
+@media (max-width: 1099px)
+  .dw-changelog
+    grid-template-columns: minmax(0, 1fr)
+
+  .dw-changelog__index
+    display: none
 
 // Artifacts -------------------------------------------------------------------------------
 
