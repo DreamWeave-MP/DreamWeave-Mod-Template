@@ -176,9 +176,10 @@ component that requires one that does not exist.
 ## What ships
 
 Everything committed under the project directory ships, except `mod.lock`, which records the
-archive's own hash, and the Markdown the documentation is rendered from: `index.md` and every docs
-section beneath the project (a directory with an `_index.md`). Documentation belongs with the mod,
-so it travels rendered. `mod.toml` ships as `<slug>-dwmod.toml`. The documentation folder carries
+archive's own hash, and the Markdown the documentation is rendered from: every page's `index.md`,
+the project's own and any page bundle's beneath it, and every docs section (a directory with an
+`_index.md`). Other Markdown, such as files in hidden directories, ships as it is. Documentation
+belongs with the mod, so it travels rendered. `mod.toml` ships as `<slug>-dwmod.toml`. The documentation folder carries
 the slug too, so mods extracted into one folder keep their own.
 
 For a project with the slug `my_mod`:
