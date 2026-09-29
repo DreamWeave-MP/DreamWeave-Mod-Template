@@ -63,6 +63,9 @@
  "status": {{ m.status | default(value="active") | json_encode | safe }},
  "versioning": {{ m.versioning | default(value="numeric") | json_encode | safe }},
  "game": {{ game | json_encode | safe }},
+ {#- The manifest always names a game. The page shows it for game data, and for a Rust project only
+     when its mod.toml says which game: a library or tool may serve several, or none. #}
+ "game_named": {% if m.game is defined or not is_rust %}true{% else %}false{% endif %},
  "license": {% if m.license is defined %}{{ m.license | json_encode | safe }}{% else %}null{% endif %},
  "page_path": {{ path | json_encode | safe }},
  "manifest_url": {{ get_url(path="dreamweave/projects/" ~ id ~ ".json", trailing_slash=false) | json_encode | safe }},

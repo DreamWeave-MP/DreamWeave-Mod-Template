@@ -458,6 +458,7 @@ class ReleaseLifecycle(unittest.TestCase):
         self.assertIn('ledger-rs = "1.0.0"', page)
         self.assertIn('href="https://crates.io/crates/ledger-rs/1.0.0"', page)
         self.assertIn("<dt>Package</dt><dd>Rust crate</dd>", page)
+        self.assertNotIn("<span>Morrowind</span>", page, "a library that names no game is not labelled with one")
         self.assertIn('Pushing its tag, 1.1.0, publishes it">unreleased', page)
         self.assertIn('<a href="#v1-0-0">1.0.0</a>', page)
         self.assertIn(f"Verify · sha256 {hashlib.sha256(b'ledger 1.0.0').hexdigest()[:12]}", page)
@@ -598,6 +599,7 @@ class ReleaseLifecycle(unittest.TestCase):
         page = self.zola_build()
         locked = load(self.root, "content/lantern/mod.lock")["releases"][0]["artifacts"][0]
         self.assertIn('href="https://github.com/someone/cool-mods/releases/download/lantern-1.0.0/lantern.zip"', page)
+        self.assertIn("<span>Morrowind</span>", page, "game data names its game")
         self.assertIn(locked["digests"]["sha256"], page)
         self.assertIn("content=Lantern.omwscripts", page)
         self.assertIn('id="v1-0-0"', page, "without the generated changelog page, the project page lists every release")
