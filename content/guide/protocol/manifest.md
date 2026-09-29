@@ -41,7 +41,7 @@ The JSON Schemas are normative for structure; this page is normative for meaning
 | `maintainers` | `[{ name, url? }]`. |
 | `links` | Object of URLs. Always `page`, `source`, `issues`; optionally `documentation`, `support`, `donate`, `homepage`, `nexusmods`, and `crate` for a Rust crate: its crates.io page. |
 | `integrations` | Locations on other services, e.g. `{ "nexusmods": { "game": "morrowind", "mod_id": 57511 } }`. Never identity. |
-| `media` | `[{ kind: image|video, url, alt, thumbnail?, caption?, category?, featured? }]`. |
+| `media` | `[{ kind: image\|video, url, alt, thumbnail?, caption?, category?, featured? }]`. |
 | `credits` | `[{ name, role?, url? }]`. |
 
 ### `channels`
