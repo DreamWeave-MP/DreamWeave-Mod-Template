@@ -16,18 +16,26 @@
 </header>
 <div class="dw-shell">
     {%- if section.content %}<div class="dw-prose dw-catalog__intro">{{ section.content | safe }}</div>{% endif %}
-    <ol class="dw-catalog">
+    <ol class="dw-catalog dw-catalog--cards">
     {%- for item in listed %}
         {%- set project = false %}
+        {%- set thumbnail = false %}
         {%- if item.colocated_path %}
         {%- set mod_toml = load_data(path="content/" ~ item.colocated_path ~ "mod.toml", required=false) %}
         {%- if mod_toml %}
         {%- set item_ci = false %}{% if dw and item.colocated_path in dw.projects %}{% set item_ci = dw.projects[item.colocated_path] %}{% endif %}
         {%- set model_text = project_model::model(path=item.colocated_path, page=item, ci=item_ci) %}
         {%- set project = load_data(literal=model_text, format="json") %}
+        {%- set item_images = project.media | filter(attribute="kind", value="image") %}
+        {%- set item_featured = item_images | filter(attribute="featured", value=true) %}
+        {%- if item_featured | length > 0 %}{% set thumbnail = item_featured | first %}{% elif item_images | length > 0 %}{% set thumbnail = item_images | first %}{% endif %}
         {%- endif %}
         {%- endif %}
         <li class="dw-catalog__row">
+            {#- The picture repeats the title's link, so it is left out of the reading order. -#}
+            <div class="dw-catalog__thumb" aria-hidden="true">
+                {%- if thumbnail %}{{ dw_macros::media_image(project=project, item=thumbnail, width=640) }}{% else %}<span class="dw-catalog__monogram">{{ item.title | truncate(length=1, end="") }}</span>{% endif %}
+            </div>
             <h2 class="dw-catalog__name"><a href="{{ item.permalink | safe }}">{{ item.title }}</a></h2>
             <p class="dw-catalog__summary">{{ item.description | default(value="") }}</p>
             <div class="dw-catalog__facts">
