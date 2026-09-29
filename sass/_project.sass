@@ -45,8 +45,8 @@
     bottom: 0
     left: 0
     padding: 1.2em .75em .45em
-    background: linear-gradient(transparent, rgb(0 0 0 / 70%))
-    color: #ece4f4
+    background: linear-gradient(transparent, color-mix(in oklab, var(--dw-bg-0) 85%, transparent))
+    color: var(--dw-text)
     font-size: .78rem
 
 @media (max-width: 1000px)
@@ -139,7 +139,7 @@
   color: var(--dw-text)
 
   &::backdrop
-    background: rgb(6 3 10 / 88%)
+    background: color-mix(in oklab, var(--dw-bg-0) 90%, transparent)
 
 .dw-lightbox__frame
   display: grid
