@@ -63,7 +63,9 @@ At the root of a `flat`, `bain` or `fomod` archive:
 
 - the project's files, laid out per `format`;
 - `dreamweave.release.json`, the [release payload](@/guide/protocol/manifest.md#release-payload);
-- `Documentation/`, optionally: the project's pages rendered as self-contained HTML;
+- `<slug>-Documentation/`, optionally: the project's pages rendered as self-contained HTML, named
+  by the artifact's `layout.documentation`;
+- `<slug>-dwmod.toml`, optionally: the project's `mod.toml` as its site had it;
 - `fomod/`, for `format: "fomod"`: a ModConfig 5.0 installer generated from the components.
 
 ## Programs

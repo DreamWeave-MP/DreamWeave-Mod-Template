@@ -136,7 +136,7 @@ docs_project_path = "@/home/index.md"
 Child pages and subsections inherit the docs layout: a recursive sidebar, breadcrumbs, a table of
 contents, search scoped to the docs, and copy buttons on code. Link the docs from `mod.toml` with
 `[links] documentation = "@/home/docs/_index.md"` and they get a header button. They also ship
-inside the archive, rendered, under `Documentation/`. Set `kind = "guide"` or `kind = "api"` in a
+inside the archive, rendered, under `<slug>-Documentation/`. Set `kind = "guide"` or `kind = "api"` in a
 page's `[extra]` to label it.
 
 A docs section lists its pages and subsections as cards under its own text. When that text already

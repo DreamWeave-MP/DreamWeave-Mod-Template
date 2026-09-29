@@ -137,7 +137,7 @@ Each component has an `[components.openmw]` table with the install keys:
 | Key | Default | Meaning |
 |---|---|---|
 | `format` | `"flat"` | `flat`, `bain` or `fomod` for game data; `binary` for a program built from Rust source; `crate` for a Rust library on crates.io. See [Packages](@/guide/packages.md). |
-| `documentation` | `true` | Render the page and its docs into `Documentation/` inside the archive. Not for `binary`, whose archives the Rust workflow builds, or `crate`, which has none. |
+| `documentation` | `true` | Render the page and its docs into `<slug>-Documentation/` inside the archive, in place of their Markdown. Not for `binary`, whose archives the Rust workflow builds, or `crate`, which has none. |
 | `development` | `true` | Publish a rolling build of the default branch on the `development` channel. Not for `crate`. |
 | `binary` | | `binary` only: the Cargo binary. Its archives are `<binary>-<OS>-<ARCH>.zip`, one per `[[platforms]]` entry. |
 | `include` | `[]` | `binary` only: files and directories packed beside the program: `["README.md", "LICENSE", "resources"]`. Paths start where StroggForge builds it: the directory named after the binary when the repository has one, as a workspace member, else the repository root. A name matches in any case. |

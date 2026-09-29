@@ -92,7 +92,7 @@ variant = "muos"            # the same build as a muOS .muxapp
 
 Each entry must come back from the build, or the release is refused. At least one is a desktop
 platform. Releases StroggForge published before the repository was a site are recorded from their
-GitHub releases, with whichever of these archives each has. There are no components, no FOMOD and no `Documentation/` in a program's archives:
+GitHub releases, with whichever of these archives each has. There are no components, no FOMOD and no rendered documentation in a program's archives:
 `include` is how its documentation travels with it. A program that is also published to crates.io
 names it with `crate`, and the page offers `cargo install` beside the downloads.
 
@@ -175,35 +175,36 @@ component that requires one that does not exist.
 
 ## What ships
 
-Everything committed under the project directory ships, including `index.md`, `mod.toml` and the
-docs sources. Documentation belongs with the mod. Only `mod.lock` stays out, because it records the
-archive's own hash.
+Everything committed under the project directory ships, except `mod.lock`, which records the
+archive's own hash, and the Markdown the documentation is rendered from: `index.md` and every docs
+section beneath the project (a directory with an `_index.md`). Documentation belongs with the mod,
+so it travels rendered. `mod.toml` ships as `<slug>-dwmod.toml`. The documentation folder carries
+the slug too, so mods extracted into one folder keep their own.
 
-The tooling adds three things:
+For a project with the slug `my_mod`:
 
 {% tree() %}
 my_mod.zip/
   00 Core/  your components, or your one data directory
-  docs/  your documentation sources
-  index.md
-  mod.toml
-  Documentation/  this page and its docs, rendered, readable offline
+  my_mod-dwmod.toml  mod.toml
+  my_mod-Documentation/  this page and its docs, rendered, readable offline
   fomod/  the generated installer, format = "fomod" only
   dreamweave.release.json  what this archive is, for tools
 {% end %}
 
-`Documentation/` is the project's page, changelog and docs, rendered as they are on the site, with
-every link inside the project turned into a relative file path and every stylesheet, font and image
-they use copied next to them. Open `Documentation/index.html` from a zip on a plane and it works.
-Links to other parts of the site stay absolute and work when you are online. Turn it off with
-`[package] documentation = false`.
+`<slug>-Documentation/` is the project's page, changelog and docs, rendered as they are on the site,
+with every link inside the project turned into a relative file path and every stylesheet, font and
+image they use copied next to them. Open its `index.html` from a zip on a plane and it works. Links
+to other parts of the site stay absolute and work when you are online. Turn it off with
+`[package] documentation = false`, and the Markdown sources ship instead.
 
 `dreamweave.release.json` is the release's install and compatibility data plus the project id, so a
 loose archive can say what it is. The manifest is authoritative if they ever disagree.
 
 The payload check refuses what would break installs: symlinks, submodules, files whose paths differ
 only by case (one file on Windows and in OpenMW's VFS), Windows-reserved names, names ending in a
-dot or space, and your own files at `Documentation/`, `fomod/` or `dreamweave.release.json`.
+dot or space, and your own files at `<slug>-Documentation/`, `<slug>-dwmod.toml`, `fomod/` or
+`dreamweave.release.json`.
 
 ## Reproducible archives
 
