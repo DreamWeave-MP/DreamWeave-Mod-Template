@@ -214,6 +214,37 @@
 .dw-button.is-yours
   @extend .dw-button--primary
 
+// Icon buttons: the header's search and menu on a narrow screen.
+.dw-icon-button
+  display: inline-flex
+  gap: .45em
+  align-items: center
+  justify-content: center
+  min-width: var(--dw-touch)
+  min-height: var(--dw-touch)
+  border: 1px solid var(--dw-line-strong)
+  border-radius: var(--dw-radius)
+  padding: 0 .75em
+  background: var(--dw-bg-2)
+  color: var(--dw-text)
+  font-family: var(--dw-font-mono)
+  font-size: var(--dw-step--1)
+  font-weight: 600
+  transition: background var(--dw-duration) var(--dw-ease), border-color var(--dw-duration) var(--dw-ease), color var(--dw-duration) var(--dw-ease)
+
+  svg
+    flex: none
+    width: 1.15em
+    height: 1.15em
+
+  &:hover
+    border-color: var(--dw-accent-line)
+
+  &[aria-expanded="true"]
+    border-color: var(--dw-accent-line)
+    background: var(--dw-accent-soft)
+    color: var(--dw-accent)
+
 // Status strip: the at-a-glance row under a project title ----------------------------------
 
 .dw-strip
@@ -572,68 +603,105 @@
 
   input
     width: 100%
-    border: 1px solid var(--dw-line-strong)
-    border-radius: var(--dw-radius)
-    padding: .45em .7em
-    background: var(--dw-bg-0)
+    padding-inline: 2.3em 2.4em
     font-family: var(--dw-font-mono)
-    font-size: .82rem
+    font-size: var(--dw-step--1)
 
-    &::placeholder
-      color: var(--dw-text-faint)
+    &::-webkit-search-cancel-button
+      display: none
 
-    &:focus
-      border-color: var(--dw-accent-line)
-      outline: none
+.dw-search__icon
+  position: absolute
+  top: 50%
+  left: .75em
+  width: 1em
+  height: 1em
+  color: var(--dw-text-faint)
+  transform: translateY(-50%)
+  pointer-events: none
 
+.dw-search__key
+  position: absolute
+  top: 50%
+  right: .6em
+  color: var(--dw-text-faint)
+  transform: translateY(-50%)
+  transition: opacity var(--dw-duration) var(--dw-ease)
+  pointer-events: none
+
+.dw-search:focus-within .dw-search__key
+  opacity: 0
+
+@media (pointer: coarse)
+  .dw-search__key
+    display: none
+
+  .dw-search input
+    padding-right: .75em
+
+// The results drop below the field, wider than it when the field is narrow.
 .dw-search__results
   position: absolute
-  top: calc(100% + 4px)
+  top: calc(100% + 6px)
   right: 0
-  left: 0
   z-index: 40
-  max-height: 70vh
+  width: max(100%, min(34rem, 100vw - 2 * var(--dw-gutter)))
+  max-height: min(70vh, 34rem)
   overflow: auto
-  border: 1px solid var(--dw-accent-line)
-  border-radius: var(--dw-radius)
+  overscroll-behavior: contain
+  border: 1px solid var(--dw-line-strong)
+  border-radius: var(--dw-radius-lg)
   background: var(--dw-bg-1)
-  box-shadow: 0 .8em 2em rgb(0 0 0 / 45%)
+  box-shadow: var(--dw-shadow-3)
 
 .dw-search__status
-  padding: .5em .8em
+  margin: 0
+  padding: .65em 1em
   color: var(--dw-text-faint)
   font-family: var(--dw-font-mono)
-  font-size: .75rem
+  font-size: var(--dw-step--2)
+  letter-spacing: .04em
 
 .dw-search__list
   margin: 0
   padding: 0
   list-style: none
 
+  li
+    margin: 0
+
   a
     display: block
     border-top: 1px solid var(--dw-line)
-    padding: .55em .8em
+    padding: .7em 1em .75em
     color: var(--dw-text)
     text-decoration: none
 
     &:hover, &:focus-visible, &[aria-selected="true"]
-      background: var(--dw-bg-3)
+      background: var(--dw-bg-2)
+      box-shadow: inset 3px 0 0 var(--dw-accent)
       outline: none
 
   strong
     display: block
-    color: var(--dw-accent)
-    font-size: .9rem
+    color: var(--dw-text)
+    font-family: var(--dw-font-display)
+    font-size: .95rem
 
   span
-    display: block
+    display: -webkit-box
+    margin-top: .15em
+    overflow: hidden
     color: var(--dw-text-muted)
-    font-size: .8rem
+    font-size: var(--dw-step--1)
+    line-height: 1.5
+    -webkit-box-orient: vertical
+    -webkit-line-clamp: 2
+    line-clamp: 2
 
   mark
     background: none
-    color: var(--dw-text)
+    color: var(--dw-accent)
     font-weight: 700
 
 // Pagination ------------------------------------------------------------------------------

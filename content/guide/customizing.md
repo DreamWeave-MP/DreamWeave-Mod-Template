@@ -69,6 +69,10 @@ footer_text = "Made in the Ashlands"
 favicon = "img/favicon.png"
 ```
 
+On a phone the header keeps the logo and folds the rest: search behind a button, and four menu
+items or more behind a **Menu** button. Three or fewer stay a row of links that scrolls sideways
+if it has to. Without JavaScript nothing folds.
+
 ## Templates
 
 Everything under `templates/` can be overridden by editing it; Zola has no theme layer in between.
