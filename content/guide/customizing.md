@@ -124,6 +124,18 @@ scripts = ["js/palette.js"]  # in static/, or https:// URLs
 
 The offline documentation in archives leaves them out.
 
+## Several manuals
+
+A site whose projects each keep a docs tree at the top of `content/` (a section with
+`docs_root = true` under `[extra]`) gets a switcher at the top of every docs page's navigation, so a
+reader can move from one manual to another. `docs_index` under `[extra]` in `config.toml` adds a
+link to a page that lists them all:
+
+```toml
+[extra]
+docs_index = "@/wiki/_index.md"
+```
+
 ## Hero art
 
 The catalog and every project page open on a hero: the title, the summary, the downloads and the

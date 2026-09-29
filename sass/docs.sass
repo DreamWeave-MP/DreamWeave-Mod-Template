@@ -667,3 +667,68 @@ $measure: var(--dw-width-prose, 78ch)
 
   .docs-footer
     margin-bottom: 1em
+
+// The manual switcher, on sites with more than one docs root.
+.docs-switcher
+  margin: 0 0 var(--dw-space-3, .75rem)
+  border: 1px solid var(--dw-line, var(--border-color))
+  border-radius: var(--dw-radius, 5px)
+  background: var(--dw-bg-1, transparent)
+
+  > summary
+    display: flex
+    align-items: baseline
+    gap: .5em
+    min-height: var(--dw-control, 2.5rem)
+    padding: .45em .75em
+    cursor: pointer
+    list-style: none
+
+    &::-webkit-details-marker
+      display: none
+
+    &::after
+      content: "▾"
+      margin-left: auto
+      color: var(--dw-text-faint)
+
+  &[open] > summary::after
+    content: "▴"
+
+  ul
+    margin: 0
+    padding: .25em 0 .4em
+    border-top: 1px solid var(--dw-line, var(--border-color))
+    list-style: none
+
+  a
+    display: block
+    padding: .35em .75em
+    color: var(--dw-text-muted)
+    text-decoration: none
+
+    &:hover,
+    &:focus-visible
+      background: var(--dw-accent-soft)
+      color: var(--dw-text)
+
+    &[aria-current]
+      color: var(--dw-accent)
+      font-weight: 600
+
+.docs-switcher__label
+  color: var(--dw-text-faint)
+  font: .72rem var(--dw-font-mono)
+  letter-spacing: .1em
+  text-transform: uppercase
+
+.docs-switcher__current
+  color: var(--dw-text)
+  font-weight: 600
+
+.docs-switcher__all
+  margin-top: .25em
+  border-top: 1px solid var(--dw-line, var(--border-color))
+
+  a
+    color: var(--dw-accent)
