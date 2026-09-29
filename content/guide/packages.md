@@ -91,7 +91,8 @@ variant = "muos"            # the same build as a muOS .muxapp
 ```
 
 Each entry must come back from the build, or the release is refused. At least one is a desktop
-platform. There are no components, no FOMOD and no `Documentation/` in a program's archives:
+platform. Releases StroggForge published before the repository was a site are recorded from their
+GitHub releases, with whichever of these archives each has. There are no components, no FOMOD and no `Documentation/` in a program's archives:
 `include` is how its documentation travels with it. A program that is also published to crates.io
 names it with `crate`, and the page offers `cargo install` beside the downloads.
 

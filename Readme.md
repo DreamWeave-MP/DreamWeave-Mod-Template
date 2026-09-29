@@ -72,6 +72,8 @@ You never run `./buildSite`; CI does, through StroggForge's `modGlobalBuild` wor
 | `./buildSite schemas` | every push | Validate the generated index and manifests against the published schemas |
 | `./buildSite release <tag>` | release tags | Build a release from its tag |
 | `./buildSite record` | release tags | Record that release in `mod.lock` on the default branch |
+| `./buildSite record-crates` | the default branch | Record the declared crate versions crates.io has |
+| `./buildSite record-releases` | the default branch | Record a program's tagged releases from their GitHub releases |
 
 ## Where things live
 

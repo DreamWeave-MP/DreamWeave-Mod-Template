@@ -88,6 +88,9 @@ them out: nothing recorded what their archives contained, and a client that cann
 should not be offered it. Development builds count from the newest tag, so players already on 0.963
 see 0.9631-dev.N, not something older. Tag the next release and it is on the network.
 
+A Rust program's old releases are recorded from its GitHub releases instead; see
+[Releases](@/guide/releases.md).
+
 ## Coming from somewhere else
 
 If a mod is on Nexus or a forum today, you do not have to move it. Put the page on the template,

@@ -180,6 +180,7 @@ Markdown shown in the Install section: `notes`, `post_install`, `upgrade`, `unin
 | `summary`, `highlights`, `migration`, `notes` | Markdown | none | Shown on the page, the changelog and the GitHub release. |
 | `added`, `changed`, `fixed`, `breaking`, `known_issues` | lists | `[]` | One Markdown line each. |
 | `yanked`, `deprecated` | string | none | The reason. At most one of the two. |
+| `tag` | string | the project's usual tag | The git tag the release was published under, when that is another spelling, like `v0.3.3` for a project whose tags are now bare. Each release's tag is its own. |
 | `replacement` | version | none | What to use instead of a yanked or deprecated release. |
 
 ## `[extensions."your.namespace"]`

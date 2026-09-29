@@ -142,3 +142,9 @@ recording step (see [Programs](@/guide/packages.md#programs) and
 
 Tags pushed before V5 still show in the changelog, marked **unverified**. The manifest leaves them
 out, because nothing records what their archives contained.
+
+A program's releases are the exception. StroggForge published its archives to GitHub releases,
+which keep their bytes and a digest of each, so every run on the default branch records the
+declared, tagged versions `mod.lock` lacks from them, archives checked against GitHub's digests.
+An old release that has only some of today's `[[platforms]]` is recorded with the archives it
+has. A release published under another spelling of its tag, like `v0.3.3`, names it with `tag`.
