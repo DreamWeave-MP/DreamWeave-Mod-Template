@@ -35,9 +35,14 @@ For anything more, `sass/brand.sass` is yours. It loads last and the template ne
 ```
 
 Every token is in `sass/_tokens.sass`: surfaces (`--dw-bg-0` to `--dw-bg-3`), text, lines, accent,
-status colors (`--dw-ok`, `--dw-warn`, `--dw-danger`, `--dw-info`), fonts, sizes, widths and code
-colors. Change tokens before writing selectors; tokens keep the pages, the docs and the diagrams
-consistent with each other.
+status colors (`--dw-ok`, `--dw-warn`, `--dw-danger`, `--dw-info`), fonts, the type scale
+(`--dw-step--2` to `--dw-step-5`), spacing (`--dw-space-1` to `--dw-space-8`), radii, shadows,
+widths and code colors. Change tokens before writing selectors; tokens keep the pages, the docs and
+the diagrams consistent with each other.
+
+The palettes share one lightness ladder, so a surface, a line or muted text is the same step from
+the page in every palette, and all of them pass WCAG AA for text. If you replace the surfaces,
+keep them in that order, darkest first, and check the text against them.
 
 ## Fonts
 

@@ -42,18 +42,61 @@
   --dw-neutral: var(--dw-text-muted)
   --dw-focus: #b3ead7
 
-  // Type
+  // Type. Mono carries structure (headings, labels, metadata); sans carries reading.
   --dw-font-body: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", Ubuntu, Cantarell, sans-serif
   --dw-font-mono: ui-monospace, "Cascadia Mono", "JetBrains Mono", "DejaVu Sans Mono", Menlo, Consolas, monospace
   --dw-font-display: var(--dw-font-mono)
-  --dw-size-base: 15.5px
-  --dw-leading: 1.62
+  --dw-size-base: 16px
+  --dw-leading: 1.65
+  --dw-leading-tight: 1.2
 
-  // Space and shape
-  --dw-gap: 1rem
-  --dw-radius: 3px
+  // Type scale: labels, small print, body, lead, then headings. The top three grow with the
+  // viewport, so a phone's h1 is not a desktop's.
+  --dw-step--2: .75rem
+  --dw-step--1: .875rem
+  --dw-step-0: 1rem
+  --dw-step-1: 1.125rem
+  --dw-step-2: 1.28rem
+  --dw-step-3: clamp(1.4rem, 1.28rem + .5vw, 1.65rem)
+  --dw-step-4: clamp(1.8rem, 1.5rem + 1.3vw, 2.45rem)
+  --dw-step-5: clamp(2.25rem, 1.6rem + 3vw, 3.75rem)
+
+  // Space: one ramp for padding, gaps and the rhythm between sections
+  --dw-space-1: .25rem
+  --dw-space-2: .5rem
+  --dw-space-3: .75rem
+  --dw-space-4: 1rem
+  --dw-space-5: 1.5rem
+  --dw-space-6: 2rem
+  --dw-space-7: 3rem
+  --dw-space-8: 4.5rem
+  --dw-gap: var(--dw-space-4)
+  // The page's side margin: tight on a phone, roomier on a desktop
+  --dw-gutter: clamp(16px, 3.2vw, 40px)
+
+  // Shape. Cards and panels round twice as much as controls; set --dw-radius to 0 for a square site.
+  --dw-radius: 5px
+  --dw-radius-lg: calc(var(--dw-radius) * 2)
+  --dw-radius-pill: 999px
+
+  // Elevation: resting cards, raised hovers, and popovers above the page
+  --dw-shadow-1: 0 1px 2px rgb(0 0 0 / 28%)
+  --dw-shadow-2: 0 2px 4px rgb(0 0 0 / 22%), 0 14px 32px -10px rgb(0 0 0 / 55%)
+  --dw-shadow-3: 0 4px 10px rgb(0 0 0 / 30%), 0 28px 64px -16px rgb(0 0 0 / 70%)
+  // A lit top edge on raised surfaces
+  --dw-sheen: inset 0 1px 0 color-mix(in oklab, var(--dw-text) 7%, transparent)
+  // Behind a dialog, and under text laid over an image
+  --dw-scrim: color-mix(in oklab, var(--dw-bg-0) 88%, transparent)
+
+  // Motion. prefers-reduced-motion turns every transition off (sass/_base.sass).
+  --dw-ease: cubic-bezier(.2, .7, .2, 1)
+  --dw-duration: .16s
+
+  // Sizes
+  --dw-touch: 44px
+  --dw-control: 2.5rem
   --dw-width-page: 1600px
-  --dw-width-prose: 74ch
+  --dw-width-prose: 70ch
   --dw-width-rail: 20rem
 
   // Code

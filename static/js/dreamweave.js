@@ -50,14 +50,31 @@
     flash(button, await copyText(text) ? 'Copied' : 'Copy failed');
   });
 
+  // A code block goes in a frame that holds its copy button, so the button stays in the corner
+  // while the code scrolls sideways under it.
   for (const code of document.querySelectorAll('pre > code')) {
+    const block = code.parentElement;
+    const frame = document.createElement('div');
+    frame.className = 'dw-code';
+    block.before(frame);
+    frame.append(block);
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'dw-copy';
     button.textContent = 'Copy';
     button.setAttribute('data-copy-code', '');
     button.setAttribute('aria-label', 'Copy code to clipboard');
-    code.parentElement.append(button);
+    frame.append(button);
+  }
+
+  // A Markdown table gets the frame the template's own tables have: it scrolls inside it, and
+  // spans the column when it is narrower.
+  for (const table of document.querySelectorAll('.dw-prose table, .docs-article table')) {
+    if (table.parentElement.classList.contains('dw-table-scroll')) continue;
+    const frame = document.createElement('div');
+    frame.className = 'dw-table-scroll';
+    table.before(frame);
+    frame.append(table);
   }
 
   // Search ------------------------------------------------------------------------------------
