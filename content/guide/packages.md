@@ -32,9 +32,9 @@ imperative install scripts, and a DreamWeave package does not run scripts.
 ## Programs
 
 A project can be a program: a compiler, a converter, a patcher. Its archives are not zipped from
-`content/<project>`; they are built from the repository's Rust source, one per platform, by
-[StroggForge](https://github.com/DreamWeave-MP/StroggForge)'s Rust workflow, which tests, signs and
-virus-scans them on the way.
+`content/<project>`; [StroggForge](https://github.com/DreamWeave-MP/StroggForge)'s Rust workflow
+builds them from the repository's Rust source, one per platform, and tests, signs, virus-scans and
+publishes them. The site records what it published.
 
 ```toml
 type = "tool"
@@ -53,21 +53,42 @@ os = "linux"
 arch = "x86_64"
 ```
 
-The site's workflow notices the binary project and calls the Rust workflow as one of its jobs. Its
-archives come back into the same run, named `morrobroom-Windows-X64.zip` and so on, and are the
-files the release records and publishes, byte for byte. Releases work exactly as for a mod: declare
-the version, push `<slug>-<version>`, and CI builds, records and publishes it, now with one artifact
-per platform. The project page offers a download per platform, marks the visitor's own, and says how
-to run the program instead of how to install data.
+The repository's own workflow calls StroggForge's `rustGlobalBuild` with `mod_template: true`.
+Once the archives are built and published, the same run hands them to the Mod Template stage,
+which hashes those exact files into the release record, then builds and deploys the site. The
+program's build settings, from `binary_names` to `enable_portmaster`, live in that workflow, not in
+`mod.toml`.
 
-The Rust project lives at the repository root, beside the site. `[[platforms]]` lists what the
-Rust workflow builds: Windows and Linux on x86_64, macOS on both Intel and Apple silicon. Each entry
-must come back from the build, or the release is refused. There are no components, no FOMOD and no
-`Documentation/` in a program's archives: `include` is how its documentation travels with it.
+A Rust project releases under the bare version tags StroggForge uses: declare the version, push
+`1.0.0`, and the program is built, published and recorded, with one artifact per platform. The
+project page offers a download per platform, marks the visitor's own, and says how to run the
+program instead of how to install data. A repository has at most one Rust project, so the version
+alone says which.
 
-`[build]` passes two more settings to StroggForge: `dependents`, the GitHub repositories to open an
-issue in when a release is tagged, and `benchmarks = true`, which runs `cargo bench` and attaches
-the results to each release.
+`[[platforms]]` lists what the Rust workflow builds and the release records: Windows and Linux on
+x86_64, macOS on Intel and Apple silicon, and, when the workflow builds them, Android and handheld
+builds:
+
+```toml
+[[platforms]]
+os = "android"
+arch = "aarch64"
+
+[[platforms]]
+os = "linux"
+arch = "aarch64"
+variant = "portmaster"      # PortMaster's framebuffer build
+
+[[platforms]]
+os = "linux"
+arch = "aarch64"
+variant = "muos"            # the same build as a muOS .muxapp
+```
+
+Each entry must come back from the build, or the release is refused. At least one is a desktop
+platform. There are no components, no FOMOD and no `Documentation/` in a program's archives:
+`include` is how its documentation travels with it. A program that is also published to crates.io
+names it with `crate`, and the page offers `cargo install` beside the downloads.
 
 ## Libraries
 
@@ -81,24 +102,21 @@ type = "library"
 [package]
 format = "crate"
 crate = "openmw-config"                  # the name on crates.io
-
-[build]
-dependents = ["DreamWeave-MP/S3lightfixes"]
-benchmarks = true
 ```
 
-StroggForge's library workflow runs as one of the site's jobs: it tests the crate on Windows,
-macOS and Linux, runs Clippy and `cargo audit`, and dry-runs the publish on every push. A crate
-keeps the tags crates are released under, the bare version: declare the release in `[[releases]]`,
-then push `2.0.1`, and the workflow publishes that version to crates.io, then rebuilds the site to
-list it. A declared version with no tag of its own counts as released when a newer version is
-tagged, so the changelog can list crates published before the repository tagged its releases.
+The repository's own workflow calls StroggForge's `libGlobalBuild` with `mod_template: true`. It
+tests the crate on Windows, macOS and Linux, runs Clippy and `cargo audit`, dry-runs the publish on
+every push, and on a bare version tag, `2.0.1`, publishes that version to crates.io.
 
-Nothing is archived and nothing goes in `mod.lock`. crates.io serves and hashes each version, so
-the manifest lists no releases and names the crate in `links.crate` instead. The page offers
-`cargo add` rather than a download, and each release in the changelog links to its version on
-crates.io. A crate has no components, no `[openmw]` data, no development channel and no mirrors,
-and a repository publishes at most one: the bare version tags would not say which.
+The site records each version from crates.io itself: the `.crate` crates.io serves, checked against
+the checksum in its index. crates.io never changes a published version, so every run on the default
+branch records whatever declared versions it has and `mod.lock` lacks, including crates published
+before the repository used this template. The manifest lists them like any release, with crates.io
+as the source. The page offers `cargo add` rather than a download, and each release links to its
+version on crates.io.
+
+A crate has no components, no `[openmw]` data, no development channel and no mirrors, and a
+repository has at most one Rust project.
 
 ## Components
 

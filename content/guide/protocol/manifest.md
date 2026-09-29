@@ -39,7 +39,7 @@ The JSON Schemas are normative for structure; this page is normative for meaning
 | `license` | *Optional.* SPDX expression. |
 | `tags` | Free-form strings. |
 | `maintainers` | `[{ name, url? }]`. |
-| `links` | Object of URLs. Always `page`, `source`, `issues`; optionally `documentation`, `support`, `donate`, `homepage`, `nexusmods`, and `crate` for a Rust library: its crates.io page. |
+| `links` | Object of URLs. Always `page`, `source`, `issues`; optionally `documentation`, `support`, `donate`, `homepage`, `nexusmods`, and `crate` for a Rust crate: its crates.io page. |
 | `integrations` | Locations on other services, e.g. `{ "nexusmods": { "game": "morrowind", "mod_id": 57511 } }`. Never identity. |
 | `media` | `[{ kind: image|video, url, alt, thumbnail?, caption?, category?, featured? }]`. |
 | `credits` | `[{ name, role?, url? }]`. |
@@ -52,10 +52,7 @@ Each channel's head, the highest-precedence release in that channel whose `statu
 
 ### `releases`
 
-Every published release, newest first by precedence, including yanked and deprecated ones. A
-project distributed by a registry of its own, like a Rust library on crates.io named by
-`links.crate`, lists none: clients install game data and programs, and a library is installed by
-its language's package manager.
+Every published release, newest first by precedence, including yanked and deprecated ones.
 
 | Field | Meaning |
 |---|---|
@@ -67,7 +64,7 @@ its language's package manager.
 | `source` | `{ repository, tag?, release?, revision? }`. `revision` is the full commit hash when known. |
 | `notes` | *Optional.* `{ summary?, highlights?, added?, changed?, fixed?, breaking?, migration?, known_issues?, notes? }`. Strings are CommonMark; a consumer MUST treat embedded HTML as untrusted. |
 | `runtimes` | Object of runtime id to [constraint](@/guide/protocol/versions.md#constraints). The release runs on any listed runtime. Empty means runtime-independent. |
-| `platforms` | `[{ os, arch }]`. Empty means platform-independent. |
+| `platforms` | `[{ os, arch }]`, desktop systems only: `windows`, `macos`, `linux`. Empty means platform-independent. A program's Android and handheld builds are described on their [artifacts](@/guide/protocol/artifacts.md#programs). |
 | `provides` | Capability strings. |
 | `relationships` | See below. |
 | `components`, `groups` | See [Installation](@/guide/protocol/installation.md). |

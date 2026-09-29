@@ -62,9 +62,11 @@ the project does not care, which is true of an asset pack and false of almost ev
 
 ## `[[platforms]]`
 
-For tools with native binaries: `os` is `windows`, `macos` or `linux`; `arch` is `x86_64` or
-`aarch64`. No entries means platform-independent. A `binary` package needs at least one: each entry
-is one archive the Rust workflow builds, and one artifact in every release.
+For tools with native binaries: `os` is `windows`, `macos`, `linux` or `android`; `arch` is
+`x86_64` or `aarch64`; `variant`, optional, is `portmaster` or `muos` for a handheld build. No
+entries means platform-independent. A `binary` package needs at least one desktop entry: each entry
+is one archive the Rust workflow builds, and one artifact in every release. Android and variants are
+for `binary` packages only. See [Programs](@/guide/packages.md#programs).
 
 ## Relationships
 
@@ -139,16 +141,10 @@ Each component has an `[components.openmw]` table with the install keys:
 | `development` | `true` | Publish a rolling build of the default branch on the `development` channel. Not for `crate`. |
 | `binary` | | `binary` only: the Cargo binary. Its archives are `<binary>-<OS>-<ARCH>.zip`, one per `[[platforms]]` entry. |
 | `include` | `[]` | `binary` only: files and directories, from the repository root, packed beside the program: `["README.md", "LICENSE", "resources"]`. |
-| `crate` | | `crate` only: the package's name on crates.io, as in its `Cargo.toml`. Its releases are tagged with the bare version. |
+| `crate` | | `crate` and `binary`: the package's name on crates.io, as in its `Cargo.toml`. Required for a `crate`; for a `binary`, it adds `cargo install` to the page. |
 
-## `[build]`
-
-For `binary` and `crate` projects: what StroggForge's Rust workflows do besides building.
-
-| Key | Default | Meaning |
-|---|---|---|
-| `dependents` | `[]` | GitHub repositories, `owner/name`, told about each tagged release with an issue. |
-| `benchmarks` | `false` | Run `cargo bench` and attach `BENCHMARKS.md` to each release. |
+A Rust project's build settings, such as dependents to notify, benchmarks or extra targets, are
+inputs of StroggForge's workflow in the repository, not keys here.
 
 ## `[install]`
 

@@ -17,6 +17,7 @@ from .versions import Version, VersionError
 SCHEMA_VERSION = "2"
 GENERATOR = "DreamWeave Mod Template 5.0.0"
 MEDIA_TYPE_ZIP = "application/zip"
+MEDIA_TYPE_CRATE = "application/gzip"
 SIGSTORE_ISSUER = "https://token.actions.githubusercontent.com"
 WORKFLOW_PATH = ".github/workflows/build_site.yml"
 ARTIFACT_KEYS = ("id", "format", "filename", "media_type", "size", "digests")
@@ -31,7 +32,9 @@ def release_semantics(project: Project) -> dict:
     """The part of a release that clients act on. Frozen into mod.lock for published releases."""
     semantics: dict = {
         "runtimes": {runtime: str(constraint) for runtime, constraint in project.runtimes.items()},
-        "platforms": [{"os": platform.system, "arch": platform.architecture} for platform in project.platforms],
+        # The release's platform list is a frozen core field for desktop systems; android and
+        # handheld builds are described on their artifacts.
+        "platforms": [{"os": platform.system, "arch": platform.architecture} for platform in project.platforms if platform.is_desktop],
         "provides": list(project.provides),
         "relationships": [relationship_document(relationship) for relationship in project.relationships],
         "components": [
@@ -242,10 +245,11 @@ class PublishedRelease:
 
 def artifact_sources(project: Project, site: SiteConfig, release_name: str, artifact: dict) -> list[dict]:
     filename = artifact["filename"]
-    sources = [{
-        "url": f"{site.repository_url}/releases/download/{release_name}/{filename}",
-        "kind": "publisher",
-    }]
+    if artifact["format"] == "crate":
+        publisher = f"https://static.crates.io/crates/{project.package_crate}/{filename}"
+    else:
+        publisher = f"{site.repository_url}/releases/download/{release_name}/{filename}"
+    sources = [{"url": publisher, "kind": "publisher"}]
     for mirror in project.mirrors:
         url = (
             mirror.url.replace("{slug}", project.slug)
@@ -262,7 +266,7 @@ def artifact_sources(project: Project, site: SiteConfig, release_name: str, arti
 
 
 def artifact_signatures(project: Project, site: SiteConfig, release_name: str, artifact: dict, ref: str) -> list[dict]:
-    if not project.sigstore:
+    if not project.sigstore or artifact["format"] == "crate":
         return []
     return [{
         "format": "sigstore-bundle",

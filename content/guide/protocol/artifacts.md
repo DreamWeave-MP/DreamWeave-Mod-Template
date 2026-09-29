@@ -12,12 +12,12 @@ kind = "reference"
 | Field | Meaning |
 |---|---|
 | `id` | Token, unique within the release. |
-| `format` | `flat`, `bain` or `fomod`: game data, laid out as [Installation](@/guide/protocol/installation.md) describes. `binary`: a program built for one platform. |
+| `format` | `flat`, `bain` or `fomod`: game data, laid out as [Installation](@/guide/protocol/installation.md) describes. `binary`: a program built for one platform. `crate`: a Rust crate, as crates.io serves it. |
 | `filename` | A suggested file name. Not identity. |
-| `media_type` | `application/zip` for every current format. |
+| `media_type` | `application/zip`, and `application/gzip` for `crate`. |
 | `size` | Bytes. |
 | `digests` | `{ "sha256": "<64 lowercase hex>" }`. Further algorithms MAY be added; `sha256` is always present. |
-| `platform` | `{ os, arch }`, required when `format` is `binary`: the one platform the program runs on. |
+| `platform` | `{ os, arch, variant? }`, required when `format` is `binary`: the one platform the program runs on. See [Programs](#programs). |
 | `layout` | *Optional.* Paths inside the archive: `release_document`, `documentation` (the offline docs' entry page), `installer` (`fomod/ModuleConfig.xml`). |
 | `sources` | At least one `{ url, kind, name? }`. `kind` is `publisher` for locations the project operates, `mirror` otherwise. |
 | `signatures` | `[{ format, url, issuer?, identity? }]`. May be empty. |
@@ -65,15 +65,34 @@ At the root of a `flat`, `bain` or `fomod` archive:
 ## Programs
 
 A release of a tool built from source has one `binary` artifact per platform, each with its
-`platform`. The release's `platforms` lists them all. A client offers the artifact whose `platform`
-matches the machine it runs on, and none if nothing matches: a Windows build is not a fallback for
-Linux.
+`platform`:
+
+| Field | Values |
+|---|---|
+| `os` | `windows`, `macos`, `linux`, `android` |
+| `arch` | `x86_64`, `aarch64` |
+| `variant` | *Optional.* `portmaster`: a build for PortMaster's handheld ports, drawn to the framebuffer. `muos`: that build packaged as a muOS app. |
+
+A client offers the artifact whose `os` and `arch` match the machine it runs on and that has no
+`variant`, unless it knows it runs in that variant's environment, and offers none if nothing
+matches: a Windows build is not a fallback for Linux, and a handheld build is not a desktop one. A
+client MUST skip variants it does not know.
+
+The release's `platforms` lists its desktop builds: `windows`, `macos` and `linux` without a
+variant. Android and handheld builds appear only on their artifacts.
 
 A binary archive holds the program and the files its publisher ships beside it, and nothing
 DreamWeave adds; there is no release payload inside. It is not game data. A client MUST NOT install it
 into a game's data directories, and MUST NOT run anything from it as part of installing. Unpacking
 it where the user asks, verified, is the whole job.
 
-The DreamWeave Mod Template publishes these from StroggForge's Rust workflow: it builds, signs and
-scans a program per platform, and the template hashes those exact archives into the release record
-before publishing them.
+The DreamWeave Mod Template records these from StroggForge's Rust workflow, which builds, signs,
+scans and publishes a program per platform: in the same run, the template hashes those exact
+archives into the release record.
+
+## Crates
+
+A Rust library's release has one `crate` artifact: the `.crate` file crates.io serves for that
+version, with its publisher source on `static.crates.io`. Its SHA-256 is the checksum the crates.io
+index lists, which Cargo verifies on every download. A crate is not installed by DreamWeave
+clients; the artifact exists so an index can track the release and verify what crates.io serves.

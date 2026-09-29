@@ -122,8 +122,9 @@ pinned it.
 ## What CI does with a tag
 
 Only tags shaped like releases start a run: `<slug>-<version>`, with the version starting with a
-digit, or a crate's bare version. Anything else, like a `V5` tag, is ignored. A crate's tag goes
-to StroggForge, which publishes it to crates.io; steps 2 to 6 have nothing to do for it (see
+digit. Anything else, like a `V5` tag, is ignored. A Rust project's bare version tags, `1.0.0`, go
+to StroggForge's workflow instead, which builds and publishes the release and hands it to the same
+recording step (see [Programs](@/guide/packages.md#programs) and
 [Libraries](@/guide/packages.md#libraries)).
 
 1. Validates the repository and runs the template's tests.
