@@ -1,10 +1,12 @@
 // Requirement badges ({{ requires() }}, {{ requires_openmw() }}): what is needed, and what for.
-// Several on consecutive lines make one paragraph, which lays them out as a wrapping row.
+// Several on consecutive lines make one paragraph, which lays them out as a wrapping row, as wide as
+// the section rather than the prose measure, since it is not text to read.
 
 p:has(> .dw-requires)
   display: flex
   flex-wrap: wrap
   gap: var(--dw-space-2)
+  max-width: none
 
 .dw-requires
   display: inline-flex
