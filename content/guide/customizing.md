@@ -97,6 +97,17 @@ A project page, or the catalog's `content/_index.md`, can do the same for its he
 `title_html` under `[extra]`. The page's `title` is still what the browser tab, search and the
 catalog show.
 
+## Scripts
+
+`scripts` under `[extra]` loads a site's own scripts on every page, after the template's, deferred:
+
+```toml
+[extra]
+scripts = ["js/palette.js"]  # in static/, or https:// URLs
+```
+
+The offline documentation in archives leaves them out.
+
 ## Hero art
 
 The catalog and every project page open on a hero: the title, the summary, the downloads and the

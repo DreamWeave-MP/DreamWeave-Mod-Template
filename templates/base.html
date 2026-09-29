@@ -146,6 +146,12 @@
 {%- block extra_body %}
 <script src="{{ get_url(path='js/dreamweave.js', trailing_slash=false) | safe }}"{% if config.build_search_index and not dw_offline %} data-search-index="{{ get_url(path='search_index.' ~ config.default_language ~ '.json', trailing_slash=false) | safe }}"{% endif %} defer></script>
 {%- endblock extra_body %}
+{#- A site's own scripts on every page, from [extra] scripts; offline documentation has none. -#}
+{%- if not dw_offline %}
+{%- for site_script in config.extra.scripts | default(value=[]) %}
+<script src="{% if site_script is starting_with("https://") %}{{ site_script | safe }}{% else %}{{ get_url(path=site_script, trailing_slash=false) | safe }}{% endif %}" defer></script>
+{%- endfor %}
+{%- endif %}
 {%- if dw_hero_script %}
 <script type="module" src="{% if dw_hero_script is starting_with("https://") %}{{ dw_hero_script | safe }}{% else %}{{ get_url(path=dw_hero_script, trailing_slash=false) | safe }}{% endif %}"></script>
 {%- endif %}
