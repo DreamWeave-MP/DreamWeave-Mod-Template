@@ -126,9 +126,10 @@ The offline documentation in archives leaves them out.
 
 ## Several manuals
 
-A site whose projects each keep a docs tree at the top of `content/` (a section with
-`docs_root = true` under `[extra]`) gets a switcher at the top of every docs page's navigation, so a
-reader can move from one manual to another. `docs_index` under `[extra]` in `config.toml` adds a
+A site with more than one manual gets a switcher at the top of every docs page's navigation, so a
+reader can move from one to another. A manual is a docs tree a project links from its `mod.toml`
+(`documentation = "@/…/_index.md"` under `[links]`), or a section at the top of `content/` with
+`docs_root = true` under `[extra]`. `docs_index` under `[extra]` in `config.toml` adds a
 link to a page that lists them all:
 
 ```toml
