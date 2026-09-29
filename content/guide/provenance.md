@@ -50,7 +50,7 @@ expect:
   "format": "sigstore-bundle",
   "url": "https://github.com/OWNER/REPO/releases/download/my_mod-1.0.0/my_mod.zip.sigstore.json",
   "issuer": "https://token.actions.githubusercontent.com",
-  "identity": "https://github.com/DreamWeave-MP/StroggForge/.github/workflows/modGlobalBuild.yml@refs/tags/v50"
+  "identity": "https://github.com/DreamWeave-MP/StroggForge/.github/workflows/modGlobalBuild.yml@refs/tags/v51"
 }
 ```
 
@@ -60,7 +60,7 @@ Verify one yourself:
 cosign verify-blob my_mod.zip \
   --bundle my_mod.zip.sigstore.json \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-  --certificate-identity https://github.com/DreamWeave-MP/StroggForge/.github/workflows/modGlobalBuild.yml@refs/tags/v50 \
+  --certificate-identity https://github.com/DreamWeave-MP/StroggForge/.github/workflows/modGlobalBuild.yml@refs/tags/v51 \
   --certificate-github-workflow-repository OWNER/REPO \
   --certificate-github-workflow-ref refs/tags/my_mod-1.0.0
 ```
