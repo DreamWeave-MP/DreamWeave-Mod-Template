@@ -8,6 +8,13 @@
 {#- Pages that describe a project set `project` (and `ci`, its CI facts) here, before anything
     renders. See templates/macros/project.html. -#}
 {%- block model %}{% endblock model -%}
+{#- A site's own hero art, from [extra.hero] in config.toml (content/guide/customizing.md). The
+    catalog and project pages say in their model block whether they show it. Offline
+    documentation never loads it. -#}
+{%- set_global dw_hero_script = "" -%}
+{%- if dw_hero_page is defined and dw_hero_page and not dw_offline and config.extra.hero.script is defined -%}
+  {%- set_global dw_hero_script = config.extra.hero.script -%}
+{%- endif -%}
 {%- if lang is defined and lang -%}{%- set document_language = lang -%}{%- else -%}{%- set document_language = config.default_language -%}{%- endif -%}
 {%- set palette = config.extra.palette | default(value="purple") -%}
 {%- if page -%}
@@ -41,6 +48,11 @@
     {%- block og_image %}{% endblock og_image %}
     <link rel="stylesheet" href="{{ get_url(path='site.css', trailing_slash=false) | safe }}">
     {%- block extra_head %}{% endblock extra_head %}
+    {%- if dw_hero_script %}
+    {%- for module in config.extra.hero.preload | default(value=[]) | concat(with=dw_hero_script) %}
+    <link rel="modulepreload" href="{% if module is starting_with("https://") %}{{ module | safe }}{% else %}{{ get_url(path=module, trailing_slash=false) | safe }}{% endif %}">
+    {%- endfor %}
+    {%- endif %}
     <link rel="stylesheet" href="{{ get_url(path='brand.css', trailing_slash=false) | safe }}">
     {%- if config.extra.accent is defined and config.extra.accent is matching("^#[0-9a-fA-F]{6}$") %}
     <style>:root{--dw-accent:{{ config.extra.accent }}}</style>
@@ -75,7 +87,7 @@
 <header class="dw-header{% if menu_items | length > 3 %} dw-header--menu{% endif %}">
     <div class="dw-shell dw-header__inner">
         <a class="dw-brand" href="{{ config.extra.logo_home_link | default(value=config.base_url ~ '/') | safe }}">
-            <span class="dw-brand__mark" aria-hidden="true"></span><span class="dw-brand__name">{% if config.extra.logo_text %}{{ config.extra.logo_text }}{% else %}{{ config.title }}{% endif %}</span>
+            <span class="dw-brand__mark" aria-hidden="true"></span><span class="dw-brand__name">{% if config.extra.logo_html %}{{ config.extra.logo_html | safe }}{% elif config.extra.logo_text %}{{ config.extra.logo_text }}{% else %}{{ config.title }}{% endif %}</span>
         </a>
         <nav class="dw-nav" id="dw-nav" aria-label="Site">
             {%- for item in menu_items %}
@@ -130,6 +142,9 @@
 {%- block extra_body %}
 <script src="{{ get_url(path='js/dreamweave.js', trailing_slash=false) | safe }}"{% if config.build_search_index and not dw_offline %} data-search-index="{{ get_url(path='search_index.' ~ config.default_language ~ '.json', trailing_slash=false) | safe }}"{% endif %} defer></script>
 {%- endblock extra_body %}
+{%- if dw_hero_script %}
+<script type="module" src="{% if dw_hero_script is starting_with("https://") %}{{ dw_hero_script | safe }}{% else %}{{ get_url(path=dw_hero_script, trailing_slash=false) | safe }}{% endif %}"></script>
+{%- endif %}
 {%- if config.extra.goatcounter is defined and config.extra.goatcounter is matching("^[a-z0-9-]+$") and not dw_offline %}
 <script data-goatcounter="https://{{ config.extra.goatcounter }}.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
 {%- endif %}

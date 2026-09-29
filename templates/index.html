@@ -4,13 +4,19 @@
 
 {#- The root section. With redirect_to set in content/_index.md this never renders: the site
     opens on its one project. Without it, this is the catalog of every project. -#}
+{%- block model %}
+{%- set_global dw_hero_page = config.extra.hero.home | default(value=true) %}
+{%- endblock model %}
 {%- block content %}
 {%- if paginator %}{% set listed = paginator.pages %}{% else %}{% set listed = section.pages %}{% endif %}
-<header class="dw-hero">
+<header class="dw-hero{% if dw_hero_script %} dw-hero--art{% endif %}">
+    {%- if dw_hero_script %}
+    <div class="dw-hero__art" data-dw-hero-art data-hero-page="catalog" aria-hidden="true"></div>
+    {%- endif %}
     <div class="dw-shell">
         {%- if paginator %}{% set listed_total = paginator.total_pages %}{% else %}{% set listed_total = section.pages | length %}{% endif %}
         <p class="dw-kicker"><span>Catalog</span><span>{{ listed_total }} project{{ listed_total | pluralize }}</span>{% if paginator and paginator.number_pagers > 1 %}<span>page {{ paginator.current_index }} of {{ paginator.number_pagers }}</span>{% endif %}</p>
-        <h1 class="dw-hero__title">{% if section.title %}{{ section.title }}{% else %}{{ config.title }}{% endif %}</h1>
+        <h1 class="dw-hero__title">{% if section.extra.title_html %}{{ section.extra.title_html | safe }}{% elif section.title %}{{ section.title }}{% else %}{{ config.title }}{% endif %}</h1>
         {%- if section.description or config.description %}<p class="dw-hero__summary">{% if section.description %}{{ section.description }}{% else %}{{ config.description }}{% endif %}</p>{% endif %}
     </div>
 </header>

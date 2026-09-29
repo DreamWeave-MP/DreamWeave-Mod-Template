@@ -14,7 +14,10 @@
 {%- set changelog_page = load_data(path="content/" ~ page.colocated_path ~ "_changelog.md", format="plain", required=false) -%}
 {%- set relationships = project.relationships -%}
 
-<header class="dw-hero">
+<header class="dw-hero{% if dw_hero_script %} dw-hero--art{% endif %}">
+    {%- if dw_hero_script %}
+    <div class="dw-hero__art" data-dw-hero-art data-hero-page="project" data-hero-project="{{ project.slug }}" aria-hidden="true"></div>
+    {%- endif %}
     <div class="dw-shell dw-hero__grid{% if not featured %} dw-hero__grid--text{% endif %}">
         <div class="dw-hero__text">
             <p class="dw-kicker">
@@ -24,7 +27,7 @@
                 {%- endif %}
                 <span>{{ dw_macros::status(state=project.status) }}</span>
             </p>
-            <h1 class="dw-hero__title">{{ page.title }}</h1>
+            <h1 class="dw-hero__title">{% if page.extra.title_html %}{{ page.extra.title_html | safe }}{% else %}{{ page.title }}{% endif %}</h1>
             {%- if project.summary %}<p class="dw-hero__summary">{{ project.summary }}</p>{% endif %}
             {%- if project.format == "crate" and not dw_offline %}
             {#- A library: the command that adds it is the download. -#}

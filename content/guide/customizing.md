@@ -1,6 +1,6 @@
 +++
 title = "Customizing"
-description = "Palettes, brand tokens, fonts, templates, comments and analytics."
+description = "Palettes, brand tokens, fonts, the logo and hero art, templates, comments and analytics."
 weight = 100
 
 [extra]
@@ -72,6 +72,57 @@ favicon = "img/favicon.png"
 On a phone the header keeps the logo and folds the rest: search behind a button, and four menu
 items or more behind a **Menu** button. Three or fewer stay a row of links that scrolls sideways
 if it has to. Without JavaScript nothing folds.
+
+To spell the logo with markup, say with one letter in the accent, set `logo_html` as well. It is
+used as written, so keep it to a few inline elements; `logo_text` stays the plain name everywhere
+else:
+
+```toml
+[extra]
+logo_text = "Ashlands Lighting"
+logo_html = '<span>Ash<span class="accent">lands</span> Lighting</span>'
+```
+
+```sass
+// sass/brand.sass
+.accent
+  color: var(--dw-accent)
+```
+
+A project page, or the catalog's `content/_index.md`, can do the same for its hero title with
+`title_html` under `[extra]`. The page's `title` is still what the browser tab, search and the
+catalog show.
+
+## Hero art
+
+The catalog and every project page open on a hero: the title, the summary, the downloads and the
+facts. A site can draw its own art behind it, a canvas, a WebGL scene or an SVG, without forking a
+template:
+
+```toml
+[extra.hero]
+script = "js/hero.js"                    # an ES module in static/, or an https:// URL
+preload = ["js/vendor/scene.module.js"]  # optional: modules it imports, fetched in parallel
+home = true                              # on the catalog (default true)
+projects = true                          # on project pages (default true)
+```
+
+Each hero it applies to gets the class `dw-hero--art` and an empty element for the script to fill:
+
+```html
+<div class="dw-hero__art" data-dw-hero-art data-hero-page="project" data-hero-project="candlelight" aria-hidden="true"></div>
+```
+
+It covers the whole hero, behind the text. `data-hero-page` is `catalog` or `project`, and a project
+page names its slug, so one script can draw each page differently. The script loads as a module
+after the page, so the page never waits for it. A project page leaves the art out with
+`hero = false` under `[extra]` in its `index.md`, and the offline documentation in archives never
+loads it.
+
+The art is decoration: without JavaScript, or when the script fails, the hero is the template's
+own, so style a still for it in `sass/brand.sass` under `.dw-hero--art` if the plain one does not
+suit. Read colors from the tokens (`getComputedStyle(document.documentElement).getPropertyValue("--dw-accent")`)
+rather than hard-coding them, and draw one still frame under `prefers-reduced-motion: reduce`.
 
 ## Templates
 
