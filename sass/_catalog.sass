@@ -152,16 +152,6 @@
   > .dw-catalog__row:hover .dw-catalog__thumb img
     transform: scale(1.04)
 
-  .dw-catalog__monogram
-    grid-area: 1 / 1
-    place-self: center
-    color: color-mix(in oklab, var(--dw-accent) 55%, transparent)
-    font-family: var(--dw-font-display)
-    font-size: 3.4rem
-    font-weight: 700
-    line-height: 1
-    text-shadow: 0 0 28px color-mix(in oklab, var(--dw-accent) 45%, transparent)
-
   .dw-catalog__name
     font-size: var(--dw-step-1)
 
@@ -266,3 +256,25 @@
   background: color-mix(in oklab, var(--dw-info) 5%, var(--dw-bg-1))
   color: var(--dw-text-muted)
   font-size: var(--dw-step--1)
+
+// A project with no picture: its name, set large in the display face.
+.dw-catalog__wordmark
+  grid-area: 1 / 1
+  place-self: center
+  max-width: 86%
+  color: color-mix(in oklab, var(--dw-accent) 70%, white)
+  font-family: var(--dw-font-display)
+  font-size: var(--dw-step-2)
+  font-weight: 700
+  line-height: 1.1
+  text-align: center
+  text-wrap: balance
+  text-shadow: 0 0 28px color-mix(in oklab, var(--dw-accent) 45%, transparent)
+
+.dw-catalog__icon
+  grid-area: 1 / 1
+  place-self: center
+  width: 5.5rem
+  height: 5.5rem
+  object-fit: contain
+  filter: drop-shadow(0 6px 18px rgb(0 0 0 / .5))

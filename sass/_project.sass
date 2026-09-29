@@ -764,3 +764,15 @@
   background: var(--dw-accent-soft)
   font-family: var(--dw-font-mono)
   font-size: var(--dw-step--1)
+
+// A page's own logo beside its title, from [extra] icon.
+.dw-hero__title--icon
+  display: flex
+  align-items: center
+  gap: var(--dw-space-4, 1rem)
+
+.dw-hero__icon
+  flex: none
+  width: clamp(3.5rem, 7vw, 5.5rem)
+  height: auto
+  filter: drop-shadow(0 6px 22px color-mix(in oklab, var(--dw-accent) 35%, transparent))

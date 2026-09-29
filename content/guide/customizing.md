@@ -97,6 +97,22 @@ A project page, or the catalog's `content/_index.md`, can do the same for its he
 `title_html` under `[extra]`. The page's `title` is still what the browser tab, search and the
 catalog show.
 
+## Project art
+
+A project page's `index.md` can name a logo and a cover under `[extra]`. They are presentation:
+nothing of them reaches the manifest, and they need not be in the archive.
+
+```toml
+[extra]
+icon = "logo.webp"          # beside the title, and on the catalog card when there is no cover
+cover = "/img/banner.webp"  # the hero's picture when no screenshot is featured, and the card's
+```
+
+A path that starts with `/` is a file under `static/`, which several pages can share; any other path
+is next to the page's `index.md`. Both are resized to WebP. A `[[media]]` screenshot marked
+`featured` still takes the hero and the card first. A card with no picture at all shows the
+project's name.
+
 ## Scripts
 
 `scripts` under `[extra]` loads a site's own scripts on every page, after the template's, deferred:

@@ -40,7 +40,12 @@
         <li class="dw-catalog__row">
             {#- The picture repeats the title's link, so it is left out of the reading order. -#}
             <div class="dw-catalog__thumb" aria-hidden="true">
-                {%- if thumbnail %}{{ dw_macros::media_image(project=project, item=thumbnail, width=640) }}{% else %}<span class="dw-catalog__monogram">{{ item.title | truncate(length=1, end="") }}</span>{% endif %}
+                {%- set item_cover = item.extra.cover | default(value="") %}
+                {%- set item_icon = item.extra.icon | default(value="") %}
+                {%- if thumbnail %}{{ dw_macros::media_image(project=project, item=thumbnail, width=640) }}
+                {%- elif item_cover %}{{ dw_macros::page_art(page_dir=item.colocated_path, path=item_cover, width=640, height=360, op="fill") }}
+                {%- elif item_icon %}{{ dw_macros::page_art(page_dir=item.colocated_path, path=item_icon, width=160, height=160, op="fit", class="dw-catalog__icon", quality=90) }}
+                {%- else %}<span class="dw-catalog__wordmark">{{ item.title }}</span>{% endif %}
             </div>
             <h2 class="dw-catalog__name"><a href="{{ item.permalink | safe }}">{{ item.title }}</a></h2>
             <p class="dw-catalog__summary">{{ item.description | default(value="") }}</p>
