@@ -120,9 +120,14 @@ def load_repository(root: Path, check_payloads: bool = True) -> Repository:
             if item.thumbnail:
                 check_media_file(root, project, item.thumbnail, problems)
 
-    rust = [project.directory for project in projects if project.package_format in RUST_FORMATS]
-    if len(rust) > 1:
-        problems.error(rust[1], f"a repository has one Rust project, released under bare version tags; {rust[0]} already is it")
+    for package_format, kind in (("binary", "program"), ("crate", "library")):
+        same = [project.directory for project in projects if project.package_format == package_format]
+        if len(same) > 1:
+            problems.error(
+                same[1],
+                f"a repository has at most one Rust program and one Rust library, which share its bare version tags; "
+                f"{same[0]} already is its {kind}",
+            )
 
     legacy_pages = check_legacy_pages(root, projects, problems)
     head = gitrepo.resolve_revision("HEAD")
@@ -412,14 +417,18 @@ def render_documentation(repository: Repository, projects: list[Project], packag
 
 
 def parse_release_tag(repository: Repository, tag: str) -> tuple[Project, Version]:
-    """<slug>-<version>. Slugs cannot contain '-', so the first one separates them. A Rust
-    project's tags are bare versions, and a repository has at most one Rust project."""
-    rust = next((project for project in repository.projects if project.package_format in RUST_FORMATS), None)
+    """<slug>-<version>. Slugs cannot contain '-', so the first one separates them.
+
+    Rust projects' tags are bare versions. A repository with a program and its library releases
+    both under one tag: it is the program's when the program declares that version, since the
+    program's archives are what the tag builds, and the library's otherwise."""
+    rust = sorted((project for project in repository.projects if project.package_format in RUST_FORMATS), key=lambda project: project.package_format != "binary")
     if rust and tag[:1].isdigit():
         try:
-            return rust, Version.parse(tag, rust.versioning)
+            versions = [(project, Version.parse(tag, project.versioning)) for project in rust]
         except VersionError as error:
             raise SystemExit(f"Tag {tag!r}: {error}") from error
+        return next(((project, version) for project, version in versions if project.declared_release(version)), versions[0])
     slug, separator, version_text = tag.partition("-")
     project = next((project for project in repository.projects if project.slug == slug), None) if separator else None
     if project is None:
@@ -472,6 +481,9 @@ def build_release(repository: Repository, tag: str) -> Path | None:
     path.write_text(records.dumps({"project": project.id, "name": project.name, "tag": tag, "release": locked.to_document()}), encoding="utf-8")
     for artifact in artifacts:
         print(f"Built {tag}: {artifact['filename']} {artifact['size']} bytes sha256 {artifact['digests']['sha256']}")
+    for library in repository.projects:
+        if library.package_format == "crate" and library.declared_release(version):
+            print(f"{tag} also releases {library.package_crate} {version}: StroggForge publishes it to crates.io, and record-crates records it from there.")
     write_nexus_uploads(repository, project, version, artifacts)
     write_release_notes(repository, project, version, artifacts)
     write_signing_list(repository, [(project, artifact) for artifact in artifacts])

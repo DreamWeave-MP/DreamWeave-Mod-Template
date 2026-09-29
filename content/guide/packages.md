@@ -62,8 +62,13 @@ program's build settings, from `binary_names` to `enable_portmaster`, live in th
 A Rust project releases under the bare version tags StroggForge uses: declare the version, push
 `1.0.0`, and the program is built, published and recorded, with one artifact per platform. The
 project page offers a download per platform, marks the visitor's own, and says how to run the
-program instead of how to install data. A repository has at most one Rust project, so the version
-alone says which.
+program instead of how to install data.
+
+A repository holds at most one Rust program and one Rust library, and the two share its tags: a
+tool and the crate it is built on, released together. A tag releases the program when the program
+declares that version, and the library's version is recorded from crates.io beside it; a version
+only the library declares is the library's alone. Each keeps its own project page and its own
+entry in the manifest.
 
 `[[platforms]]` lists what the Rust workflow builds and the release records: Windows and Linux on
 x86_64, macOS on Intel and Apple silicon, and, when the workflow builds them, Android and handheld
@@ -116,7 +121,7 @@ as the source. The page offers `cargo add` rather than a download, and each rele
 version on crates.io.
 
 A crate has no components, no `[openmw]` data, no development channel and no mirrors, and a
-repository has at most one Rust project.
+repository has at most one, beside at most one program.
 
 ## Components
 

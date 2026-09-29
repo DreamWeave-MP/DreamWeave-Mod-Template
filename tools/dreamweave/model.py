@@ -267,8 +267,8 @@ class Project:
         return f"{self.package_binary}-{system_name}-{BINARY_ARCHITECTURE_NAMES[platform.architecture]}{suffix}"
 
     def release_tag(self, version: Version) -> str:
-        # A Rust project keeps the bare version tags StroggForge releases under; a repository has
-        # at most one, so the version alone says which project it is.
+        # A Rust project keeps the bare version tags StroggForge releases under. A repository has
+        # at most one program and one library, and a tag releases whichever declares its version.
         if self.package_format in RUST_FORMATS:
             return str(version)
         return f"{self.slug}-{version}"

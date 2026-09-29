@@ -418,6 +418,28 @@ class ReleaseLifecycle(unittest.TestCase):
         if jsonschema:
             self.assertEqual(schema_errors(manifest, "modManifest-2.schema.json"), [])
 
+    def test_a_program_and_its_library_share_a_tag(self):
+        self.add_broom()
+        self.add_ledger()
+        git(self.root, "tag", "1.0.0")
+        git(self.root, "checkout", "-q", "1.0.0")
+        self.stage_binaries("1.0.0")
+        output = build_site(self.root, "release", "1.0.0").stdout
+        self.assertIn("1.0.0 also releases ledger-rs 1.0.0", output)
+        self.assertEqual(load(self.root, "dist/release.json")["project"], BROOM_ID, "the tag builds the program")
+        git(self.root, "checkout", "-q", "main")
+        build_site(self.root, "record")
+        build_site(self.root, "record-crates", env=self.fake_registry({"0.9.0": b"ledger 0.9.0", "1.0.0": b"ledger 1.0.0"}))
+        self.assertEqual([release["version"] for release in load(self.root, "content/broom/mod.lock")["releases"]], ["1.0.0"])
+        self.assertEqual([release["version"] for release in load(self.root, "content/ledger/mod.lock")["releases"]], ["0.9.0", "1.0.0"])
+        self.scratch.commit("RELEASE: Broom and Ledger 1.0.0")
+
+        ledger = self.root / "content/ledger/mod.toml"
+        ledger.write_text(ledger.read_text() + '\n[[releases]]\nversion = "1.2.0"\ndate = 2026-03-01\nsummary = "Faster."\n')
+        self.scratch.commit("Declare Ledger 1.2.0")
+        git(self.root, "tag", "1.2.0")
+        self.assertIn("ledger-rs 1.2.0: StroggForge publishes it to crates.io", build_site(self.root, "release", "1.2.0").stdout, "a version only the library declares is the library's")
+
     def test_a_crate_that_does_not_match_its_index_entry_is_not_recorded(self):
         self.add_ledger()
         process = build_site(self.root, "record-crates", env=self.fake_registry({"1.0.0": b"ledger 1.0.0"}, corrupt="1.0.0"), check=False)
