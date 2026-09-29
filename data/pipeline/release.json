@@ -1,0 +1,15 @@
+{
+  "id": "release-flow",
+  "title": "From a push to a player's mod manager",
+  "description": "An author edits files and pushes; everything after that is CI's.",
+  "stages": [
+    { "kind": "author", "title": "mod.toml", "detail": "The project's identity, its files, its install and its releases, next to the page that describes it.", "page": "@/guide/mod-toml.md" },
+    { "kind": "check", "title": "Push", "detail": "CI validates every project, builds a development archive of each, and deploys the site.", "page": "@/guide/start-here.md" },
+    { "kind": "release", "title": "Tag", "detail": "CI builds the release from the tag's files, records its hash in mod.lock, and publishes it.", "page": "@/guide/releases.md" },
+    { "kind": "client", "title": "Manifest", "detail": "The site's dreamweave.json lists every project and verified archive for mod managers to install.", "page": "@/guide/discovery.md" }
+  ],
+  "alongside": [
+    { "from": 2, "label": "every push", "title": "Development build", "detail": "The default branch as an archive, replaced on each push." },
+    { "from": 3, "label": "the record", "title": "mod.lock", "detail": "Committed by CI, never by hand: what each release contained." }
+  ]
+}

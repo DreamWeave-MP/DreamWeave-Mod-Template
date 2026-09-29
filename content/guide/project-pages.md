@@ -88,8 +88,13 @@ The body is ordinary Markdown, plus these shortcodes:
 | `{%/* features() */%}` a Markdown list `{%/* end */%}` | A grid; each item's leading **bold phrase** becomes its heading |
 | `{%/* tree() */%}` an indented listing `{%/* end */%}` | A directory tree: two spaces per level, a trailing `/` marks a directory, two spaces before a note |
 | `{{/* schematic(data_path="data/schematics/x.json") */}}` | A flow diagram drawn from data |
+| `{{/* pipeline(data_path="data/pipeline/x.json") */}}` | Stages in a row joined by arrows, with pieces hanging off them; see the header of `templates/shortcodes/pipeline.html` for the file |
 | `{{/* api_signature(value="...") */}}` | A highlighted signature line |
 | `{{/* image(src="/img/x.png", alt="...") */}}` and `{{/* figure(...) */}}` | An image, with or without a caption |
+
+A pipeline, drawn from `data/pipeline/release.json`:
+
+{{ pipeline(data_path="data/pipeline/release.json") }}
 
 `<!-- more -->` ends the summary used on the catalog.
 
