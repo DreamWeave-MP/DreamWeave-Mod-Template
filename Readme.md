@@ -105,8 +105,9 @@ It is also in this repository under `content/guide/`; delete it from your copy i
 
 ## License
 
-The template is AGPL-3.0 (see `LICENSE`). The bundled fonts carry their own licenses, in the
-`LICENSE-*Font.txt` and `README-GalBasicFont.txt` files. Your mod's license is yours: set `license`
-in its `mod.toml`.
+The template is licensed under either of [MIT](LICENSE-MIT) or [Apache-2.0](LICENSE-APACHE), at
+your option; it was AGPL-3.0 before September 2026. The bundled fonts carry their own licenses, in
+the `LICENSE-*Font.txt` and `README-GalBasicFont.txt` files. Your mod's license is yours: set
+`license` in its `mod.toml`.
 
 If this saves you time, consider sponsoring DreamWeave on [Ko-fi](https://ko-fi.com/magicaldave).
