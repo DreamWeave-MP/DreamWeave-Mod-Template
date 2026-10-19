@@ -19,8 +19,10 @@ read without scraping it.
    release tags.
 4. Replace Candlelight's files in `content/home` with your mod, and rewrite `content/home/index.md`:
    `title` is the mod's name, `description` its summary, the body its page.
-5. Preview with `zola serve`, then commit and push. The workflow validates everything and publishes
-   the page and a development build.
+5. Commit and push. The workflow validates everything and publishes the page and a development
+   build. To preview first, [install jess](https://github.com/DreamWeave-MP/jess/releases), then
+   `jess workspace sync --locked` once and `jess workspace run --trusted dreamweave-site -- public
+   http://localhost:8000/` for every look; serve `public/` with any static file server.
 6. Release: add a `[[releases]]` entry, then
 
    ```sh
@@ -32,8 +34,8 @@ read without scraping it.
    publishes it.
 
 [Start here](https://dreamweave-mp.github.io/DreamWeave-Mod-Template/guide/start-here/) walks
-through it properly. You need git, plus [Zola](https://www.getzola.org/) to preview. Everything
-else runs in GitHub Actions: no Python, no Node, no Rust, no accounts.
+through it properly. You need git, plus [jess](https://github.com/DreamWeave-MP/jess) to preview.
+Everything else runs in GitHub Actions: no Python, no Node, no Rust, no accounts.
 
 ## What you get
 
@@ -61,19 +63,27 @@ else runs in GitHub Actions: no Python, no Node, no Rust, no accounts.
 
 ## What CI runs
 
-You never run `./buildSite`; CI does, through StroggForge's `modGlobalBuild` workflow, which
-`.github/workflows/build_site.yml` calls. It is Python, and it lives in `tools/dreamweave/`.
+You never run the template's tooling; CI does, through StroggForge's `modGlobalBuild` workflow,
+which `.github/workflows/build_site.yml` calls. The tooling is a Jess package,
+`org.dreamweave.mod-template`, and `jess.lock` pins the exact version this site builds with, together
+with the theme and the site generator it uses. `jess workspace sync --locked` restores them from
+their publisher, checked against the digests the lock holds, and each step below is one of the
+package's own command targets, run over this repository.
 
 | Command | When | Does |
 |---|---|---|
-| `./buildSite check` | every push | Validate every project, including its files against `mod.toml`; suggest a `mod.toml` for V4 pages |
-| `./buildSite build` | every push | Package development builds and write the protocol files |
-| `./buildSite links` | every push | Check the built site's local links, anchors and HTML structure |
-| `./buildSite schemas` | every push | Validate the generated index and manifests against the published schemas |
-| `./buildSite release <tag>` | release tags | Build a release from its tag |
-| `./buildSite record` | release tags | Record that release in `mod.lock` on the default branch |
-| `./buildSite record-crates` | the default branch | Record the declared crate versions crates.io has |
-| `./buildSite record-releases` | the default branch | Record a program's tagged releases from their GitHub releases |
+| `jess workspace run --trusted dreamweave-check` | every push | Validate every project, including its files against `mod.toml`; suggest a `mod.toml` for V4 pages |
+| `jess workspace run --trusted dreamweave-build -- <base url>` | every push | Package development builds and write the protocol files |
+| `jess workspace run --trusted dreamweave-site -- public <base url>` | every push | Render the site into `public/` |
+| `jess workspace run --trusted dreamweave-links -- public <base url>` | every push | Check the built site's local links, anchors and HTML structure |
+| `jess workspace run --trusted dreamweave-release -- <tag>` | release tags | Build a release from its tag |
+| `jess workspace run --trusted dreamweave-record -- dist/release.json` | release tags | Record that release in `mod.lock` on the default branch |
+| `./buildSite record-crates` | the default branch | Record the declared crate versions crates.io has (still Python, in `tools/dreamweave/`) |
+| `./buildSite record-releases` | the default branch | Record a program's tagged releases from their GitHub releases (still Python) |
+
+`jess.lock` is written by the first `jess workspace sync` against the template's publisher and
+committed; to move the site to a newer template, change the requirement in `jess.toml`, sync again
+and commit the lock it writes.
 
 ## Where things live
 
@@ -86,7 +96,8 @@ You never run `./buildSite`; CI does, through StroggForge's `modGlobalBuild` wor
 | `config.toml` | The site: URL, title, repository, palette, header links |
 | `sass/brand.sass` | Your branding; the template never touches it |
 | `templates/`, `sass/`, `static/` | The template's presentation |
-| `tools/dreamweave/` | The tooling CI runs through `./buildSite` |
+| `jess.toml`, `jess.lock` | This site as a Jess package: which template version builds it, pinned with its theme and generator |
+| `tools/dreamweave/` | The Python tooling the two `record-*` steps still run through `./buildSite` |
 | `static/schemas/` | JSON Schemas for everything the site publishes |
 | `tools/tests/` | The template's own tests: `python3 -m unittest discover -s tools/tests` |
 

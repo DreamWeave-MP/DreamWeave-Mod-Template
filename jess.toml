@@ -1,0 +1,17 @@
+manifest_version = 1
+
+# This site as a Jess package. Its content is its payload; what builds it is pinned in jess.lock:
+# the DreamWeave Mod Template (`org.dreamweave.mod-template`), and through it the theme and the
+# site generator, all restored from their publisher by `jess workspace sync --locked`. CI runs the
+# template's own command targets over this folder: `jess workspace run --trusted dreamweave-check`,
+# `dreamweave-build`, `dreamweave-site`, `dreamweave-links`, `dreamweave-release`, `dreamweave-record`.
+#
+# Give your own site its own id, in reverse-DNS form, when you start from this template.
+[package]
+id = "org.dreamweave.mod-template-site"
+version = "0.0.0"
+jess_api = "1"
+include = ["content"]
+
+[dependencies]
+"org.dreamweave.mod-template" = "0.3"
