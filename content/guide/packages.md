@@ -225,6 +225,5 @@ zlib: not on yours, and not necessarily on next year's CI runner. On S3maphore, 
 audio, deflate saved 5%. Texture packs lose more; if that ever matters more than reproducibility,
 the protocol does not care either way: a client unzips what it verified.
 
-Documentation is rendered by Zola, so CI pins the Zola version archives are built with
-(`ZOLA_VERSION` in `tools/dreamweave/offline.py`). Your own `zola serve` never builds an archive, so
-any recent Zola previews the site.
+Documentation is rendered by the site generator `jess.lock` pins, `org.dreamweave.site`, the same
+version on every machine. A local preview never builds an archive.

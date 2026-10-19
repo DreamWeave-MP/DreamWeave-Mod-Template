@@ -170,7 +170,7 @@ rather than hard-coding them, and draw one still frame under `prefers-reduced-mo
 
 ## Templates
 
-Everything under `templates/` can be overridden by editing it; Zola has no theme layer in between.
+The theme package provides every template, and a file of the same name under your `templates/` replaces it: the generator lays the theme under your repository's own files.
 `base.html` defines the blocks every page fills: `title`, `extra_head`, `discovery`, `header`,
 `search`, `offline_banner`, `content`, `footer` and `extra_body`. Comments are
 `templates/comments.html`, included at the end of each page's body column. The project page is
@@ -208,7 +208,7 @@ network page have no thread. Docs pages have none unless their docs root sets
 offline documentation inside archives never loads comments.
 
 The DreamWeave giscus theme is served from your site (`giscus/<palette>.css`) and applies on the
-published site. A plain `zola serve` has no thread at all, because the ids come from CI's lookup. A
+published site. A local preview has no thread at all, because the ids come from CI's lookup. A
 CI build served from your own machine does, but cannot show the theme: giscus's iframe lives on a
 public origin, and browsers block public pages from fetching files on your machine, so it uses
 GitHub's dark theme and says so above the thread.
@@ -228,5 +228,5 @@ documentation never loads them.
 
 ## Search
 
-Search runs in the browser over Zola's index, without a library. On docs pages it only searches that
+Search runs in the browser over the generator's index, without a library. On docs pages it only searches that
 project's docs. Press `/` to focus it. Turn it off with `build_search_index = false`.

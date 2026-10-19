@@ -2,14 +2,16 @@
 
 ## Repository shape
 
-- The DreamWeave Mod Template: a Zola site plus `./buildSite` (Python, `tools/dreamweave/`) that
-  validates `content/<project>/mod.toml`, packages byte-reproducible archives, records releases, and
-  writes the distribution protocol documents (`static/dreamweave.json`,
+- The DreamWeave Mod Template: a DreamWeave site built through jess. The build tool is the Jess
+  package `org.dreamweave.mod-template` (source: `~/GitHub/rust-reimplementations/jess/jpk/dreamweave-mod-template`),
+  which validates `content/<project>/mod.toml`, packages byte-reproducible archives, records
+  releases, and writes the protocol documents (`static/dreamweave.json`,
   `static/dreamweave/projects/<id>.json`) and what only CI knows (`static/dreamweave/view.json`).
-- Authors never run Python. Their tools are an editor, git and `zola serve`; `./buildSite` runs only
-  in CI. Nothing an author must do may need it, and a plain `zola serve` must render every
-  page: templates build the project model from `mod.toml` and `mod.lock` themselves
-  (`templates/macros/project.html`), and `view.json` only adds CI facts.
+  Rendering is `org.dreamweave.site` with the theme `org.dreamweave.theme` (siblings under `jpk/`);
+  `jess.lock` pins all three. This repository holds no Python, no Zola and no copy of the theme.
+- Authors' tools are an editor, git and jess. `jess workspace run --trusted dreamweave-site -- public <url>`
+  must render every page: the theme's templates build the project model from `mod.toml` and
+  `mod.lock` themselves (`templates/macros/project.html` in the theme), and `view.json` only adds CI facts.
 - Human intent: `content/<project>/index.md` (display name, summary, prose) and `mod.toml`
   (everything structured). Written by CI, committed by `github-actions[bot]`: `mod.lock`. Generated
   and gitignored: `static/dreamweave*`, `content/**/_changelog.md`, `dist/`, `public/`. Never edit
@@ -18,10 +20,11 @@
   spec change together or not at all.
 - CI lives in StroggForge (`~/GitHub/rust-reimplementations/StroggForge`, sibling checkout):
   `build_site.yml` only calls its `modGlobalBuild`, and its Rust workflows call the same one with
-  `mod_template: true`. The `./buildSite` commands and `dist/` files that workflow uses are an
-  interface; change them together with StroggForge, and move the pinned tag with its bump.
+  `mod_template: true`. The build tool's command targets (`dreamweave-check`, `-build`, `-site`,
+  `-links`, `-release`, `-record`, `-record-crates`, `-record-releases`) and the `dist/` files that
+  workflow uses are an interface; change them together with StroggForge, and move the pinned tag.
 - StroggForge builds, signs and publishes Rust programs and crates; the template only records them.
-  No Rust build inputs belong in `mod.toml` or `./buildSite`.
+  No Rust build inputs belong in `mod.toml` or the build tool.
 
 ## Invariants that are easy to break
 
@@ -46,24 +49,26 @@
 - The docs shell (`templates/docs/`, `sass/docs.sass`, `static/docs/docs.js`) and the schematic
   shortcode are imported by StroggForge; keep class names and arguments stable.
 - Nothing may default to DreamWeave's accounts. Analytics stay off until configured. Comments are on,
-  but `tools/dreamweave/comments.py` looks up giscus ids for the site's own repository at build time;
+  but the build tool looks up giscus ids for the site's own repository at build time;
   never reintroduce pasted `repo_id`/`category_id`. No comment content is ever built into the site.
 
 ## Verification
 
 ```sh
-python3 -m unittest discover -s tools/tests  # protocol, validation and release lifecycle (needs zola)
-./buildSite check
-./buildSite build && ./buildSite schemas && zola build && ./buildSite links
-rm -rf static/dreamweave* && zola build     # what an author's `zola serve` sees
+jess workspace sync --locked                                   # the template, theme and generator jess.lock pins
+jess workspace run --trusted dreamweave-check
+jess workspace run --trusted dreamweave-build -- "$BASE_URL"
+jess workspace run --trusted dreamweave-site -- public "$BASE_URL"
+jess workspace run --trusted dreamweave-links -- public "$BASE_URL"
 actionlint                                 # workflow, including embedded shellcheck
 stylua --check $(git ls-files 'content/*.lua')
 ```
 
-The pinned Zola version is `./buildSite zola-version`; CI installs exactly that one.
+The build tool's own tests live with its source: `jess package test jpk/dreamweave-mod-template --package-path jpk`
+in the jess checkout. The protocol schemas in `static/schemas/` are validated there and vendored by AsHyAmS.
 
 ## Style
 
-Sass is indented syntax, never SCSS. Python: full-word names, explicit types, errors that say what
+Sass is indented syntax, never SCSS. Luau (the build tool, the generator and the theme): strict, full-word names, errors that say what
 to fix, no comments that narrate code. Site prose follows DreamWeave's voice: direct, concrete, dry.
 Commit atomically with `FEAT:`/`FIX:`/`BREAK:`/`UPDATE:`/`CLEANUP:`/`DOCS:`/`TEST:` subjects.

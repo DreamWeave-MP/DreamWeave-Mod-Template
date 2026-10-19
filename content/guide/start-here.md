@@ -8,8 +8,7 @@ kind = "guide"
 +++
 
 You need a GitHub account and git. To preview locally you also need
-[Zola](https://www.getzola.org/documentation/getting-started/installation/) 0.22 or newer, which is
-one binary.
+[jess](https://github.com/DreamWeave-MP/jess/releases), which is one binary.
 That is the whole list. Validating, packaging, hashing and publishing all happen in GitHub Actions,
 so there is no Python, Node or Rust to install, and no DreamWeave account.
 
@@ -97,11 +96,14 @@ rest of what you can say about it, and [mod.toml reference](@/guide/mod-toml.md)
 ## 5. Preview
 
 ```sh
-zola serve
+jess workspace sync --locked
+jess workspace run --trusted dreamweave-site -- public http://127.0.0.1:8000/
 ```
 
-Your site is on <http://127.0.0.1:1111>, and it reloads when you save. The project page is built
-from `mod.toml` and `mod.lock`, the same files CI reads, so what you see is what gets published.
+The first line restores the template, exactly the version `jess.lock` pins, once. The second
+renders your site into `public/`; serve that folder with any static file server at the address you
+gave and open it, and run the second line again after you save. The project page is built from
+`mod.toml` and `mod.lock`, the same files CI reads, so what you see is what gets published.
 Three things only exist once CI has built the site: the development build, the comment thread, and
 the checks on the network page.
 

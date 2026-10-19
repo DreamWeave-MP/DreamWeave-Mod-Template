@@ -78,8 +78,8 @@ package's own command targets, run over this repository.
 | `jess workspace run --trusted dreamweave-links -- public <base url>` | every push | Check the built site's local links, anchors and HTML structure |
 | `jess workspace run --trusted dreamweave-release -- <tag>` | release tags | Build a release from its tag |
 | `jess workspace run --trusted dreamweave-record -- dist/release.json` | release tags | Record that release in `mod.lock` on the default branch |
-| `./buildSite record-crates` | the default branch | Record the declared crate versions crates.io has (still Python, in `tools/dreamweave/`) |
-| `./buildSite record-releases` | the default branch | Record a program's tagged releases from their GitHub releases (still Python) |
+| `jess workspace run --trusted dreamweave-record-crates` | the default branch | Record the declared crate versions crates.io has |
+| `jess workspace run --trusted dreamweave-record-releases` | the default branch | Record a program's tagged releases from their GitHub releases |
 
 `jess.lock` is written by the first `jess workspace sync` against the template's publisher and
 committed; to move the site to a newer template, change the requirement in `jess.toml`, sync again
@@ -95,11 +95,9 @@ and commit the lock it writes.
 | `content/<project>/…` | The mod itself and its docs; all of it ships |
 | `config.toml` | The site: URL, title, repository, palette, header links |
 | `sass/brand.sass` | Your branding; the template never touches it |
-| `templates/`, `sass/`, `static/` | The template's presentation |
+| `templates/`, `sass/`, `static/` | Files laid over the theme package's: a template of the same name replaces the theme's. The template ships none but `sass/brand.sass`'s home |
 | `jess.toml`, `jess.lock` | This site as a Jess package: which template version builds it, pinned with its theme and generator |
-| `tools/dreamweave/` | The Python tooling the two `record-*` steps still run through `./buildSite` |
 | `static/schemas/` | JSON Schemas for everything the site publishes |
-| `tools/tests/` | The template's own tests: `python3 -m unittest discover -s tools/tests` |
 
 ## Documentation
 
