@@ -9,8 +9,8 @@ kind = "reference"
 
 ## The core is frozen per major version
 
-`schema_version` is a major version. Within `"2"`, the fields and meanings on these pages do not
-change. A new core field or a changed meaning is `"3"`.
+`schema_version` is a major version. Within `"3"`, the fields and meanings on these pages do not
+change. A new core field or a changed meaning is `"4"`.
 
 That makes validation strict without making evolution painful: an unknown field in the core is
 always an error (a typo, a buggy generator, or a document from the future), never something to guess
@@ -47,11 +47,19 @@ Clients never infer a version from which fields happen to be present.
 ## Deprecation
 
 A field is deprecated by saying so on these pages for at least one major version before it is
-removed. Its meaning does not change while it is deprecated. The V4 template's per-release `.modManifest`
-(`schema_version: "1"`) is superseded by this version; its schema stays published at its original
-URL for tools that read old release assets.
+removed. Its meaning does not change while it is deprecated. Version `"2"` is superseded by this
+version, and the V4 template's per-release `.modManifest` (`schema_version: "1"`) before it; their
+schemas stay published at their original URLs for tools that read old sites and old release assets.
 
-## What version 3 is likely to contain
+## What version 3 added
+
+One thing: a release's artifact may be a Jess package, `format: "jpk"`, with a `jess` block saying
+which package it is, its content digest, its API and its declared dependencies, and an index entry
+may name the Jess package a project publishes. Everything a version 2 document said, a version 3
+document says the same way; a version 2 reader that is taught the two additions reads version 3.
+See [Jess packages](@/guide/protocol/artifacts.md#jess-packages).
+
+## What a later version is likely to contain
 
 Publisher keys and manifest signatures ([Provenance](@/guide/provenance.md)), a statement for moving
 a project to a new origin, and anything from third-party extensions that several clients came to
