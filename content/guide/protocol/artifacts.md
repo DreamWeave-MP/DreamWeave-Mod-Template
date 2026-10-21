@@ -106,9 +106,11 @@ clients; the artifact exists so an index can track the release and verify what c
 
 ## Jess packages
 
-A Jess package's release has one `jpk` artifact: the JPK that `jess pack` built from the release's
-commit, served from the project's own sources like any archive. The artifact's `jess` block says
-what is inside:
+A Jess package's release has one `jpk` artifact: the JPK jess packed from the release's commit,
+served from the project's own sources like any archive. A `development` release of the package is
+the same kind of artifact at a pre-release version, `0.3.1-dev.57`: the package's files at the
+default branch with the manifest's version revised, which Jess chooses only when a requirement names
+that version exactly. The artifact's `jess` block says what is inside:
 
 | Field | Meaning |
 |---|---|
