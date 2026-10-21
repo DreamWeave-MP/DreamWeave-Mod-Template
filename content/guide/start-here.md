@@ -71,8 +71,11 @@ members = []
 "org.dreamweave.mod-template" = "0.3"
 ```
 
-That names the template version that builds your site; `jess.lock`, written by the first
-`jess workspace sync`, pins it exactly, with the theme and the generator it uses.
+That names the template version that builds your site. `jess.lock` pins it exactly, with the theme
+and the generator it uses: CI writes and commits it on your first push, so you need nothing
+installed to start. Every template, stylesheet and script comes from those packages; your
+repository holds your mod and your `config.toml`, and updating the version here updates the whole
+site.
 
 **Replace the id.** Every project has a permanent identity that no other project may share: a
 random UUID, like `4d0c9f6e-2b1a-4c8e-9f3a-7e5d1b2c6a90`. Anything that makes them will do:
@@ -118,8 +121,10 @@ jess workspace sync --locked
 jess workspace run --trusted dreamweave-site -- public http://127.0.0.1:8000/
 ```
 
-The first line restores the template, exactly the version `jess.lock` pins, once; until the lock
-exists, run `jess workspace sync` without `--locked` and commit the `jess.lock` it writes. The second
+The first line restores the template, exactly the version `jess.lock` pins, once. Before your first
+push has written that lock, run `jess workspace sync --publisher
+https://dreamweave-mp.github.io/DreamWeave-Mod-Template/` instead, and commit the `jess.lock` it
+writes if you like; CI writes the same one otherwise. The second
 renders your site into `public/`; serve that folder with any static file server at the address you
 gave and open it, and run the second line again after you save. The project page is built from
 `mod.toml` and `mod.lock`, the same files CI reads, so what you see is what gets published.

@@ -22,9 +22,11 @@ read without scraping it.
    makes one; so does CI's error if you forget) and a `slug` like `my_mod`: it names your archive
    and your release tags. In `content/home/index.md`, `title` is the mod's name, `description` its
    summary, the body its page.
-5. Commit and push. The workflow validates everything and publishes the page and a development
-   build. To preview first, [install jess](https://github.com/DreamWeave-MP/jess/releases), run
-   `jess workspace sync` once and commit the `jess.lock` it writes, then
+5. Commit and push. The workflow pins the template in `jess.lock` with a commit of its own on the
+   first push, validates everything, and publishes the page and a development build. To preview
+   first, [install jess](https://github.com/DreamWeave-MP/jess/releases), then
+   `jess workspace sync --publisher https://dreamweave-mp.github.io/DreamWeave-Mod-Template/`
+   once (`sync --locked` once the lock exists) and
    `jess workspace run --trusted dreamweave-site -- public http://localhost:8000/` for every look;
    serve `public/` with any static file server.
 6. Release: add a `[[releases]]` entry, then
@@ -86,9 +88,12 @@ is one of the package's own command targets, run over the repository.
 | `jess workspace run --trusted dreamweave-record-crates` | the default branch | Record the declared crate versions crates.io has |
 | `jess workspace run --trusted dreamweave-record-releases` | the default branch | Record a program's tagged releases from their GitHub releases |
 
-`jess.lock` is written by the first `jess workspace sync` against the template's publisher and
-committed; to move a site to a newer template, change the requirement in `jess-workspace.toml`, sync
-again and commit the lock it writes. This repository is the template, so its workspace's one member
+`jess.lock` is written by the first sync against the template's publisher,
+`https://dreamweave-mp.github.io/DreamWeave-Mod-Template/`: CI does that on a site's first push and
+commits the lock, so nobody needs jess installed to start. To move a site to a newer template,
+change the requirement in `jess-workspace.toml`, sync again and commit the lock it writes. Every file
+of the theme comes from the pinned packages, none from your repository, which is what keeps sites
+from drifting apart: see [Customizing](https://dreamweave-mp.github.io/DreamWeave-Mod-Template/guide/customizing/#templates). This repository is the template, so its workspace's one member
 is the root package and it builds its own site with its working tree; its tests run with
 `jess workspace test`.
 
