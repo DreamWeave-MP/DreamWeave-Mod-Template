@@ -14,7 +14,7 @@ The JSON Schemas are normative for structure; this page is normative for meaning
 
 ```json
 {
-  "schema_version": "2",
+  "schema_version": "3",
   "document": "project",
   "generator": "DreamWeave Mod Template 5.0.0",
   "project": { ... },
@@ -32,7 +32,7 @@ The JSON Schemas are normative for structure; this page is normative for meaning
 | `id` | UUID, canonical lowercase. The project's identity. |
 | `name` | Display name. May change at any time. |
 | `summary` | *Optional.* One line. |
-| `type` | `mod`, `library`, `framework`, `tool`, `assets`, `total-conversion` or `documentation`. Presentation only. |
+| `type` | `mod`, `library`, `framework`, `tool`, `assets`, `total-conversion` or `documentation`. Presentation only; a Jess package is usually a `library` or a `tool`. |
 | `status` | `active`, `maintenance`, `experimental`, `deprecated` or `archived`. |
 | `versioning` | `numeric` or `decimal`: how this project's versions compare. See [Versions](@/guide/protocol/versions.md). |
 | `game` | Lowercase token, e.g. `morrowind`. |
@@ -100,7 +100,7 @@ unresolvable targets are client policy.
 
 ```json
 {
-  "schema_version": "2",
+  "schema_version": "3",
   "document": "index",
   "generator": "…",
   "site": { "name": "Cool Mods", "url": "https://you.github.io/cool-mods/" },
@@ -115,7 +115,9 @@ unresolvable targets are client policy.
 ```
 
 `projects` is sorted by `id`. An index entry is a pointer and a change detector; everything it says
-is repeated, authoritatively, in the manifest.
+is repeated, authoritatively, in the manifest. An entry for a project that is a Jess package also
+carries `"jess_package": "org.example.name"`, so a Jess client asked for that id reads one manifest
+and not every manifest on the site.
 
 ## Release payload
 

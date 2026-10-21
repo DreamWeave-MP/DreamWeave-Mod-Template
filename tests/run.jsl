@@ -1,0 +1,1835 @@
+--!strict
+--!native
+-- The mod template's own cases. `fixtures/repo` is a small repository of five projects, copied
+-- under the scratch folder and given a git index by every case that loads or builds one;
+-- `fixtures/public` is a built site written by hand, which the offline crawler and the site check
+-- read; and `fixtures/expected` is what the package makes of both, pinned byte for byte. What a
+-- build takes from the site generator's own rendering (an archive's size and digest, a manifest's
+-- digest) is checked against the files it wrote instead, so the pins hold this package's bytes
+-- and nobody else's.
+local archive = require '@dreamweave/mod-template/archive'
+local build = require '@dreamweave/mod-template'
+local commands = require '@dreamweave/mod-template/commands'
+local bytes = require '@dream/bytes'
+local fs = require '@dream/fs'
+local gitIndex = require '@dreamweave/mod-template/git-index'
+local jessJson = require '@jess/json'
+local jessPackage = require '@jess/package'
+local model = require '@dreamweave/mod-template/model'
+local offline = require '@dreamweave/mod-template/offline'
+local record = require '@dreamweave/mod-template/record'
+local records = require '@dreamweave/mod-template/records'
+local siteJson = require '@dreamweave/site/json'
+local sitecheck = require '@dreamweave/mod-template/sitecheck'
+local support = require './support'
+local test = require '@jess/test'
+local util = require '@dreamweave/mod-template/util'
+local version = require '@dreamweave/mod-template/version'
+local expect = test.expect
+local suite = test.new()
+
+local scratchRoot = assert(rawget(_G :: any, 'scratchRoot') :: string?, 'the suite needs a scratchRoot')
+local scratch = support.emptied(scratchRoot, 'mod-template')
+local public = support.fixture 'public'
+
+-- The size of the pieces the archive writer reads a source file in.
+local Chunk = 256 * 1024
+
+-- Where the hand-written site says it is served from.
+local Base = 'https://docs.test/site'
+
+--- The text of `parsed`, or the reason there is none.
+local function parsedText(text: unknown, scheme: string?): string
+  local parsed, problem = version.parse(text, scheme)
+
+  return if parsed then parsed.text else `refused: {problem}`
+end
+
+local function compared(left: string, right: string, scheme: string?): number
+  return version.compare(version.parseOrError(left, scheme), version.parseOrError(right, scheme))
+end
+
+--- `text` with every `from` replaced by `to`, both taken literally.
+local function replaced(text: string, from: string, to: string): string
+  local pattern = string.gsub(from, '%p', '%%%0')
+  local replacement = string.gsub(to, '%%', '%%%%')
+
+  return (string.gsub(text, pattern, replacement))
+end
+
+--- A folder with a git index naming `tracked`, and each of `present` (path to bytes) on disk.
+local function checkout(name: string, tracked: { support.Tracked }, present: { [string]: string }): string
+  local root = support.tree(support.emptied(scratch, name), present)
+  support.write(`{root}/.git/index`, support.indexBytes(tracked))
+
+  return root
+end
+
+--- A repository of `files` beside a site configuration, with no git folder at all.
+local function smallRepository(name: string, files: { [string]: string }): string
+  local root = support.tree(support.emptied(scratch, name), files)
+  support.write(`{root}/config.toml`, 'base_url = "https://small.test"\ntitle = "Small"\n')
+
+  return root
+end
+
+suite.describe('util', function()
+  suite.it('trims text and normalizes paths', function()
+    expect(util.trim '  a b \n\t').toBe 'a b'
+    expect(util.trim ' \n ').toBe ''
+    expect(util.trim(nil)).toBe ''
+    expect(util.trim(false)).toBe ''
+    expect(util.trim(5)).toBe '5'
+    expect(util.norm 'a\\b//c///d').toBe 'a/b/c/d'
+    expect(util.norm './a').toBe 'a'
+    expect(util.norm '.\\a').toBe 'a'
+    expect(util.norm './/a').toBe '/a'
+    expect(util.norm '././a').toBe './a'
+    expect(util.norm 'a/./b').toBe 'a/./b'
+    expect(util.norm '.').toBe '.'
+    expect(util.norm '/').toBe '/'
+    expect(util.norm '\\\\').toBe '/'
+    expect(util.norm 'plain/path.txt').toBe 'plain/path.txt'
+    expect(util.norm(nil)).toBe ''
+    expect(util.norm(false)).toBe ''
+    expect(util.norm(12)).toBe '12'
+  end)
+
+  suite.it('splits a path into its folder and its name', function()
+    expect(util.dirname 'a/b/c.txt').toBe 'a/b'
+    expect(util.dirname 'c.txt').toBe ''
+    expect(util.dirname 'a\\b\\c').toBe 'a/b'
+    expect(util.dirname 'a//b').toBe 'a'
+    expect(util.dirname 'a/').toBe ''
+    expect(util.dirname '/a').toBe ''
+    expect(util.dirname '').toBe ''
+    expect(util.basename 'a/b/c.txt').toBe 'c.txt'
+    expect(util.basename 'a\\b').toBe 'b'
+    expect(util.basename 'c.txt').toBe 'c.txt'
+    expect(util.basename 'a/').toBe 'a/'
+    expect(util.basename 'a\\').toBe 'a\\'
+    expect(util.basename '').toBe ''
+  end)
+
+  suite.it('tests a string for a prefix and a suffix', function()
+    expect(util.startsWith('abc', 'ab')).toBe(true)
+    expect(util.startsWith('abc', '')).toBe(true)
+    expect(util.startsWith('abc', 'abc')).toBe(true)
+    expect(util.startsWith('ab', 'abc')).toBe(false)
+    expect(util.startsWith('abc', 'bc')).toBe(false)
+    expect(util.endsWith('abc', 'bc')).toBe(true)
+    expect(util.endsWith('abc', '')).toBe(true)
+    expect(util.endsWith('abc', 'abc')).toBe(true)
+    expect(util.endsWith('abc', 'zabc')).toBe(false)
+    expect(util.endsWith('abc', 'ab')).toBe(false)
+  end)
+
+  suite.it('reads, writes, walks and copies below a folder', function()
+    local root = support.emptied(scratch, 'util')
+    util.write(`{root}/deep/er/file.txt`, 'contents')
+    util.write(`{root}/b.txt`, 'bee')
+    util.write(`{root}/a/z.txt`, 'zed')
+    util.write(`{root}/a.txt`, 'ay')
+    util.write(`{root}/a.txt`, 'again')
+
+    expect(util.read(`{root}/deep/er/file.txt`)).toBe 'contents'
+    expect(util.read(`{root}/a.txt`)).toBe 'again'
+    expect(function() util.read(`{root}/absent`) end).toThrow(`cannot read {root}/absent`)
+    expect(util.walk(root)).toEqual {
+      { path = `{root}/a/z.txt`, relative = 'a/z.txt' },
+      { path = `{root}/a.txt`, relative = 'a.txt' },
+      { path = `{root}/b.txt`, relative = 'b.txt' },
+      { path = `{root}/deep/er/file.txt`, relative = 'deep/er/file.txt' },
+    }
+
+    expect(util.walk(`{root}/absent`)).toEqual {}
+    expect(util.walk(`{root}/b.txt`)).toEqual {}
+
+    local copied = `{scratch}/util-copy`
+    util.copyTree(root, copied)
+    expect(support.files(copied)).toEqual { 'a/z.txt', 'a.txt', 'b.txt', 'deep/er/file.txt' }
+    expect(support.read(`{copied}/deep/er/file.txt`)).toBe 'contents'
+    util.copyTree(`{root}/absent`, copied)
+    expect(#support.files(copied)).toBe(4)
+  end)
+
+  suite.it('removes a file, and a folder with everything in it', function()
+    local root = support.emptied(scratch, 'util-remove')
+    util.write(`{root}/one.txt`, '1')
+    util.write(`{root}/flat/two.txt`, '2')
+    util.write(`{root}/flat/three.txt`, '3')
+
+    util.removeTree(`{root}/one.txt`)
+    expect((fs.isFile(`{root}/one.txt`))).toBe(false)
+    util.removeTree(`{root}/absent`)
+
+    util.removeTree(`{root}/flat`)
+    expect((fs.exists(`{root}/flat`))).toBe(false)
+  end)
+
+  suite.it('copies a list to its first gap and sorts keys', function()
+    local source = { 'a', 'b', nil, 'd' } :: { string? }
+    local copy = util.arrayCopy(source)
+    expect(copy).toEqual { 'a', 'b' }
+    expect(rawequal(copy, source)).toBe(false)
+    expect(util.arrayCopy(nil)).toEqual {}
+    expect(util.arrayCopy({})).toEqual {}
+    expect(util.sortedKeys { beta = 1, alpha = 2, Gamma = 3 }).toEqual { 'Gamma', 'alpha', 'beta' }
+    expect(util.sortedKeys(nil)).toEqual {}
+    expect(util.sortedKeys { 30, 10, 20 }).toEqual { 1, 2, 3 }
+  end)
+
+  suite.it('joins a URL and spells a date', function()
+    expect(util.joinUrl('https://x.test/a/', '/b')).toBe 'https://x.test/a/b'
+    expect(util.joinUrl('https://x.test/a///', '///b/')).toBe 'https://x.test/a/b/'
+    expect(util.joinUrl('https://x.test', 'b')).toBe 'https://x.test/b'
+    expect(util.joinUrl('https://x.test', 'https://y.test/c')).toBe 'https://y.test/c'
+    expect(util.joinUrl('https://x.test', 'http://y.test')).toBe 'http://y.test'
+    expect(util.joinUrl(nil, nil)).toBe '/'
+    expect(util.joinUrl('base', 7)).toBe 'base/7'
+    expect(util.dateText '2025-01-02').toBe '2025-01-02'
+    expect(util.dateText(nil)).toBe ''
+    expect(util.dateText(false)).toBe ''
+    expect(util.dateText(2025)).toBe '2025'
+  end)
+end)
+
+suite.describe('version', function()
+  suite.it('names its schemes and its limit', function()
+    expect(version.NUMERIC).toBe 'numeric'
+    expect(version.DECIMAL).toBe 'decimal'
+    expect(version.MAXIMUM_RELEASE_NUMBERS).toBe(6)
+  end)
+
+  suite.it('parses release numbers, a prerelease and build metadata', function()
+    expect((version.parse '1.2.3')).toEqual {
+      text = '1.2.3',
+      scheme = 'numeric',
+      release = { '1', '2', '3' },
+      prerelease = {},
+    }
+
+    expect((version.parse('1.02.3-rc.1.x-y+build.5', version.DECIMAL))).toEqual {
+      text = '1.02.3-rc.1.x-y+build.5',
+      scheme = 'decimal',
+      release = { '1', '02', '3' },
+      prerelease = {
+        { numeric = false, text = 'rc' },
+        { numeric = true, text = '1' },
+        { numeric = false, text = 'x-y' },
+      },
+    }
+
+    expect(parsedText '0').toBe '0'
+    expect(parsedText '1.2.3.4.5.6').toBe '1.2.3.4.5.6'
+    expect(parsedText '10.20.30').toBe '10.20.30'
+    expect(parsedText '1.0.0-007').toBe '1.0.0-007'
+    expect(parsedText '1.0+build-1').toBe '1.0+build-1'
+    expect(parsedText('0.050', version.DECIMAL)).toBe '0.050'
+  end)
+
+  suite.it('refuses what is not a version, with the reason', function()
+    expect(parsedText(5)).toBe 'refused: version must be a string'
+    expect(parsedText(nil)).toBe 'refused: version must be a string'
+    expect(parsedText '').toBe 'refused: release numbers must be digits'
+    expect(parsedText '+build').toBe 'refused: release numbers must be digits'
+    expect(parsedText '1.x').toBe 'refused: release numbers must be digits'
+    expect(parsedText '1..2').toBe 'refused: release numbers must be digits'
+    expect(parsedText '1.').toBe 'refused: release numbers must be digits'
+    expect(parsedText 'v1').toBe 'refused: release numbers must be digits'
+    expect(parsedText '1.2.3.4.5.6.7').toBe 'refused: invalid release number count'
+    expect(parsedText '01.2').toBe 'refused: leading zero'
+    expect(parsedText '1.02').toBe 'refused: leading zero'
+    expect(parsedText('01.2', version.DECIMAL)).toBe 'refused: leading zero'
+    expect(parsedText '1.0-').toBe 'refused: invalid prerelease'
+    expect(parsedText '1.0-a..b').toBe 'refused: invalid prerelease'
+    expect(parsedText '1.0-a_b').toBe 'refused: invalid prerelease'
+    expect(function() version.parseOrError '1.x' end).toThrow 'release numbers must be digits: 1.x'
+    expect(function() version.parseOrError(5) end).toThrow 'version must be a string: 5'
+    expect(version.parseOrError('0.5', version.DECIMAL).scheme).toBe 'decimal'
+  end)
+
+  suite.it('orders numeric versions number by number', function()
+    expect(compared('1.2.3', '1.2.10')).toBe(-1)
+    expect(compared('1.2.10', '1.2.3')).toBe(1)
+    expect(compared('2', '1.9.9')).toBe(1)
+    expect(compared('1.0', '1.0.0')).toBe(0)
+    expect(compared('1.0.0.0.0.1', '1')).toBe(1)
+    expect(compared('99999999999999999999', '100000000000000000000')).toBe(-1)
+  end)
+
+  suite.it('orders decimal versions as fractions after the first number', function()
+    expect(compared('0.5', '0.51', version.DECIMAL)).toBe(-1)
+    expect(compared('0.50', '0.5', version.DECIMAL)).toBe(0)
+    expect(compared('0.9', '0.10', version.DECIMAL)).toBe(1)
+    expect(compared('1', '1.0', version.DECIMAL)).toBe(0)
+    expect(compared('10.1', '9.9', version.DECIMAL)).toBe(1)
+    expect(compared('0.1.05', '0.1.1', version.DECIMAL)).toBe(-1)
+  end)
+
+  suite.it('orders a prerelease below its release, and its parts in turn', function()
+    expect(compared('1.0.0', '1.0.0-rc.1')).toBe(1)
+    expect(compared('1.0.0-rc.1', '1.0.0')).toBe(-1)
+    expect(compared('1.0.0-rc.1', '1.0.0-rc.2')).toBe(-1)
+    expect(compared('1.0.0-rc.10', '1.0.0-rc.9')).toBe(1)
+    expect(compared('1.0.0-rc.1', '1.0.0-rc.1.1')).toBe(-1)
+    expect(compared('1.0.0-rc.1.1', '1.0.0-rc.1')).toBe(1)
+    expect(compared('1.0.0-1', '1.0.0-a')).toBe(-1)
+    expect(compared('1.0.0-a', '1.0.0-1')).toBe(1)
+    expect(compared('1.0.0-alpha', '1.0.0-beta')).toBe(-1)
+    expect(compared('1.0.0-007', '1.0.0-7')).toBe(0)
+    expect(compared('1.0.0-rc.1+one', '1.0.0-rc.1+two')).toBe(0)
+    expect(compared('0.5-dev.2', '0.5-dev.10', version.DECIMAL)).toBe(-1)
+  end)
+
+  suite.it('refuses to compare across schemes', function()
+    local numeric, decimal = version.parseOrError '1.0', version.parseOrError('1.0', version.DECIMAL)
+    expect(function() version.compare(numeric, decimal) end).toThrow 'version scheme mismatch'
+  end)
+
+  suite.it('names the next development version', function()
+    local function following(text: string, build: number, scheme: string?): string
+      return version.nextDevelopment(version.parseOrError(text, scheme), build).text
+    end
+
+    expect(following('1.2.3', 7)).toBe '1.2.4-dev.7'
+    expect(following('0.0.0', 1)).toBe '0.0.1-dev.1'
+    expect(following('9', 2)).toBe '10-dev.2'
+    expect(following('1.2.3-rc.1', 4)).toBe '1.2.3-rc.1.dev.4'
+    expect(following('0', 1, version.DECIMAL)).toBe '0.001-dev.1'
+    expect(following('0.5', 3, version.DECIMAL)).toBe '0.51-dev.3'
+    expect(following('0.5-pre', 3, version.DECIMAL)).toBe '0.5-pre.dev.3'
+    expect(version.nextDevelopment(version.parseOrError('2', version.DECIMAL), 9).scheme).toBe 'decimal'
+  end)
+end)
+
+suite.describe('git index', function()
+  suite.it('reads every entry of a version 2 and a version 3 index', function()
+    local long = `content/{string.rep('deep/', 900)}file.txt`
+    local tracked: { support.Tracked } = {
+      { path = 'content/a.txt', mode = 33188 },
+      { path = 'content/run.sh', mode = 33261 },
+      { path = 'content/link', mode = 40960 },
+      { path = 'content/module', mode = 57344 },
+      { path = 'content\\windows\\path.txt', mode = 33188 },
+      { path = './content//doubled.txt', mode = 33188 },
+      { path = long, mode = 33261 },
+    }
+
+    for _, layout in { 2, 3 } do
+      local root = support.emptied(scratch, `index-{layout}`)
+      support.write(`{root}/.git/index`, support.indexBytes(tracked, layout))
+
+      expect((gitIndex.read(root))).toEqual {
+        ['content/a.txt'] = { mode = 33188, executable = false },
+        ['content/run.sh'] = { mode = 33261, executable = true },
+        ['content/link'] = { mode = 40960, executable = false },
+        ['content/module'] = { mode = 57344, executable = false },
+        ['content/windows/path.txt'] = { mode = 33188, executable = false },
+        ['content/doubled.txt'] = { mode = 33188, executable = false },
+        [long] = { mode = 33261, executable = true },
+      }
+    end
+  end)
+
+  suite.it('keeps the last of two entries that normalize to one path', function()
+    local root = checkout('index-twice', {
+      { path = 'content/a.txt', mode = 33188 },
+      { path = 'content//a.txt', mode = 33261 },
+    }, {})
+
+    expect((gitIndex.read(root))).toEqual { ['content/a.txt'] = { mode = 33261, executable = true } }
+  end)
+
+  suite.it('answers with a reason for an index it cannot read', function()
+    local root = support.emptied(scratch, 'index-bad')
+    expect({ gitIndex.read(root) }).toEqual { nil :: unknown, 'missing .git/index' }
+    expect({ gitIndex.filesUnder(root, 'content') }).toEqual { nil :: unknown, 'missing .git/index' }
+
+    support.write(`{root}/.git/index`, `XXXX{string.rep('\0', 8)}`)
+    expect({ gitIndex.read(root) }).toEqual { nil :: unknown, 'unsupported git index' }
+
+    for _, layout in { 0, 1, 4, 65536 } do
+      support.write(`{root}/.git/index`, support.indexBytes({}, layout))
+      expect({ gitIndex.read(root) }).toEqual { nil :: unknown, `git index version {layout} is not supported` }
+    end
+
+    support.write(`{root}/.git/index`, support.indexBytes({}))
+    expect((gitIndex.read(root))).toEqual {}
+  end)
+
+  suite.it('raises on an index cut short', function()
+    local root = support.emptied(scratch, 'index-short')
+    local whole = support.indexBytes { { path = 'content/a.txt', mode = 33188 }, { path = 'content/b.txt', mode = 33188 } }
+
+    for _, length in { 0, 3, 7, 11, 12, 40, 73, 80, 92, 100, #whole - 6 } do
+      support.write(`{root}/.git/index`, string.sub(whole, 1, length))
+      expect(function() gitIndex.read(root) end).toThrow 'buffer access out of bounds'
+    end
+
+    -- The padding after the last name is never read, so an index may end with that name.
+    support.write(`{root}/.git/index`, string.sub(whole, 1, #whole - 5))
+    expect((gitIndex.read(root))).toEqual {
+      ['content/a.txt'] = { mode = 33188, executable = false },
+      ['content/b.txt'] = { mode = 33188, executable = false },
+    }
+  end)
+
+  suite.it('lists the tracked files below a folder that are on disk, by relative path', function()
+    local root = checkout('index-under', {
+      { path = 'content/mod/z.txt', mode = 33188 },
+      { path = 'content/mod/a/run.sh', mode = 33261 },
+      { path = 'content/mod/a.txt', mode = 33188 },
+      { path = 'content/mod/gone.txt', mode = 33188 },
+      { path = 'content/mod/folder', mode = 33188 },
+      { path = 'content/model/other.txt', mode = 33188 },
+      { path = 'content/mod', mode = 33188 },
+    }, {
+      ['content/mod/z.txt'] = 'z',
+      ['content/mod/a/run.sh'] = 'run',
+      ['content/mod/a.txt'] = 'a',
+      ['content/mod/folder/inside.txt'] = 'untracked',
+      ['content/mod/untracked.txt'] = 'untracked',
+      ['content/model/other.txt'] = 'other',
+    })
+
+    local expected = {
+      { path = 'content/mod/a.txt', relative = 'a.txt', disk = `{root}/content/mod/a.txt`, executable = false },
+      { path = 'content/mod/a/run.sh', relative = 'a/run.sh', disk = `{root}/content/mod/a/run.sh`, executable = true },
+      { path = 'content/mod/z.txt', relative = 'z.txt', disk = `{root}/content/mod/z.txt`, executable = false },
+    }
+
+    expect((gitIndex.filesUnder(root, 'content/mod'))).toEqual(expected)
+    expect((gitIndex.filesUnder(root, 'content\\mod'))).toEqual(expected)
+    expect((gitIndex.filesUnder(root, './content//mod'))).toEqual(expected)
+    expect((gitIndex.filesUnder(root, 'content/mod/'))).toEqual {}
+    expect((gitIndex.filesUnder(root, 'content/absent'))).toEqual {}
+    expect(#assert(gitIndex.filesUnder(root, 'content'))).toBe(4)
+  end)
+end)
+
+suite.describe('archive', function()
+  local function entries(): { archive.Entry }
+    return {
+      { path = 'b.txt', content = 'bee' },
+      { path = 'a/run.sh', content = '#!/bin/sh\n', executable = true },
+      { path = 'empty', content = '' },
+      { path = 'a/truthy.txt', content = 'not executable', executable = (1 :: unknown) :: boolean },
+      { path = 'ünïcode/naïve.txt', content = 'accents' },
+    }
+  end
+
+  suite.it('checksums like a zip', function()
+    expect(archive.crc32 '').toBe(0)
+    expect(archive.crc32 'hello').toBe(0x3610a686)
+    expect(archive.crc32(buffer.fromstring 'hello')).toBe(0x3610a686)
+  end)
+
+  suite.it('stores entries by path, sorting the list it was given', function()
+    local given = entries()
+    local data = archive.bytes(given)
+    support.samePinned(data, 'archive.zip')
+
+    local paths = { 'a/run.sh', 'a/truthy.txt', 'b.txt', 'empty', 'ünïcode/naïve.txt' }
+    expect([for entry in given => entry.path]).toEqual(paths)
+
+    local stored = support.stored(data)
+    expect([for entry in stored => entry.path]).toEqual(paths)
+    expect([for entry in stored => entry.content]).toEqual { '#!/bin/sh\n', 'not executable', 'bee', '', 'accents' }
+    expect([for entry in stored => entry.executable]).toEqual { true, false, false, false, false }
+    expect(archive.bytes {}).toBe(`PK\5\6{string.rep('\0', 18)}`)
+  end)
+
+  suite.it('writes the bytes it would return, and says what it wrote', function()
+    local root = support.emptied(scratch, 'archive')
+    local result = archive.write(`{root}/deep/out.zip`, entries())
+    local data = support.read(`{root}/deep/out.zip`)
+
+    support.samePinned(data, 'archive.zip')
+    expect(result).toEqual { path = `{root}/deep/out.zip`, size = #data, sha256 = bytes.sha256(data), entries = 5 }
+
+    support.write(`{root}/deep/out.zip`, string.rep('stale', 1000))
+    expect(archive.write(`{root}/deep/out.zip`, {})).toEqual {
+      path = `{root}/deep/out.zip`,
+      size = 22,
+      sha256 = bytes.sha256(`PK\5\6{string.rep('\0', 18)}`),
+      entries = 0,
+    }
+
+    expect(support.read(`{root}/deep/out.zip`)).toBe(`PK\5\6{string.rep('\0', 18)}`)
+  end)
+
+  suite.it('streams source files of every size around its chunk', function()
+    local root = support.emptied(scratch, 'archive-sources')
+    local sizes = { 0, 1, Chunk - 1, Chunk, Chunk + 17, 2 * Chunk, 2 * Chunk + 1 }
+    local contents: { [string]: string } = {}
+    local given: { archive.Entry } = { { path = 'inline.txt', content = 'between the files' } }
+
+    for index, size in sizes do
+      local name = `file-{index}.bin`
+      local body = string.rep(`{index}:0123456789abcdef`, size // 18 + 1)
+      contents[name] = string.sub(body, 1, size)
+      support.write(`{root}/in/{name}`, contents[name])
+      table.insert(given, { path = `data/{name}`, source = `{root}/in/{name}`, executable = index == 2 })
+    end
+
+    local result = archive.write(`{root}/out.zip`, given)
+    local data = support.read(`{root}/out.zip`)
+    expect(result.size).toBe(#data)
+    expect(result.sha256).toBe(bytes.sha256(data))
+    expect(result.entries).toBe(8)
+    expect(archive.bytes(given) == data).toBe(true)
+
+    local stored = support.stored(data)
+    expect(#stored).toBe(8)
+
+    for index, entry in stored do
+      if index == 8 then
+        expect(entry.path).toBe 'inline.txt'
+        expect(entry.content).toBe 'between the files'
+        continue
+      end
+
+      expect(entry.path).toBe(`data/file-{index}.bin`)
+      expect(entry.content == contents[`file-{index}.bin`]).toBe(true)
+      expect(entry.executable).toBe(index == 2)
+    end
+  end)
+
+  suite.it('writes many small entries around a large one as the bytes it would return', function()
+    local root = support.emptied(scratch, 'archive-small')
+    local given: { archive.Entry } = {}
+
+    for index = 1, 400 do
+      table.insert(given, { path = string.format('small/%03d.txt', index), content = string.rep(`{index};`, 97) })
+    end
+
+    table.insert(given, { path = 'large.bin', content = string.rep('0123456789abcdef', 5000) })
+    table.insert(given, { path = 'small/200-empty', content = '' })
+    table.insert(given, { path = 'small/200-large.bin', content = string.rep('fedcba9876543210', 4096) })
+
+    local result = archive.write(`{root}/out.zip`, table.clone(given))
+    local data = support.read(`{root}/out.zip`)
+    expect(data == archive.bytes(table.clone(given))).toBe(true)
+    expect(result).toEqual { path = `{root}/out.zip`, size = #data, sha256 = bytes.sha256(data), entries = 403 }
+
+    local stored = support.stored(data)
+    expect(#stored).toBe(403)
+    expect(stored[1].path).toBe 'large.bin'
+    expect(stored[201].path).toBe 'small/200-empty'
+    expect(stored[202].content == string.rep('fedcba9876543210', 4096)).toBe(true)
+    expect(stored[403].content).toBe(string.rep('400;', 97))
+  end)
+
+  suite.it('refuses a path twice, an entry of nothing and a source that is no file', function()
+    local root = support.emptied(scratch, 'archive-refused')
+
+    expect(function() archive.bytes { { path = 'a', content = '1' }, { path = 'a', content = '2' } } end).toThrow 'duplicate archive path a'
+    expect(function() archive.bytes { { path = 'none' } } end).toThrow 'archive entry none has neither content nor source'
+    expect(function() archive.bytes { { path = 'odd', source = (5 :: unknown) :: string } } end).toThrow 'archive entry odd has neither content nor source'
+    expect(function() archive.bytes { { path = 'gone', source = `{root}/gone` } } end).toThrow(`archive source is not a file: {root}/gone`)
+    expect(function() archive.bytes { { path = 'folder', source = root } } end).toThrow(`archive source is not a file: {root}`)
+    expect(function() archive.write(`{root}/out.zip`, { { path = 'none' } }) end).toThrow 'archive entry none has neither content nor source'
+    expect((fs.exists(`{root}/out.zip`))).toBe(false)
+  end)
+
+  suite.it('refuses what is no list in the words of the sort, and reads a list\'s own entries alone', function()
+    local root = support.emptied(scratch, 'archive-lists')
+    local unlisted = archive.bytes :: (unknown) -> string
+
+    expect(function() unlisted(nil) end).toThrow "invalid argument #1 to 'sort' (table expected, got nil)"
+    expect(function() unlisted(5) end).toThrow "invalid argument #1 to 'sort' (table expected, got number)"
+    expect(function() unlisted 'text' end).toThrow "invalid argument #1 to 'sort' (table expected, got string)"
+    expect(function() (archive.write :: (string, unknown) -> unknown)(`{root}/out.zip`, nil) end).toThrow "invalid argument #1 to 'sort' (table expected, got nil)"
+    expect(function() unlisted { 'text', 'more' } end).toThrow 'attempt to compare nil < nil'
+    expect(function() unlisted { { path = 'b', content = '2' }, { path = 5, content = '1' } } end).toThrow 'attempt to compare'
+
+    -- A gap, or an entry that is no table, is refused where the sort meets it, and the list is
+    -- left as far sorted as that.
+    local function refused(odd: unknown, problem: string): string
+      local given = { { path = 'd', content = '' }, { path = 'b', content = '' }, { path = 'e', content = '' }, odd, { path = 'a', content = '' }, { path = 'c', content = '' } }
+      expect(function() unlisted(given) end).toThrow(problem)
+
+      return table.concat([for index in range(1, 6) => if type(given[index]) == 'table' then (given[index] :: archive.Entry).path else tostring(given[index])], ' ')
+    end
+
+    expect(refused(nil, "attempt to index nil with 'path'")).toBe 'c b a nil d e'
+    expect(refused(5, "attempt to index number with 'path'")).toBe 'c b a 5 d e'
+    expect(refused(false, "attempt to index boolean with 'path'")).toBe 'c b a false d e'
+
+    -- Entries reached through a metatable are not the list's own: it is sorted and walked as the
+    -- empty list it is, and nothing is put into it.
+    local held: { archive.Entry } = { { path = 'b', content = '2' }, { path = 'a', content = '1' } }
+    local behind = setmetatable({}, { __index = held, __len = function(): number return #held end }) :: any
+
+    expect(archive.bytes(behind)).toBe(`PK\5\6{string.rep('\0', 18)}`)
+    expect(rawlen(behind)).toBe(0)
+    expect([for entry in held => entry.path]).toEqual { 'b', 'a' }
+
+    -- Its own entries are still sorted and stored when others stand behind them.
+    local over = setmetatable({ { path = 'z', content = '0' }, { path = 'y', content = '9' } }, { __index = held }) :: any
+    expect([for entry in support.stored(archive.bytes(over)) => entry.path]).toEqual { 'y', 'z' }
+    expect(rawget(over, 1).path).toBe 'y'
+  end)
+end)
+
+suite.describe('model', function()
+  suite.it('loads every project of a repository', function()
+    local root = support.repository(support.emptied(scratch, 'model'))
+    local repo = model.load(root)
+    expect(repo.root).toBe(root)
+    expect(model.load).toBe(build.load)
+
+    repo.root = '<root>'
+    support.samePinned(support.describe(repo), 'model.txt')
+  end)
+
+  suite.it('takes the head and the build number it is given', function()
+    local root = support.repository(support.emptied(scratch, 'model-options'))
+    local repo = model.load(root, { head = 'given', buildNumber = 12 })
+    expect(repo.head).toBe 'given'
+    expect(repo.build_number).toBe(12)
+    -- Alpha's lock records 1.1.0, so its development builds count on from there.
+    expect(model.developmentVersion(repo, repo.projects[1]).text).toBe '1.1.1-dev.12'
+    expect(model.developmentVersion(repo, repo.projects[3]).text).toBe '0.001-dev.12'
+    expect(model.developmentVersion(repo, repo.projects[3]).scheme).toBe 'decimal'
+  end)
+
+  suite.it('reads the head from the branch, the commit, or nothing', function()
+    local root = support.repository(support.emptied(scratch, 'model-head'))
+    expect(model.load(root).head).toBe '0123456789abcdef0123456789abcdef01234567'
+
+    support.write(`{root}/.git/HEAD`, '  fedcba9876543210fedcba9876543210fedcba98  \n')
+    expect(model.load(root).head).toBe 'fedcba9876543210fedcba9876543210fedcba98'
+
+    support.write(`{root}/.git/HEAD`, 'ref:   refs/heads/absent\n')
+    expect(model.load(root).head).toBe ''
+
+    expect(model.load(smallRepository('model-headless', {})).head).toBe ''
+  end)
+
+  suite.it('finds projects, nested folders and release tags', function()
+    local root = support.repository(support.emptied(scratch, 'model-find'))
+    local repo = model.load(root)
+    local alpha, addon, beta, delta, gamma = table.unpack(repo.projects)
+
+    expect([for project in repo.projects => project.slug]).toEqual { 'alpha', 'alpha-addon', 'beta', 'delta', 'gamma', 'zeta' }
+    expect(model.projectBySlug(repo, 'beta')).toBe(beta)
+    expect(model.projectBySlug(repo, 'absent')).toBeNil()
+    expect(model.nestedDirectories(repo, alpha)).toEqual { 'content/alpha/addon' }
+    expect(model.nestedDirectories(repo, addon)).toEqual {}
+    expect(model.nestedDirectories(repo, beta)).toEqual {}
+    expect(model.releaseTag(alpha, '1.0.0')).toBe 'alpha-1.0.0'
+    expect(model.releaseTag(alpha, '1.1.0')).toBe 'v1.1.0'
+    expect(model.releaseTag(alpha, '9.9.9')).toBe 'alpha-9.9.9'
+    expect(model.releaseTag(delta, '2.0.0')).toBe '2.0.0'
+    expect(model.releaseTag(gamma, '0.1.0')).toBe '0.1.0'
+  end)
+
+  suite.it('reads front matter in TOML, in YAML, cut short and with carriage returns', function()
+    local root = smallRepository('model-matter', {
+      ['content/toml/mod.toml'] = 'id = "t"\nslug = "t"\n',
+      ['content/toml/index.md'] = '+++\r\ntitle = "Carriage"\r\ndescription = "Returns"\r\n+++\r\nBody\r\n',
+      ['content/yaml/mod.toml'] = 'id = "y"\nslug = "y"\n',
+      ['content/yaml/index.md'] = '---\ntitle: Yaml\ntaxonomies:\n  tags:\n    - one\n---\nBody\n',
+      ['content/open/mod.toml'] = 'id = "o"\nslug = "o"\n',
+      ['content/open/index.md'] = '+++\ntitle = "Never closed"\n',
+      ['content/bare/mod.toml'] = 'id = "b"\nslug = "b"\n',
+      ['content/bare/index.md'] = 'title = "No fence"\n',
+    })
+
+    local described = [for project in model.load(root).projects => `{project.slug}: {project.name}|{project.summary}|{#project.tags}`]
+    expect(described).toEqual { 'b: |nil|0', 'o: |nil|0', 't: Carriage|Returns|0', 'y: Yaml|nil|1' }
+  end)
+
+  suite.it('reports a repeated id or slug and releases out of order', function()
+    local root = smallRepository('model-errors', {
+      ['content/a/mod.toml'] = 'id = "same"\nslug = "one"\n\n[[releases]]\nversion = "1.1.0"\ndate = 2025-01-01\n\n[[releases]]\nversion = "1.0.0"\ndate = 2025-02-01\n\n[[releases]]\nversion = "0.9.0"\ndate = 2025-02-01\nchannel = "beta"\n\n[[releases]]\nversion = "0.8.0"\ndate = 2025-02-01\nchannel = "beta"\n',
+      ['content/a/index.md'] = '',
+      ['content/b/mod.toml'] = 'id = "same"\nslug = "one"\n',
+      ['content/b/index.md'] = '',
+      ['content/c/mod.toml'] = 'id = "other"\nslug = "one"\nversioning = "decimal"\n\n[[releases]]\nversion = "0.5"\ndate = 2025-01-01\n\n[[releases]]\nversion = "0.45"\ndate = 2025-01-02\n',
+      ['content/c/index.md'] = '',
+    })
+
+    local repo = model.load(root)
+    expect(repo.errors).toEqual {
+      'content/b: duplicate id same',
+      'content/b: duplicate slug one',
+      'content/c: duplicate slug one',
+      'content/a/mod.toml: stable release 1.0.0 (2025-02-01) sorts below 1.1.0 (2025-01-01) under numeric versioning',
+      'content/c/mod.toml: stable release 0.45 (2025-01-02) sorts below 0.5 (2025-01-01) under decimal versioning',
+    }
+
+    expect(function() build.build(root, { workspace = `{root}/work`, dist = `{root}/dist` }) end).toThrow(table.concat(repo.errors, '\n'))
+  end)
+
+  suite.it('takes what a manifest gives in place of a table, and refuses what it cannot walk', function()
+    local function loaded(name: string, manifest: string)
+      local root = smallRepository(name, {
+        ['content/a/mod.toml'] = `id = "a"\nslug = "a"\n{manifest}`,
+        ['content/a/index.md'] = '+++\ntitle = "A"\ntaxonomies = "text"\n+++\n',
+      })
+
+      return model.load(root).projects[1]
+    end
+
+    local lenient = loaded('model-lenient', 'releases = "text"\nmedia = 5\nlinks = "text"\nruntimes = true\ncomponents = "text"\nopenmw = "text"\nnexusmods = "text"\nprovenance = "text"\ncredits = ["text"]\n')
+    expect(lenient.releases).toEqual {}
+    expect(lenient.media).toEqual {}
+    expect(lenient.links).toEqual {}
+    expect(lenient.runtimes).toEqual {}
+    expect(lenient.tags).toEqual {}
+    expect(lenient.credits).toEqual { { name = '' } }
+    expect(lenient.sigstore).toBe(false)
+    expect(lenient.nexusmods_mod_id).toBeNil()
+    expect([for component in lenient.components => component.id]).toEqual { 'main' }
+
+    local refused = {
+      { 'provides = "one"\n', 'ipairs' },
+      { 'mirrors = 5\n', 'ipairs' },
+      { '[package]\ninclude = "src"\n', 'ipairs' },
+      { '[openmw]\ncontent_files = "Plugin.esp"\n', 'ipairs' },
+      { 'components = [5]\n', 'attempt to index number with \'openmw\'' },
+      { 'releases = [5]\n', 'attempt to index number with \'version\'' },
+      { 'package = 5\n', 'attempt to index number with \'format\'' },
+      { 'package = 5\nprovides = "one"\n', 'ipairs' },
+      { 'nexusmods = 5\n', 'attempt to index number with \'mod_id\'' },
+    }
+
+    for index, case in refused do
+      expect(function() loaded(`model-refused-{index}`, case[1]) end).toThrow(case[2])
+    end
+  end)
+
+  suite.it('raises for a repository it cannot read', function()
+    local empty = support.emptied(scratch, 'model-empty')
+    expect(function() model.load(empty) end).toThrow(`cannot read {empty}/config.toml`)
+
+    local unversioned = smallRepository('model-unversioned', {
+      ['content/a/mod.toml'] = 'id = "a"\nslug = "a"\n\n[[releases]]\nversion = "01.0"\n',
+      ['content/a/index.md'] = '',
+    })
+
+    expect(function() model.load(unversioned) end).toThrow 'leading zero: 01.0'
+
+    local pageless = smallRepository('model-pageless', { ['content/a/mod.toml'] = 'id = "a"\nslug = "a"\n' })
+    expect(function() model.load(pageless) end).toThrow(`cannot read {pageless}/content/a/index.md`)
+    expect(model.load(smallRepository('model-contentless', {})).projects).toEqual {}
+  end)
+end)
+
+suite.describe('records', function()
+  local function loaded(name: string)
+    local repo = model.load(support.repository(support.emptied(scratch, name)))
+
+    return repo, repo.projects[3], repo.projects[5]
+  end
+
+  suite.it('names its schema and its generator', function()
+    expect(records.SCHEMA_VERSION).toBe '3'
+    expect(records.GENERATOR).toBe 'DreamWeave Mod Template 0.3.0'
+  end)
+
+  suite.it('writes what a release means and the document an archive carries', function()
+    local _, beta, gamma = loaded 'records-release'
+    support.samePinned(siteJson.encode(records.releaseSemantics(beta), true), 'records/semantics-beta.json')
+    support.samePinned(siteJson.encode(records.releaseSemantics(gamma), true), 'records/semantics-gamma.json')
+    support.samePinned(records.payloadReleaseDocument(beta, version.parseOrError('0.61', 'decimal')), 'records/payload-beta.json')
+    support.samePinned(records.payloadReleaseDocument(gamma, '1.2.3'), 'records/payload-gamma.json')
+    expect(records.payloadReleaseDocument(gamma, 4) == replaced(records.payloadReleaseDocument(gamma, '1.2.3'), '"1.2.3"', '"4"')).toBe(true)
+  end)
+
+  suite.it('writes a project manifest, a development release and the site index', function()
+    local repo, beta, gamma = loaded 'records-manifest'
+    local artifact: records.Artifact = {
+      id = 'flat',
+      format = 'flat',
+      filename = 'beta.zip',
+      media_type = 'application/zip',
+      size = 1234,
+      digests = { sha256 = 'feed' },
+      layout = siteJson.object({ release_document = 'dreamweave.release.json' }, { 'release_document', 'documentation' }),
+    }
+
+    local development = records.developmentRelease(beta, repo, artifact, version.parseOrError('0.61-dev.1', 'decimal'), '2026-01-01')
+    local bare = records.developmentRelease(gamma, model.load(repo.root, { head = '' }), nil, '7', '2026-02-02')
+    support.samePinned(siteJson.encode(development, true), 'records/development-beta.json')
+    support.samePinned(siteJson.encode(bare, true), 'records/development-gamma.json')
+
+    local published = { status = 'available', channel = 'stable', version = '0.6', date = '2025-08-01' }
+    local withdrawn = { status = 'yanked', channel = 'beta', version = '0.51', date = '2025-09-09' }
+    local undated = { status = 'available', channel = 'nightly', version = '0.7' }
+    local releases = siteJson.array { development, published, withdrawn, undated }
+    local manifest = siteJson.encode(records.projectManifest(beta, repo.site, 'https://base.test', releases), true)
+    local unreleased = siteJson.encode(records.projectManifest(gamma, repo.site, 'https://base.test'), true)
+    support.samePinned(manifest, 'records/manifest-beta.json')
+    support.samePinned(unreleased, 'records/manifest-gamma.json')
+
+    local entries = {
+      records.indexEntry(gamma, 'https://base.test', unreleased),
+      records.indexEntry(beta, 'https://base.test', manifest, releases),
+    }
+
+    expect(entries[2].updated).toBe '2026-01-01'
+    expect(entries[2].manifest_sha256).toBe(bytes.sha256(manifest))
+    expect(entries[1].updated).toBeNil()
+
+    local index = records.siteIndex(repo.site, 'https://base.test', entries)
+    expect([for entry in entries => entry.id]).toEqual { 'beta-id', 'gamma-id' }
+    expect(index.projects).toBe(entries)
+    support.samePinned(siteJson.encode(index, true), 'records/index.json')
+  end)
+end)
+
+suite.describe('offline', function()
+  --- The folders under `/tmp` that a crawl into a table has made, by name.
+  local function crawlFolders(): { [string]: boolean }
+    local found: { [string]: boolean } = {}
+
+    local listed, problem = fs.list '/tmp'
+    if not listed then error(problem, 0) end
+
+    for _, name in listed do
+      if string.sub(name, 1, 25) == 'dreamweave-offline-crawl-' then found[name] = true end
+    end
+
+    return found
+  end
+
+  suite.it('names where the site assets of an archive go', function()
+    expect(offline.SITE_ASSET_ROOT).toBe '_site'
+  end)
+
+  suite.it('crawls a project into a folder, rewriting every page and stylesheet on the way', function()
+    local staged = support.emptied(scratch, 'offline')
+    support.write(`{staged}/stale/left.txt`, 'from an earlier crawl')
+
+    local entries = offline.crawlTo(public, Base, 'mod/', staged)
+    local described = [for entry in entries => `{entry.path} <- {replaced(entry.source, staged, '<staged>')} {entry.executable}`]
+    support.samePinned(table.concat(described, '\n'), 'offline.txt')
+    expect(support.files(staged)).toEqual([for entry in entries => entry.path])
+
+    for _, entry in entries do
+      support.samePinned(support.read(entry.source), `offline/{entry.path}`)
+    end
+  end)
+
+  suite.it('crawls into a table of bytes, and with or without a slash after the base', function()
+    local staged = support.emptied(scratch, 'offline-table')
+    local entries = offline.crawlTo(public, `{Base}///`, 'mod/', staged)
+    local files = offline.crawl(public, Base, 'mod/')
+
+    expect(util.sortedKeys(files)).toEqual([for entry in entries => entry.path])
+
+    for _, entry in entries do
+      expect(files[entry.path] == support.read(entry.source)).toBe(true)
+      support.samePinned(files[entry.path], `offline/{entry.path}`)
+    end
+  end)
+
+  suite.it('crawls a page that is not an index, and refuses a project with no page', function()
+    local staged = support.emptied(scratch, 'offline-other')
+    local entries = offline.crawlTo(public, Base, 'other/', staged)
+    expect([for entry in entries => entry.path]).toEqual { 'index.html' }
+    expect(support.read(`{staged}/index.html`)).toBe '<html><body><a href="https://docs.test/site/mod">Mod</a><ul><li>one</ul></div><A HREF="../MOD/">Shouted</A></body></html>\n'
+
+    expect(function() offline.crawlTo(public, Base, 'absent/', staged) end).toThrow 'offline build has no page at absent/'
+    expect(support.files(staged)).toEqual {}
+
+    -- `crawl` refuses through the same call, and leaves the empty folder it made under `/tmp`
+    -- behind when it does: the ones that appear while it is asked are removed here.
+    local before = crawlFolders()
+    expect(function() offline.crawl(public, Base, 'absent/') end).toThrow 'offline build has no page at absent/'
+
+    for name in crawlFolders() do
+      if not before[name] then fs.remove(`/tmp/{name}`) end
+    end
+  end)
+
+  suite.it('resolves a reference to a path below the site, or to nothing', function()
+    local crawler = offline.DocumentationCrawler.new(public, Base, 'mod/')
+    local function sitePath(reference: string): string return tostring(crawler:sitePath(reference, 'mod/guide/index.html')) end
+
+    expect(sitePath 'https://docs.test/site/mod/').toBe 'mod/'
+    expect(sitePath 'https://docs.test/site').toBe 'nil'
+    expect(sitePath 'https://docs.test/elsewhere/').toBe 'nil'
+    expect(sitePath 'http://docs.test/site/mod/').toBe 'mod/'
+    expect(sitePath 'https://DOCS.test/site/mod/').toBe 'nil'
+    expect(sitePath 'https://elsewhere.test/site/mod/').toBe 'nil'
+    expect(sitePath '/site/img/a%20b.png?size=2#frag').toBe 'img/a b.png'
+    expect(sitePath '/other/').toBe 'nil'
+    expect(sitePath '../extra.html#frag').toBe 'mod/extra.html'
+    expect(sitePath './').toBe 'mod/guide'
+    expect(sitePath '').toBe 'mod/guide'
+    expect(sitePath 'deeper/./x/../y.html').toBe 'mod/guide/deeper/y.html'
+    expect(sitePath '../../../above.html').toBe 'nil'
+    expect(sitePath '../../').toBe ''
+    expect(sitePath '#top').toBe 'nil'
+    expect(sitePath 'mailto:someone@docs.test').toBe 'mod/guide/mailto:someone@docs.test'
+    expect(sitePath 'mailto://someone').toBe 'nil'
+    expect(sitePath 'javascript://x').toBe 'nil'
+    expect(sitePath 'data://x').toBe 'nil'
+    expect(sitePath 'tel://1').toBe 'nil'
+    expect(sitePath '%41%zz%2').toBe 'mod/guide/A%zz%2'
+    expect(tostring(crawler:sitePath('x.html', 'top.html'))).toBe 'x.html'
+  end)
+
+  suite.it('finds the file a site path names and where an archive keeps it', function()
+    local crawler = offline.DocumentationCrawler.new(public, Base, 'mod/')
+
+    expect(crawler:resolveFile 'mod/').toBe 'mod/index.html'
+    expect(crawler:resolveFile 'mod').toBe 'mod/index.html'
+    expect(crawler:resolveFile '').toBe 'index.html'
+    expect(crawler:resolveFile 'mod/extra.html').toBe 'mod/extra.html'
+    expect(crawler:resolveFile 'img/a b.png').toBe 'img/a b.png'
+    expect(crawler:resolveFile 'img/').toBeNil()
+    expect(crawler:resolveFile 'img').toBeNil()
+    expect(crawler:resolveFile 'absent.html').toBeNil()
+    expect(crawler:archivePath 'mod/guide/index.html').toBe 'guide/index.html'
+    expect(crawler:archivePath 'mod/').toBe ''
+    expect(crawler:archivePath 'css/site.css').toBe '_site/css/site.css'
+    expect(crawler:archivePath 'model/x.html').toBe '_site/model/x.html'
+    expect(crawler:isProjectPage 'mod/extra.html').toBe(true)
+    expect(crawler:isProjectPage 'mod/file.txt').toBe(false)
+    expect(crawler:isProjectPage 'other/index.html').toBe(false)
+  end)
+
+  suite.it('localizes a reference and queues what it points at once', function()
+    local crawler = offline.DocumentationCrawler.new(public, Base, 'mod/')
+    local function localized(reference: string): string return crawler:localize(reference, 'mod/guide/index.html') end
+
+    expect(localized '../').toBe '../index.html'
+    expect(localized '../#top').toBe '../index.html#top'
+    expect(localized 'https://docs.test/site/mod/extra.html?x=1&amp;y=2#frag').toBe '../extra.html#frag'
+    expect(localized '../../img/a%20b.png').toBe '../_site/img/a b.png'
+    expect(localized '../../other/').toBe 'https://docs.test/site/other'
+    expect(localized '../../other/#frag').toBe 'https://docs.test/site/other#frag'
+    expect(localized '/site/other/#frag').toBe 'https://docs.test/site/other/#frag'
+    expect(localized '../../').toBe 'https://docs.test/site/'
+    expect(localized '../absent.html').toBe '../absent.html'
+    expect(localized 'https://elsewhere.test/x?a=1&amp;b=2').toBe 'https://elsewhere.test/x?a=1&b=2'
+    expect(localized '&lt;&gt;&quot;&#39;&#x27;&amp;amp;').toBe '<>"\'\'&amp;'
+    expect(localized './').toBe 'index.html'
+    expect(localized '../').toBe '../index.html'
+    expect(crawler.pending).toEqual { 'mod/index.html', 'mod/extra.html', 'img/a b.png', 'mod/guide/index.html' }
+    expect(crawler:localize('guide/', 'mod/index.html')).toBe 'guide/index.html'
+    expect(crawler:localize('extra.html', 'mod/index.html')).toBe 'extra.html'
+    expect(crawler:localize('../css/site.css', 'mod/index.html')).toBe '_site/css/site.css'
+    expect(crawler:localize('more.css', 'css/site.css')).toBe 'more.css'
+    expect(crawler:localize('../img/bg.png', 'css/site.css')).toBe '../img/bg.png'
+    expect(#crawler.pending).toBe(7)
+  end)
+
+  suite.it('localizes a repeated reference as it did the first, queued once', function()
+    local crawler = offline.DocumentationCrawler.new(public, Base, 'mod/')
+    local page = string.rep('<a href="guide/#install">g</a><img src="file.txt" srcset="file.txt 1x, /site/img/logo.png 2x"><p style="x:url(file.txt)">', 3)
+    local once = '<a href="guide/index.html#install">g</a><img src="file.txt" srcset="file.txt 1x, _site/img/logo.png 2x"><p style="x:url(file.txt)">'
+
+    expect(crawler:rewriteHtml(page, 'mod/index.html')).toBe(string.rep(once, 3))
+    expect(crawler.pending).toEqual { 'mod/guide/index.html', 'mod/file.txt', 'img/logo.png' }
+    expect(crawler:rewriteHtml(page, 'mod/guide/index.html')).toBe(string.rep('<a href="guide/#install">g</a><img src="file.txt" srcset="file.txt 1x, ../_site/img/logo.png 2x"><p style="x:url(file.txt)">', 3))
+    expect(crawler:rewriteCss(string.rep('a{b:url(../img/bg.png)}c{d:url("../img/bg.png")}', 2), 'css/site.css')).toBe(string.rep('a{b:url(../img/bg.png)}c{d:url("../img/bg.png")}', 2))
+    expect(crawler.pending).toEqual { 'mod/guide/index.html', 'mod/file.txt', 'img/logo.png', 'img/bg.png' }
+  end)
+
+  suite.it('goes through a crawler\'s own methods when they are replaced, once for each reference', function()
+    local class = offline.DocumentationCrawler
+    local page = '<a href="guide/">a</a><a href="guide/">b</a><img src="file.txt" srcset="file.txt 1x, file.txt 2x"><p style="x:url(file.txt)">'
+    local rewritten = '<a href="guide/index.html">a</a><a href="guide/index.html">b</a><img src="file.txt" srcset="file.txt 1x, file.txt 2x"><p style="x:url(file.txt)">'
+
+    for _, method in { 'localize', 'sitePath', 'resolveFile', 'archivePath', 'isProjectPage', 'enqueue', 'rewriteSrcset', 'rewriteTag', 'rewriteCss' } do
+      local crawler = class.new(public, Base, 'mod/') :: any
+      local calls = 0
+      crawler[method] = function(...)
+        calls += 1
+        return (class :: any)[method](...)
+      end
+
+      expect(crawler:rewriteHtml(page, 'mod/index.html')).toBe(rewritten)
+
+      local expected = {
+        localize = 6,
+        sitePath = 6,
+        resolveFile = 6,
+        archivePath = 12,
+        isProjectPage = 2,
+        enqueue = 6,
+        rewriteSrcset = 1,
+        rewriteTag = 4,
+        rewriteCss = 1,
+      }
+
+      expect(`{method}: {calls}`).toBe(`{method}: {expected[method]}`)
+    end
+
+    local staged = support.emptied(scratch, 'offline-replaced')
+    local counted = class.new(public, Base, 'mod/') :: any
+    local resolves, pages = 0, 0
+    counted.resolveFile = function(...)
+      resolves += 1
+      return class.resolveFile(...)
+    end
+
+    counted.rewriteHtml = function(...)
+      pages += 1
+      return class.rewriteHtml(...)
+    end
+
+    local entries = counted:crawlTo(staged)
+    expect(`{#entries} entries, {pages} pages, {resolves} files looked for`).toBe '9 entries, 3 pages, 45 files looked for'
+  end)
+
+  suite.it('goes through a method replaced on the class itself, or on a class built over it', function()
+    local class = offline.DocumentationCrawler :: any
+    local page = '<a href="guide/">a</a><a href="guide/">b</a><img src="file.txt" srcset="file.txt 1x, file.txt 2x"><p style="x:url(file.txt)">'
+    local rewritten = '<a href="guide/index.html">a</a><a href="guide/index.html">b</a><img src="file.txt" srcset="file.txt 1x, file.txt 2x"><p style="x:url(file.txt)">'
+    local expected = {
+      localize = 6,
+      sitePath = 6,
+      resolveFile = 6,
+      archivePath = 12,
+      isProjectPage = 2,
+      enqueue = 6,
+      rewriteSrcset = 1,
+      rewriteTag = 4,
+      rewriteCss = 1,
+    }
+
+    for _, method in { 'localize', 'sitePath', 'resolveFile', 'archivePath', 'isProjectPage', 'enqueue', 'rewriteSrcset', 'rewriteTag', 'rewriteCss' } do
+      local original = class[method]
+      local calls = 0
+      class[method] = function(...)
+        calls += 1
+        return original(...)
+      end
+
+      -- The class is put back before anything is checked, so a failure here leaves it whole.
+      local out = class.new(public, Base, 'mod/'):rewriteHtml(page, 'mod/index.html')
+      class[method] = original
+
+      expect(out).toBe(rewritten)
+      expect(`{method}: {calls}`).toBe(`{method}: {expected[method]}`)
+
+      local derived = setmetatable({}, { __index = class }) :: any
+      derived.__index = derived
+      calls = 0
+      derived[method] = function(...)
+        calls += 1
+        return original(...)
+      end
+
+      local crawler = setmetatable(class.new(public, Base, 'mod/'), derived) :: any
+      expect(crawler:rewriteHtml(page, 'mod/index.html')).toBe(rewritten)
+      expect(`{method} of a derived class: {calls}`).toBe(`{method} of a derived class: {expected[method]}`)
+    end
+
+    local staged = support.emptied(scratch, 'offline-replaced-class')
+    local resolveFile, rewriteHtml = class.resolveFile, class.rewriteHtml
+    local resolves, pages = 0, 0
+    class.resolveFile = function(...)
+      resolves += 1
+      return resolveFile(...)
+    end
+
+    class.rewriteHtml = function(...)
+      pages += 1
+      return rewriteHtml(...)
+    end
+
+    local entries = class.new(public, Base, 'mod/'):crawlTo(staged)
+    class.resolveFile, class.rewriteHtml = resolveFile, rewriteHtml
+    expect(`{#entries} entries, {pages} pages, {resolves} files looked for`).toBe '9 entries, 3 pages, 45 files looked for'
+
+    -- With the class whole again a crawl remembers what it has looked for, as before.
+    local counted = class.new(public, Base, 'mod/') :: any
+    local remembered = 0
+    counted.rewriteHtml = function(...)
+      remembered += 1
+      return rewriteHtml(...)
+    end
+
+    expect(#counted:crawlTo(staged)).toBe(9)
+    expect(remembered).toBe(3)
+  end)
+
+  suite.it('stages what a replaced rewriter answers with, or refuses it in the words of the write', function()
+    local staged = support.emptied(scratch, 'offline-answers')
+    local answered = offline.DocumentationCrawler.new(public, Base, 'other/') :: any
+    answered.rewriteHtml = function(): buffer return buffer.fromstring 'a buffer for a page' end
+
+    expect(#answered:crawlTo(staged)).toBe(1)
+    expect(support.read(`{staged}/index.html`)).toBe 'a buffer for a page'
+
+    for _, answer in { 5, false, {} } :: { unknown } do
+      local refused = offline.DocumentationCrawler.new(public, Base, 'other/') :: any
+      refused.rewriteHtml = function(): unknown return answer end
+
+      expect(function() refused:crawlTo(staged) end).toThrow(`dream.fs.writeFile: bad argument #2 (expected string or buffer): Lua stack index 2: expected buffer, got {type(answer)}`)
+      expect(support.files(staged)).toEqual {}
+    end
+
+    local sheet = offline.DocumentationCrawler.new(public, Base, 'mod/') :: any
+    sheet.rewriteCss = function(): unknown return nil end
+    expect(function() sheet:crawlTo(staged) end).toThrow 'dream.fs.writeFile: bad argument #2 (expected string or buffer): Lua stack index 2: expected buffer, got nil'
+  end)
+
+  suite.it('asks the disk about every reference when it crawls into the site itself', function()
+    -- The first page is read before the crawl has put anything in the folder, so its reference
+    -- into it is left alone; by the second page the file is there, and is brought along.
+    local site = support.tree(support.emptied(scratch, 'offline-inside'), {
+      ['mod/index.html'] = '<a href="staged/data.txt">not there yet</a> <a href="data.txt">data</a> <a href="b.html">b</a>',
+      ['mod/b.html'] = '<a href="staged/data.txt">there by now</a>',
+      ['mod/data.txt'] = 'data',
+    })
+
+    local entries = offline.crawlTo(site, Base, 'mod/', `{site}/mod/staged`)
+    expect([for entry in entries => entry.path]).toEqual { 'b.html', 'data.txt', 'index.html', 'staged/data.txt' }
+    expect(support.files(`{site}/mod/staged`)).toEqual { 'b.html', 'data.txt', 'index.html', 'staged/data.txt' }
+    expect(support.read(`{site}/mod/staged/staged/data.txt`)).toBe 'data'
+  end)
+
+  suite.it('raises in the disk\'s words when a page cannot be staged', function()
+    -- The project's own `_site` folder and the site's assets land in one place in an archive:
+    -- here a folder is staged where a stylesheet then has to go.
+    local site = support.tree(support.emptied(scratch, 'offline-refused'), {
+      ['mod/index.html'] = '<a href="_site/q.css/inside.txt">a file in a folder</a> <link href="/site/q.css">',
+      ['mod/_site/q.css/inside.txt'] = 'inside',
+      ['q.css'] = 'a { color: red }',
+    })
+
+    local staged = support.emptied(scratch, 'offline-refused-staged')
+
+    -- `fs.writeFile` answers a path that is a folder with why, and the crawl must refuse the
+    -- stylesheet in the same words, whatever this system's words for it are.
+    local wrote, refusal = fs.writeFile(`{site}/mod/_site/q.css`, 'over a folder', { atomic = true, createParents = true })
+    -- offline.crawlTo raises for the stylesheet it can't stage, in the write's words.
+    local crawled, problem = pcall(offline.crawlTo, site, Base, 'mod/', staged)
+
+    expect(wrote).toBe(nil)
+    expect(crawled).toBe(false)
+    -- The disk's words are what follows the path each message names.
+    local function words(message: unknown): string? return string.match(tostring(message), ': ([^:\n]*)$') end
+
+    expect(words(problem)).toBe(words(refusal))
+    expect(support.files(staged)).toEqual { '_site/q.css/inside.txt', 'index.html' }
+  end)
+
+  suite.it('rewrites the attributes of a tag, a srcset and the URLs of a stylesheet', function()
+    local crawler = offline.DocumentationCrawler.new(public, Base, 'mod/')
+    local function tag(text: string): string return crawler:rewriteTag(text, 'mod/index.html') end
+
+    expect(tag '<a href="guide/" class="x">').toBe '<a href="guide/index.html" class="x">'
+    expect(tag '<a class="x" href="guide/" data-href="guide/" xhref="guide/">').toBe '<a class="x" href="guide/index.html" data-href="guide/index.html" xhref="guide/">'
+    expect(tag '<a href="guide/" data-dw-online>').toBe '<a href="guide/" data-dw-online>'
+    expect(tag '<a HREF="guide/" href=\'guide/\' href=guide/>').toBe '<a HREF="guide/" href=\'guide/\' href=guide/>'
+    expect(tag '<a href = "guide/">').toBe '<a href = "guide/">'
+    expect(tag '<video poster="/site/img/bg.png" src="file.txt" href="">').toBe '<video poster="_site/img/bg.png" src="file.txt" href="index.html">'
+    expect(tag '<a href="https://elsewhere.test/?a=1&amp;b=&lt;&gt;&quot;&#39;">').toBe '<a href="https://elsewhere.test/?a=1&amp;b=&lt;&gt;&quot;&#x27;">'
+    expect(tag '<img srcset="/site/img/logo.png 1x,/site/img/a%20b.png   2x ,, absent.png 3x,">').toBe '<img srcset="_site/img/logo.png 1x, _site/img/a b.png 2x, absent.png 3x">'
+    expect(tag '<img src="/site/img/logo.png" srcset="">').toBe '<img src="_site/img/logo.png" srcset="">'
+    expect(crawler:rewriteSrcset('  ', 'mod/index.html')).toBe ''
+    expect(crawler:rewriteSrcset('/site/img/logo.png', 'mod/guide/index.html')).toBe '../_site/img/logo.png'
+
+    local sheet = 'a{b:url("/site/img/bg.png")}c{d:url(\'/site/img/logo.png\')}e{f:url(/site/img/a%20b.png)}g{h:url()}i{j:url("")}k{l:url( /site/img/bg.png )}m{n:URL("/site/img/bg.png")}'
+    expect(crawler:rewriteCss(sheet, 'mod/index.html')).toBe 'a{b:url("_site/img/bg.png")}c{d:url(\'_site/img/logo.png\')}e{f:url(_site/img/a b.png)}g{h:url()}i{j:url("")}k{l:url( /site/img/bg.png )}m{n:URL("/site/img/bg.png")}'
+    expect(crawler:rewriteHtml('<p style="x:url(/site/img/bg.png)"><a href="guide/">g</a></p><!-- <a href="guide/"> --><3 href="guide/">', 'mod/index.html')).toBe '<p style="x:url(_site/img/bg.png)"><a href="guide/index.html">g</a></p><!-- <a href="guide/index.html"> --><3 href="guide/">'
+  end)
+end)
+
+suite.describe('site check', function()
+  suite.it('reports every unbalanced page, missing target and missing anchor of a site', function()
+    support.samePinned(support.describe(sitecheck.check(public, 'https://docs.test/site/')), 'sitecheck.txt')
+    expect(sitecheck.check(public, 'https://docs.test/site')).toEqual(sitecheck.check(public, 'https://docs.test/site///'))
+  end)
+
+  suite.it('reports links by the base it is given', function()
+    support.samePinned(support.describe(sitecheck.check(public, 'https://docs.test')), 'sitecheck-root.txt')
+    support.samePinned(support.describe(sitecheck.check(public, 'http://DOCS.test/site/deeper/')), 'sitecheck-deeper.txt')
+  end)
+
+  suite.it('reads tags and attributes however they are written', function()
+    local root = support.tree(support.emptied(scratch, 'sitecheck-tags'), {
+      ['index.html'] = table.concat({
+        '<a href=one.html>bare</a>',
+        '<a href=\'two.html\'>single</a>',
+        '<A HREF="THREE.html">shouted</A>',
+        '<a\thref\n=\n"four.html"\n>spread</a>',
+        '<a href="five.html" href="six.html">last wins</a>',
+        '<a href="unclosed.html>runs to the end of the tag</a>',
+        '<a href=>empty</a><a href>none</a><a href="">blank</a>',
+        '<a/href="seven.html"/>slashes</a>',
+        '<link href="eight.css"><link rel=x>',
+        '<img src="nine.png"><script src=ten.js></script><source src=\'eleven.webm\'><img src="">',
+        '<video src="skipped.webm"></video><a name="skipped.html">other attributes</a>',
+        '<a href="one.html#&amp;&lt;&gt;&quot;&#39;&#x27;">entities</a><p id="&amp;&lt;&gt;&quot;&#39;&#x27;">',
+        '<a href="one.html#caf%C3%A9">encoded</a><p id=café><p ID=shout><a href="#shout">local</a>',
+        '<a href="one.html#bare">bare id</a><a href="one.html?q=1#bare">query</a>',
+        '<!DOCTYPE html><!-- <a href="comment.html"> --><!a href="bang.html">',
+        '< a href="spaced.html">spaced</ a><3 href="number.html"><a:b href="colon.html"><link:x href="colon.css">',
+        '<a href="twelve.html" <a href="thirteen.html">nested opener</a>',
+        '<a href="x>y.html">a tag ends at the first angle</a>',
+        '<a href="fourteen.html"\v\f\r>other space</a><a href="fifteen.html"/>',
+        '<a href = fifteen.html/>bare to the angle</a><a href=sixteen.html id=late>',
+        '<a href="one.html#late">an id on another page</a><a href="#late">and on this one</a>',
+        '<!--><a href="lost.html">a comment that never ends takes the rest</a>',
+        '<a href="last.html"',
+      }, '\n'),
+      ['one.html'] = '<p id=bare></p><p id="&<>&quot;\'\'">',
+    })
+
+    support.samePinned(support.describe(sitecheck.check(root, 'https://tags.test/')), 'sitecheck-tags.txt')
+  end)
+
+  suite.it('counts what balances and reports the first two that do not', function()
+    local root = support.tree(support.emptied(scratch, 'sitecheck-balance'), {
+      ['a.html'] = '<div><main><section><article><aside><header><footer><nav><ul><ol><table><details><figure><dl></dl></figure></details></table></ol></ul></nav></footer></header></aside></article></section></main></div>',
+      ['b.html'] = '<DIV><Section></SECTION></div><p><span></p></span><br/><div/></div>',
+      ['c.html'] = '</div></ul></ol>',
+      ['d.html'] = '<div><ul><ol><nav><dl>',
+      ['e.html'] = '<ul><li></ol><li></ul>',
+      ['f.HTML'] = '<div>',
+      ['g.htm'] = '<div>',
+      ['deep/index.html'] = '<table><div></table>',
+    })
+
+    support.samePinned(support.describe(sitecheck.check(root, 'https://balance.test/')), 'sitecheck-balance.txt')
+  end)
+
+  suite.it('says so when a folder holds no pages', function()
+    local root = support.tree(support.emptied(scratch, 'sitecheck-empty'), { ['notes.txt'] = 'no pages' })
+    expect(sitecheck.check(root, 'https://empty.test/')).toEqual {
+      pages = 0,
+      links = 0,
+      problems = { `{root} has no HTML; run zola build first` },
+    }
+
+    expect(sitecheck.check(`{root}/absent`, 'https://empty.test/').problems).toEqual { `{root}/absent has no HTML; run zola build first` }
+  end)
+end)
+
+suite.describe('locks and release state', function()
+  suite.it('reads what CI recorded, and names what a client would trip on', function()
+    local root = support.repository(support.emptied(scratch, 'locks'))
+    local repo = model.load(root)
+    local alpha = assert(model.projectBySlug(repo, 'alpha'))
+    expect(repo.errors).toEqual {}
+    expect(#repo.locks[alpha.id]).toBe(1)
+    expect(repo.locks[alpha.id][1].version).toBe '1.1.0'
+    expect(repo.locks[alpha.id][1].locked_from).toBe '89abcdef89abcdef89abcdef89abcdef89abcdef'
+    expect(repo.locks[alpha.id][1].semantics.critical_extensions).toEqual { 'openmw' }
+
+    local problems: { string } = {}
+    support.write(`{root}/content/alpha/mod.lock`, 'locked')
+    expect(model.readLock(root, alpha, problems)).toEqual {}
+    expect(#problems).toBe(1)
+    expect(string.find(problems[1], 'content/alpha/mod.lock is not valid JSON', 1, true) ~= nil).toBe(true)
+
+    problems = {}
+    support.write(`{root}/content/alpha/mod.lock`, '{"schema_version":"2","document":"lock","project":"beta-id","releases":[]}')
+    model.readLock(root, alpha, problems)
+    expect(string.find(problems[1], "belongs to project 'beta-id'", 1, true) ~= nil).toBe(true)
+
+    problems = {}
+    support.write(
+      `{root}/content/alpha/mod.lock`,
+      '{"schema_version":"2","document":"lock","project":"alpha-id","releases":[{"version":"9.9.9","locked_from":"","artifacts":[{"id":"flat","size":0,"digests":{"sha256":"zz"}}],"runtimes":{},"platforms":[],"provides":[],"relationships":[],"components":[],"groups":[],"extensions":{}}]}'
+    )
+    model.readLock(root, alpha, problems)
+    expect(#problems).toBe(3)
+    expect(string.find(problems[1], 'malformed sha256', 1, true) ~= nil).toBe(true)
+    expect(string.find(problems[2], 'no valid size', 1, true) ~= nil).toBe(true)
+    expect(string.find(problems[3], 'records 9.9.9, which mod.toml does not declare', 1, true) ~= nil).toBe(true)
+  end)
+
+  suite.it('tells published, unverified and planned releases apart, and counts development past them', function()
+    local root = support.repository(support.emptied(scratch, 'release-state'))
+    support.write(`{root}/.git/packed-refs`, '# pack-refs with: peeled fully-peeled sorted\n' .. 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa refs/tags/alpha-1.0.0\n' .. 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb refs/tags/v1.1.0\n' .. '^cccccccccccccccccccccccccccccccccccccccc\n')
+    local repo = model.load(root, { buildNumber = 7 })
+    local alpha = assert(model.projectBySlug(repo, 'alpha'))
+    local state = model.releaseState(repo, alpha)
+    expect(#state.published).toBe(1)
+    expect(state.published[1].tag).toBe 'v1.1.0'
+    expect(state.published[1].revision).toBe '89abcdef89abcdef89abcdef89abcdef89abcdef'
+    expect(state.unverified).toEqual { '1.0.0' }
+    expect(state.planned).toEqual {}
+    expect(gitIndex.tagRevision(root, 'v1.1.0')).toBe 'cccccccccccccccccccccccccccccccccccccccc'
+    expect(gitIndex.tagRevision(root, 'alpha-1.0.0')).toBe 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+    expect(gitIndex.tagRevision(root, 'nothing')).toBe(nil)
+    expect(model.developmentVersion(repo, alpha).text).toBe '1.1.1-dev.7'
+
+    local beta = assert(model.projectBySlug(repo, 'beta'))
+    expect(model.releaseState(repo, beta).published).toEqual {}
+  end)
+
+  suite.it('writes a lock back the way CI wrote it', function()
+    local root = support.repository(support.emptied(scratch, 'lock-write'))
+    local before = support.read(`{root}/content/alpha/mod.lock`)
+    local repo = model.load(root)
+    local alpha = assert(model.projectBySlug(repo, 'alpha'))
+    records.writeLock(alpha, root, repo.locks[alpha.id])
+    expect(support.read(`{root}/content/alpha/mod.lock`)).toBe(before)
+  end)
+end)
+
+suite.describe('release and record', function()
+  suite.it('builds a tagged release into dist with its record, and records it on the default branch once', function()
+    local root = support.repository(support.emptied(scratch, 'release'))
+    local work, dist = support.emptied(scratch, 'release-work'), support.emptied(scratch, 'release-dist')
+    support.write(`{root}/.git/packed-refs`, '0123456789abcdef0123456789abcdef01234567 refs/tags/alpha-1.0.0\n')
+
+    expect(function() build.release(root, 'alpha-9.0.0', { workspace = work, dist = dist }) end).toThrow 'has no [[releases]] entry for 9.0.0'
+    expect(function() build.release(root, 'nobody-1.0.0', { workspace = work, dist = dist }) end).toThrow "Tag 'nobody-1.0.0' does not name a project"
+
+    local released = build.release(root, 'alpha-1.0.0', { workspace = work, dist = dist })
+    expect(released.project.slug).toBe 'alpha'
+    expect(released.version.text).toBe '1.0.0'
+    expect([for artifact in released.artifacts => artifact.filename]).toEqual { 'alpha.zip' }
+    expect(released.record).toBe(`{dist}/release.json`)
+    expect(support.files(dist)).toEqual { 'alpha.zip', 'github-release', 'nexus.json', 'release-notes.md', 'release.json', 'sign.txt' }
+    expect(support.read(`{dist}/github-release`)).toBe 'alpha-1.0.0\n'
+    expect(support.read(`{dist}/nexus.json`)).toBe '[]'
+    expect((string.find(support.read(`{dist}/release-notes.md`), '## Alpha 1.0.0', 1, true))).toBe(1)
+
+    local record = jessJson.decode(support.read(`{dist}/release.json`)) :: { [string]: unknown }
+    expect(record.project).toBe 'alpha-id'
+    expect(record.tag).toBe 'alpha-1.0.0'
+    local release = record.release :: { [string]: unknown }
+    expect(release.version).toBe '1.0.0'
+    expect(release.locked_from).toBe '0123456789abcdef0123456789abcdef01234567'
+    local artifact = (release.artifacts :: { { [string]: unknown } })[1]
+    expect(artifact.filename).toBe 'alpha.zip'
+    expect(artifact.size).toBe(#support.read(`{dist}/alpha.zip`))
+    expect(artifact.digests).toEqual { sha256 = bytes.sha256(support.read(`{dist}/alpha.zip`)) }
+
+    local lock = build.record(root, `{dist}/release.json`)
+    expect(lock).toBe(`{root}/content/alpha/mod.lock`)
+    local recorded = model.load(root)
+    local alpha = assert(model.projectBySlug(recorded, 'alpha'))
+    expect([for locked in recorded.locks[alpha.id] => locked.version]).toEqual { '1.0.0', '1.1.0' }
+    expect(recorded.errors).toEqual {}
+
+    -- The same record again changes nothing; other bytes under the same version are refused.
+    expect(build.record(root, `{dist}/release.json`)).toBe(nil)
+    local changed = string.gsub(support.read(`{dist}/release.json`), bytes.sha256(support.read(`{dist}/alpha.zip`)), string.rep('f', 64))
+    support.write(`{dist}/other.json`, changed)
+    expect(function() build.record(root, `{dist}/other.json`) end).toThrow 'alpha-1.0.0 is not the release already recorded for 1.0.0'
+
+    -- A published release is in the manifest from then on, newest first, with its sources.
+    local built = build.build(root, { workspace = work, dist = support.emptied(scratch, 'release-dist-2'), date = '2026-01-01', buildNumber = 3 })
+    local manifest = jessJson.decode(support.read(`{root}/static/dreamweave/projects/alpha-id.json`)) :: { [string]: unknown }
+    local releases = manifest.releases :: { { [string]: unknown } }
+    expect([for entry in releases => entry.version]).toEqual { '1.1.1-dev.3', '1.1.0', '1.0.0' }
+    expect((releases[2].source :: { [string]: unknown }).tag).toBe 'v1.1.0'
+    expect((releases[3].source :: { [string]: unknown }).tag).toBe 'alpha-1.0.0'
+    expect(((releases[3].artifacts :: { { [string]: unknown } })[1].sources :: { { [string]: unknown } })[1].url).toBe 'https://github.com/Owner/Fixture-Mods/releases/download/alpha-1.0.0/alpha.zip'
+    expect((manifest.channels :: { [string]: { version: string } }).stable.version).toBe '1.1.0'
+    expect(built.errors).toEqual {}
+  end)
+
+  suite.it('packs a Jess package from its Package Source, at a tag and as a development build', function()
+    local root = support.repository(support.emptied(scratch, 'release-jpk'))
+    local work, dist = support.emptied(scratch, 'release-jpk-work'), support.emptied(scratch, 'release-jpk-dist')
+    support.write(`{root}/.git/packed-refs`, '0123456789abcdef0123456789abcdef01234567 refs/tags/zeta-0.1.0\n')
+    local filename = 'org.fixture.zeta-0.1.0.jpk'
+
+    local released = build.release(root, 'zeta-0.1.0', { workspace = work, dist = dist })
+    expect([for artifact in released.artifacts => artifact.filename]).toEqual { filename }
+    local archive = support.read(`{dist}/{filename}`)
+    local opened = jessPackage.open(`{dist}/{filename}`)
+    expect(opened.id).toBe 'org.fixture.zeta'
+    expect(opened.version).toBe '0.1.0'
+    -- The JPK is the source: same files, same content digest.
+    expect(opened.digest).toBe(jessPackage.open(root).digest)
+    local jess = released.artifacts[1].jess :: { [string]: unknown }
+    expect(jess.package).toBe 'org.fixture.zeta'
+    expect(jess.jess_api).toBe '1'
+    expect(jess.content_digest).toBe(opened.digest)
+    expect(jess.dependencies).toEqual { ['org.fixture.words'] = '1.2' }
+    expect(support.read(`{dist}/sign.txt`)).toBe ''
+
+    local record = jessJson.decode(support.read(`{dist}/release.json`)) :: { [string]: unknown }
+    local artifact = ((record.release :: { [string]: unknown }).artifacts :: { { [string]: unknown } })[1]
+    expect(artifact.format).toBe 'jpk'
+    expect(artifact.media_type).toBe 'application/vnd.jess.jpk'
+    expect(artifact.size).toBe(#archive)
+    expect(artifact.digests).toEqual { sha256 = bytes.sha256(archive) }
+    expect((artifact.jess :: { [string]: unknown }).content_digest).toBe(opened.digest)
+
+    -- Recorded, the lock says schema_version 3 and reads back as it was written.
+    expect(build.record(root, `{dist}/release.json`)).toBe(`{root}/content/zeta/mod.lock`)
+    local lockText = support.read(`{root}/content/zeta/mod.lock`)
+    expect((string.find(lockText, '"schema_version": "3"', 1, true)) ~= nil).toBe(true)
+    expect((string.find(lockText, `"content_digest": "{opened.digest}"`, 1, true)) ~= nil).toBe(true)
+    local recorded = model.load(root)
+    expect(recorded.errors).toEqual {}
+    local zeta = assert(model.projectBySlug(recorded, 'zeta'))
+    records.writeLock(zeta, root, recorded.locks[zeta.id])
+    expect(support.read(`{root}/content/zeta/mod.lock`)).toBe(lockText)
+
+    -- A build packs the development build past the newest release, at a version of its own: the
+    -- same files with jess.toml revised, so another content digest. The manifest carries both, the
+    -- development build first, and the index names the package.
+    local dist2 = support.emptied(scratch, 'release-jpk-dist-2')
+    build.build(root, { workspace = work, dist = dist2, date = '2026-01-01', buildNumber = 3 })
+    local manifest = jessJson.decode(support.read(`{root}/static/dreamweave/projects/zeta-id.json`)) :: { [string]: unknown }
+    expect(manifest.schema_version).toBe '3'
+    local releases = manifest.releases :: { { [string]: unknown } }
+    expect([for entry in releases => entry.version]).toEqual { '0.1.1-dev.3', '0.1.0' }
+    local development = (releases[1].artifacts :: { { [string]: unknown } })[1]
+    expect(development.filename).toBe 'org.fixture.zeta-0.1.1-dev.3.jpk'
+    expect(development.format).toBe 'jpk'
+    expect((development.sources :: { { [string]: unknown } })[1].url).toBe 'https://github.com/Owner/Fixture-Mods/releases/download/development/org.fixture.zeta-0.1.1-dev.3.jpk'
+    local developed = jessPackage.open(`{dist2}/org.fixture.zeta-0.1.1-dev.3.jpk`)
+    expect(developed.version).toBe '0.1.1-dev.3'
+    expect(developed.digest == opened.digest).toBe(false)
+    local developedJess = development.jess :: { [string]: unknown }
+    expect(developedJess.package).toBe 'org.fixture.zeta'
+    expect(developedJess.content_digest).toBe(developed.digest)
+    expect(developedJess.dependencies).toEqual { ['org.fixture.words'] = '1.2' }
+    expect(development.digests).toEqual { sha256 = bytes.sha256(support.read(`{dist2}/org.fixture.zeta-0.1.1-dev.3.jpk`)) }
+    -- The source on disk still says 0.1.0.
+    expect(jessPackage.open(root).version).toBe '0.1.0'
+    local published = (releases[2].artifacts :: { { [string]: unknown } })[1]
+    expect((published.jess :: { [string]: unknown }).package).toBe 'org.fixture.zeta'
+    expect((published.sources :: { { [string]: unknown } })[1].url).toBe(`https://github.com/Owner/Fixture-Mods/releases/download/zeta-0.1.0/{filename}`)
+    local index = jessJson.decode(support.read(`{root}/static/dreamweave.json`)) :: { [string]: unknown }
+    local entries = index.projects :: { { [string]: unknown } }
+    expect(entries[#entries].id).toBe 'zeta-id'
+    expect(entries[#entries].jess_package).toBe 'org.fixture.zeta'
+    expect(entries[1].jess_package).toBeNil()
+
+    -- A jess.toml whose version is not the tag's is refused before anything is packed.
+    support.write(`{root}/jess.toml`, (string.gsub(support.read(`{root}/jess.toml`), '0%.1%.0', '0.2.0')))
+    expect(function() build.release(root, 'zeta-0.1.0', { workspace = work, dist = dist }) end).toThrow 'jess.toml says org.fixture.zeta is version 0.2.0; the tag releases 0.1.0'
+
+    -- Without a Package Source of that id the project publishes nothing.
+    fs.remove(`{root}/jess.toml`)
+    local missing = model.load(root)
+    expect(missing.errors).toEqual {
+      `content/zeta/mod.toml: jess = "org.fixture.zeta" names no Package Source of this repository's jess workspace: there is no jess-workspace.toml and no jess.toml at the root`,
+    }
+  end)
+
+  suite.it('names the site files that replace the theme\'s, and leaves the branding hook alone', function()
+    local root = smallRepository('shadowed', {
+      ['content/a/mod.toml'] = 'id = "a"\nslug = "a"\n',
+      ['content/a/index.md'] = '+++\ntitle = "A"\n+++\n',
+      ['templates/mod/landing.html'] = '<p>mine</p>\n',
+      ['templates/mine/only.html'] = '<p>only mine</p>\n',
+      ['sass/brand.sass'] = '// branding\n',
+      ['sass/_tokens.sass'] = '$x: 1\n',
+      ['static/img/glider.svg'] = '<svg/>\n',
+      ['static/mine.css'] = '',
+    })
+    expect(build.shadowed(root)).toEqual { 'sass/_tokens.sass', 'static/img/glider.svg', 'templates/mod/landing.html' }
+    expect(build.shadowed(support.emptied(scratch, 'shadowed-none'))).toEqual {}
+  end)
+
+  suite.it('answers check as the command does: whether the repository is valid, and what shadows the theme', function()
+    local root = support.repository(support.emptied(scratch, 'commands-check'))
+    local checked = commands.check(root)
+    expect(checked.ok).toBe(true)
+    expect(checked.projects).toBe(6)
+    expect(checked.errors).toEqual {}
+    -- The fixture carries templates of its own, each one replacing the theme's of that name.
+    local own = { 'templates/404.html', 'templates/index.html', 'templates/mod/changelog.html', 'templates/page.html', 'templates/section.html', 'templates/taxonomy_list.html', 'templates/taxonomy_single.html' }
+    expect(checked.shadowed).toEqual(own)
+    support.write(`{root}/templates/mod/rail.html`, '<aside/>\n')
+    table.insert(own, 4, 'templates/mod/rail.html')
+    expect(commands.check(root).shadowed).toEqual(own)
+    support.write(`{root}/content/dup/mod.toml`, 'id = "alpha-id"\nslug = "dup"\n')
+    support.write(`{root}/content/dup/index.md`, '+++\ntitle = "Dup"\n+++\n')
+    local invalid = commands.check(root)
+    expect(invalid.ok).toBe(false)
+    expect(invalid.errors).toEqual { 'content/dup: duplicate id alpha-id' }
+  end)
+
+  suite.it('finds each Jess package among the workspace members its project names', function()
+    local manifest = function(id: string, version: string, extra: string): string
+      return `manifest_version = 1\n[package]\nid = "{id}"\nversion = "{version}"\njess_api = "1"\ninclude = ["src"]\n{extra}`
+    end
+    local project = function(name: string, jess: string?): string
+      return `id = "{name}-id"\nslug = "{name}"\n[package]\nformat = "jpk"\n{if jess then `jess = "{jess}"\n` else ''}`
+    end
+    local root = smallRepository('model-jess-members', {
+      ['jess-workspace.toml'] = 'manifest_version = 1\n[workspace]\nmembers = ["jpk/one", "jpk/two"]\n',
+      ['jpk/one/jess.toml'] = manifest('org.small.one', '1.0.0', ''),
+      ['jpk/one/src/init.jsl'] = 'return {}\n',
+      ['jpk/two/jess.toml'] = manifest('org.small.two', '2.0.0', '[dependencies]\n"org.small.one" = "1"\n'),
+      ['jpk/two/src/init.jsl'] = 'return {}\n',
+      ['content/a/mod.toml'] = project('one', 'org.small.one'),
+      ['content/a/index.md'] = '+++\ntitle = "One"\n+++\n',
+      ['content/b/mod.toml'] = project('two', 'org.small.two'),
+      ['content/b/index.md'] = '+++\ntitle = "Two"\n+++\n',
+      ['content/c/mod.toml'] = project('three'),
+      ['content/c/index.md'] = '+++\ntitle = "Three"\n+++\n',
+      ['content/d/mod.toml'] = project('four', 'org.small.one'),
+      ['content/d/index.md'] = '+++\ntitle = "Four"\n+++\n',
+      ['content/e/mod.toml'] = project('five', 'org.small.nine'),
+      ['content/e/index.md'] = '+++\ntitle = "Five"\n+++\n',
+    })
+
+    local repo = model.load(root)
+    expect(repo.errors).toEqual {
+      'content/c/mod.toml: format = "jpk" needs jess = "<package id>", the Jess package this project publishes',
+      'content/d: content/a already publishes org.small.one; one project publishes one package',
+      `content/e/mod.toml: jess = "org.small.nine" names no Package Source of this repository's jess workspace; it has org.small.one, org.small.two`,
+    }
+    local one = assert(model.projectBySlug(repo, 'one')).package_jess :: model.JessPackage
+    local two = assert(model.projectBySlug(repo, 'two')).package_jess :: model.JessPackage
+    expect(one.source).toBe 'jpk/one'
+    expect(one.version).toBe '1.0.0'
+    expect(two.source).toBe 'jpk/two'
+    expect(two.dependencies).toEqual { ['org.small.one'] = '1' }
+    expect(model.jessManifestPath(two)).toBe 'jpk/two/jess.toml'
+    expect(assert(model.projectBySlug(repo, 'four')).package_jess).toBeNil()
+
+    -- Each packs from its own folder, the tagged one at its version, as a release does.
+    local dist = support.emptied(scratch, 'model-jess-members-dist')
+    support.write(`{root}/content/b/mod.toml`, project('two', 'org.small.two') .. '[[releases]]\nversion = "2.0.0"\ndate = 2026-01-01\n')
+    support.write(`{root}/content/c/mod.toml`, project('three', 'org.small.two'))
+    fs.remove(`{root}/content/d/mod.toml`)
+    fs.remove(`{root}/content/e/mod.toml`)
+    support.write(`{root}/content/c/mod.toml`, 'id = "three-id"\nslug = "three"\n')
+    support.track(root)
+    support.write(`{root}/.git/packed-refs`, '0123456789abcdef0123456789abcdef01234567 refs/tags/two-2.0.0\n')
+    local released = build.release(root, 'two-2.0.0', { workspace = support.emptied(scratch, 'model-jess-members-work'), dist = dist })
+    expect(released.artifacts[1].filename).toBe 'org.small.two-2.0.0.jpk'
+    expect(jessPackage.open(`{dist}/org.small.two-2.0.0.jpk`).digest).toBe(jessPackage.open(`{root}/jpk/two`).digest)
+  end)
+end)
+
+suite.describe('recording published releases', function()
+  --- A fetcher answering from `responses`, URL to body (status 200) or to a status number.
+  local function canned(responses: { [string]: string | number }): (record.Fetch, { string })
+    local asked: { string } = {}
+
+    return function(url: string, headers: { [string]: string }?): (record.Fetched?, string?)
+      table.insert(asked, url .. (if headers and headers.Authorization then ' (authorized)' else ''))
+      local answer = responses[url]
+
+      if answer == nil then return nil, 'connection refused' end
+
+      if type(answer) == 'number' then return { status = answer, body = buffer.create(0) }, nil end
+
+      return { status = 200, body = buffer.fromstring(answer :: string) }, nil
+    end, asked
+  end
+
+  suite.it('finds a crate in the sparse index', function()
+    expect(record.cratesIndexPath 'a').toBe '1/a'
+    expect(record.cratesIndexPath 'ab').toBe '2/ab'
+    expect(record.cratesIndexPath 'abc').toBe '3/a/abc'
+    expect(record.cratesIndexPath 'Fixture-Lib').toBe 'fi/xt/fixture-lib'
+  end)
+
+  suite.it('records the crate versions crates.io has, and only those, held to the index checksum', function()
+    local root = smallRepository('record-crates', {
+      ['content/lib/mod.toml'] = 'id = "lib-id"\nslug = "lib"\n\n[package]\nformat = "crate"\ncrate = "fixture-lib"\n\n[[releases]]\nversion = "1.0.0"\ndate = 2025-01-01\n\n[[releases]]\nversion = "1.1.0"\ndate = 2025-02-02\n',
+      ['content/lib/index.md'] = '+++\ntitle = "Lib"\n+++\n',
+    })
+    local one = 'the first crate'
+    local fetch, asked = canned {
+      ['https://index.crates.io/fi/xt/fixture-lib'] = `\{"name":"fixture-lib","vers":"1.0.0","cksum":"{bytes.sha256(one)}"}\n`,
+      ['https://static.crates.io/crates/fixture-lib/fixture-lib-1.0.0.crate'] = one,
+    }
+
+    local recorded = record.crates(root, { fetch = fetch })
+    expect(recorded.locks).toEqual { `{root}/content/lib/mod.lock` }
+    expect(#recorded.notes).toBe(2)
+    expect((string.find(recorded.notes[1], 'Recorded fixture-lib 1.0.0: fixture-lib-1.0.0.crate 15 bytes', 1, true)) ~= nil).toBe(true)
+    expect((string.find(recorded.notes[2], 'fixture-lib 1.1.0 is not on crates.io yet', 1, true)) ~= nil).toBe(true)
+    expect(#asked).toBe(2)
+
+    local repo = model.load(root)
+    local lib = assert(model.projectBySlug(repo, 'lib'))
+    expect(#repo.locks[lib.id]).toBe(1)
+    local artifact = repo.locks[lib.id][1].artifacts[1] :: { [string]: unknown }
+    expect(artifact.format).toBe 'crate'
+    expect(artifact.media_type).toBe 'application/gzip'
+    expect((artifact.digests :: { [string]: unknown }).sha256).toBe(bytes.sha256(one))
+    expect(repo.errors).toEqual {}
+
+    -- Run again: 1.0.0 is recorded, 1.1.0 is still not on crates.io, and nothing changes.
+    local again = record.crates(root, { fetch = fetch })
+    expect(again.locks).toEqual {}
+    expect(#again.notes).toBe(1)
+
+    -- An index that can't be read is a note, never a guess; a checksum that doesn't match stops.
+    local unreachable = record.crates(root, { fetch = canned {} })
+    expect(unreachable.locks).toEqual {}
+    expect((string.find(unreachable.notes[1], 'could not read the crates.io index', 1, true)) ~= nil).toBe(true)
+    local lying = canned {
+      ['https://index.crates.io/fi/xt/fixture-lib'] = `\{"name":"fixture-lib","vers":"1.1.0","cksum":"{string.rep('0', 64)}"}\n`,
+      ['https://static.crates.io/crates/fixture-lib/fixture-lib-1.1.0.crate'] = 'other bytes',
+    }
+    expect(function() record.crates(root, { fetch = lying }) end).toThrow 'but the crates.io index says'
+  end)
+
+  suite.it("records a program's tagged releases from GitHub, the desktop archives it has, with the token on the API call alone", function()
+    local root = support.tree(support.emptied(scratch, 'record-releases'), {
+      ['config.toml'] = 'base_url = "https://tool.test"\ntitle = "Tool"\n\n[extra]\ngithub_username = "Owner"\ngithub_project = "Tool"\n',
+      ['content/tool/mod.toml'] = 'id = "tool-id"\nslug = "tool"\ntype = "tool"\n\n[package]\nformat = "binary"\nbinary = "lantern"\n\n[[platforms]]\nos = "linux"\narch = "x86_64"\n\n[[platforms]]\nos = "windows"\narch = "x86_64"\n\n[[platforms]]\nos = "linux"\narch = "aarch64"\nvariant = "portmaster"\n\n[[releases]]\nversion = "1.0.0"\ndate = 2025-03-03\n\n[[releases]]\nversion = "1.1.0"\ndate = 2025-04-04\n\n[[releases]]\nversion = "2.0.0"\ndate = 2025-05-05\n',
+      ['content/tool/index.md'] = '+++\ntitle = "Lantern"\n+++\n',
+      ['.git/HEAD'] = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n',
+      ['.git/packed-refs'] = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa refs/tags/1.0.0\nbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb refs/tags/1.1.0\n',
+    })
+    local repo = model.load(root)
+    local tool = assert(model.projectBySlug(repo, 'tool'))
+    local linux = model.binaryArchive(tool, tool.platforms[1])
+    local windows = model.binaryArchive(tool, tool.platforms[2])
+    local handheld = model.binaryArchive(tool, tool.platforms[3])
+    local linuxBytes, handheldBytes = 'linux build', 'handheld build'
+    local fetch, asked = canned {
+      ['https://api.github.com/repos/Owner/Tool/releases/tags/1.0.0'] = `\{"draft":false,"assets":[\{"name":"{linux}","browser_download_url":"https://dl.test/{linux}","digest":"sha256:{bytes.sha256(linuxBytes)}"},\{"name":"{handheld}","browser_download_url":"https://dl.test/{handheld}"}]}`,
+      [`https://dl.test/{linux}`] = linuxBytes,
+      [`https://dl.test/{handheld}`] = handheldBytes,
+      ['https://api.github.com/repos/Owner/Tool/releases/tags/1.1.0'] = 404,
+    }
+
+    local recorded = record.githubReleases(root, { fetch = fetch, githubToken = 'secret' })
+    expect(recorded.locks).toEqual { `{root}/content/tool/mod.lock` }
+    expect(#recorded.notes).toBe(2)
+    expect((string.find(recorded.notes[1], `Recorded Lantern 1.0.0 from GitHub's release 1.0.0: 2 archive(s); it has no {windows}`, 1, true)) ~= nil).toBe(true)
+    expect((string.find(recorded.notes[2], '1.1.0 has no GitHub release, so Lantern 1.1.0 stays unrecorded', 1, true)) ~= nil).toBe(true)
+    -- 2.0.0 is declared and not tagged: nobody is asked about it.
+    expect(asked).toEqual {
+      'https://api.github.com/repos/Owner/Tool/releases/tags/1.0.0 (authorized)',
+      `https://dl.test/{linux}`,
+      `https://dl.test/{handheld}`,
+      'https://api.github.com/repos/Owner/Tool/releases/tags/1.1.0 (authorized)',
+    }
+
+    local reloaded = model.load(root)
+    expect(reloaded.errors).toEqual {}
+    local release = reloaded.locks[tool.id][1]
+    expect(release.version).toBe '1.0.0'
+    expect(release.locked_from).toBe 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+    expect(#release.artifacts).toBe(2)
+    local first = release.artifacts[1] :: { [string]: unknown }
+    expect(first.id).toBe 'linux-x64'
+    expect((first.digests :: { [string]: unknown }).sha256).toBe(bytes.sha256(linuxBytes))
+    -- The handheld build is an artifact; the release's platforms list desktop builds only.
+    expect((release.artifacts[2] :: { [string]: unknown }).id).toBe 'linux-arm64-portmaster'
+    expect(#(release.semantics.platforms :: { unknown })).toBe(1)
+
+    -- GitHub saying other bytes than it serves stops everything.
+    fs.remove(`{root}/content/tool/mod.lock`)
+    local lying = canned {
+      ['https://api.github.com/repos/Owner/Tool/releases/tags/1.0.0'] = `\{"draft":false,"assets":[\{"name":"{linux}","browser_download_url":"https://dl.test/{linux}","digest":"sha256:{string.rep('f', 64)}"}]}`,
+      [`https://dl.test/{linux}`] = linuxBytes,
+    }
+    expect(function() record.githubReleases(root, { fetch = lying }) end).toThrow 'but GitHub says'
+  end)
+end)
+
+suite.describe('site', function()
+  suite.it('renders the live site with the theme under the repository\'s own files', function()
+    local root = support.repository(support.emptied(scratch, 'live-site'))
+    local work, dist = support.emptied(scratch, 'live-work'), support.emptied(scratch, 'live-dist')
+    build.build(root, { workspace = work, dist = dist, date = '2026-01-01' })
+    local public = `{work}/live`
+    local report = build.site(root, public, { baseUrl = 'https://live.test/site' })
+    expect((report.pages :: number) > 0).toBe(true)
+    expect((fs.exists(`{public}/img/glider.svg`))).toBe(true)
+    expect((fs.exists(`{public}/docs/docs.js`))).toBe(true)
+    -- The theme's stylesheet compiles over the fixture's static copy, as Zola's would.
+    expect((string.find(support.read(`{public}/site.css`), '--dw-accent', 1, true)) ~= nil).toBe(true)
+  end)
+end)
+
+suite.describe('build', function()
+  suite.it('builds every archive, manifest and index of a repository', function()
+    local root = support.repository(support.emptied(scratch, 'build'))
+    local work, dist = support.emptied(scratch, 'build-work'), support.emptied(scratch, 'build-dist')
+    support.write(`{dist}/stale.zip`, 'from an earlier build')
+    support.write(`{dist}/kept/inside.txt`, 'folders are left alone')
+
+    local result = build.build(root, { workspace = work, dist = dist, date = '2026-01-01' })
+    expect(result.projects).toBe(6)
+    expect(result.errors).toEqual {}
+    expect(result.public).toBe(`{work}/public`)
+    expect(result.repository.root).toBe(root)
+    expect(support.files(dist)).toEqual { 'alpha-addon.zip', 'alpha.zip', 'beta.zip', 'github-release', 'kept/inside.txt', 'org.fixture.zeta-0.0.1-dev.1.jpk', 'sign.txt' }
+    expect(support.read(`{dist}/github-release`)).toBe 'development\n'
+    expect(support.read(`{dist}/sign.txt`)).toBe 'alpha-addon.zip\n'
+    expect(support.files(work)[1]).toBe 'public/404.html'
+    expect((fs.exists(`{work}/offline-docs`))).toBe(false)
+    expect(util.sortedKeys(result.archives)).toEqual { 'addon-id', 'alpha-id', 'beta-id' }
+    -- Zeta, the Jess package, is packed by jess, not written as an archive: its bytes are the
+    -- canonical JPK of its files, the same on every machine, so its pins hold as they are.
+    expect(util.sortedKeys(result.artifacts)).toEqual { 'addon-id', 'alpha-id', 'beta-id', 'zeta-id' }
+    local zetaDevelopment = result.artifacts['zeta-id'][1]
+    expect(zetaDevelopment.filename).toBe 'org.fixture.zeta-0.0.1-dev.1.jpk'
+    expect(zetaDevelopment.digests.sha256).toBe(bytes.sha256(support.read(`{dist}/{zetaDevelopment.filename}`)))
+    expect((zetaDevelopment.jess :: { [string]: unknown }).content_digest).toBe(jessPackage.open(`{dist}/{zetaDevelopment.filename}`).digest)
+
+    -- What the site generator rendered decides an archive's bytes, so its size and digest, and
+    -- the digest of the manifest that names them, are checked against the files and then named.
+    local neutral: { { string } } = {}
+
+    for id, written in result.archives do
+      local data = support.read(written.path)
+      local artifact = result.artifacts[id][1]
+      expect(written.path).toBe(`{dist}/{artifact.filename}`)
+      expect(written.size).toBe(#data)
+      expect(written.sha256).toBe(bytes.sha256(data))
+      expect(artifact.size).toBe(#data)
+      expect(artifact.digests.sha256).toBe(written.sha256)
+      table.insert(neutral, { written.sha256, `<{id} sha256>` })
+      table.insert(neutral, { `"size": {written.size}`, `"size": <{id} size>` })
+    end
+
+    for _, name in support.files(`{root}/static/dreamweave/projects`) do
+      table.insert(neutral, { bytes.sha256(support.read(`{root}/static/dreamweave/projects/{name}`)), `<{name} sha256>` })
+    end
+
+    local function pinned(path: string, name: string)
+      local text = support.read(path)
+      for _, pair in neutral do
+        text = replaced(text, pair[1], pair[2])
+      end
+
+      support.samePinned(text, `build/{name}`)
+    end
+
+    expect(support.files(`{root}/static/dreamweave`)).toEqual {
+      'projects/addon-id.json',
+      'projects/alpha-id.json',
+      'projects/beta-id.json',
+      'projects/delta-id.json',
+      'projects/gamma-id.json',
+      'projects/zeta-id.json',
+      'view.json',
+    }
+
+    pinned(`{root}/static/dreamweave.json`, 'dreamweave.json')
+    pinned(`{root}/static/dreamweave/view.json`, 'view.json')
+
+    for _, project in result.repository.projects do
+      pinned(`{root}/static/dreamweave/projects/{project.id}.json`, `{project.id}.json`)
+      pinned(`{root}/{project.directory}/_changelog.md`, `{project.slug}-changelog.md`)
+    end
+
+    local listed: { string } = {}
+
+    for _, project in result.repository.projects do
+      local written = result.archives[project.id]
+      if not written then continue end
+
+      local documentation = `{project.slug}-Documentation/`
+      local crawled = offline.crawl(result.public, result.repository.site.base_url, project.page_path)
+      local documents = 0
+
+      for _, entry in support.stored(support.read(written.path)) do
+        table.insert(listed, `{project.slug}.zip: {entry.path}{if entry.executable then ' (executable)' else ''}`)
+
+        if entry.path == 'dreamweave.release.json' then
+          support.samePinned(entry.content, `build/{project.slug}-release.json`)
+        elseif entry.path == `{project.slug}-dwmod.toml` then
+          expect(entry.content).toBe(support.read(`{root}/{project.directory}/mod.toml`))
+        elseif string.sub(entry.path, 1, #documentation) == documentation then
+          documents += 1
+          expect(entry.content == crawled[string.sub(entry.path, #documentation + 1)]).toBe(true)
+        else
+          expect(entry.content).toBe(support.read(`{root}/{project.directory}/{entry.path}`))
+        end
+      end
+
+      expect(documents).toBe(if project.package_documentation then #util.sortedKeys(crawled) else 0)
+    end
+
+    support.samePinned(table.concat(listed, '\n'), 'build/archives.txt')
+  end)
+
+  suite.it('writes a changelog page for every project', function()
+    local root = support.repository(support.emptied(scratch, 'build-stubs'))
+    local repo = model.load(root)
+    build.writeChangelogStubs(repo)
+
+    for _, project in repo.projects do
+      support.samePinned(support.read(`{root}/{project.directory}/_changelog.md`), `build/{project.slug}-changelog.md`)
+    end
+  end)
+
+  suite.it('lists what an archive holds before it is written', function()
+    local root = support.repository(support.emptied(scratch, 'build-entries'))
+    local repo = model.load(root)
+    local documentation: { offline.Entry } = {
+      { path = 'index.html', source = '/staged/index.html', executable = false },
+      { path = '_site/site.css', source = '/staged/_site/site.css', executable = false },
+    }
+    local described: { string } = {}
+
+    for _, project in repo.projects do
+      local entries, layout = build.archiveEntries(repo, project, model.developmentVersion(repo, project), documentation)
+      table.insert(described, `{project.slug}: {siteJson.encode(layout, false)}`)
+
+      for _, entry in entries do
+        local from = if entry.source then replaced(entry.source, root, '<root>') else `{#(entry.content :: string)} bytes`
+        table.insert(described, `  {entry.path} <- {from} {entry.executable}`)
+      end
+    end
+
+    support.samePinned(table.concat(described, '\n'), 'build/entries.txt')
+    expect(#build.archiveEntries(repo, repo.projects[1], '1.0.0')).toBe(6)
+  end)
+
+  suite.it('leaves out documentation sources, lock files and the projects nested in a plainly named folder', function()
+    local root = smallRepository('build-payload', {
+      ['content/plain/mod.toml'] = 'id = "plain"\nslug = "plain"\n',
+      ['content/plain/index.md'] = '',
+      ['content/plain/Plugin.esp'] = 'plugin',
+      ['content/plain/mod.lock'] = 'lock',
+      ['content/plain/deep/index.md'] = 'a page',
+      ['content/plain/deep/beside.md'] = 'beside a page',
+      ['content/plain/docs/_index.md'] = 'a section',
+      ['content/plain/docs/page.md'] = 'in a section',
+      ['content/plain/docs/more/shot.png'] = 'below a section',
+      ['content/plain/docsbeside.md'] = 'beside a section',
+      ['content/plain/.hidden/_index.md'] = 'a hidden section',
+      ['content/plain/.hidden/notes.md'] = 'in a hidden section',
+      ['content/plain/seen/.under/_index.md'] = 'a section under a hidden folder',
+      ['content/plain/seen/.under/notes.md'] = 'in it',
+      ['content/plain/sub/mod.toml'] = 'id = "sub"\nslug = "sub"\n',
+      ['content/plain/sub/index.md'] = '',
+      ['content/plain/sub/Sub.esp'] = 'nested plugin',
+      ['content/plain/subbeside.txt'] = 'beside a nested project',
+      -- A folder's name is used as a pattern to find what is nested in it, and a hyphen in a
+      -- pattern is no hyphen: this project's nested one stays in its archive.
+      ['content/my-mod/mod.toml'] = 'id = "hyphen"\nslug = "hyphen"\n\n[package]\ndocumentation = false\n',
+      ['content/my-mod/index.md'] = '',
+      ['content/my-mod/docs/_index.md'] = 'kept: the documentation is not packed',
+      ['content/my-mod/mod.lock'] = 'lock',
+      ['content/my-mod/sub/mod.toml'] = 'id = "hyphen-sub"\nslug = "hyphen-sub"\n',
+      ['content/my-mod/sub/index.md'] = '',
+      ['content/my-mod/sub/Sub.esp'] = 'nested plugin',
+    })
+
+    support.track(root)
+
+    local repo = model.load(root)
+    local listed: { [string]: string } = {}
+
+    for _, project in repo.projects do
+      local entries = build.archiveEntries(repo, project, '1.0.0')
+      listed[project.slug] = table.concat([for entry in entries => entry.path], ' ')
+    end
+
+    expect(listed).toEqual {
+      plain = '.hidden/_index.md .hidden/notes.md Plugin.esp deep/beside.md docsbeside.md plain-dwmod.toml seen/.under/_index.md seen/.under/notes.md subbeside.txt dreamweave.release.json',
+      sub = 'Sub.esp sub-dwmod.toml dreamweave.release.json',
+      hyphen = 'docs/_index.md index.md hyphen-dwmod.toml sub/Sub.esp sub/index.md sub/mod.toml dreamweave.release.json',
+      ['hyphen-sub'] = 'Sub.esp hyphen-sub-dwmod.toml dreamweave.release.json',
+    }
+  end)
+
+  suite.it('raises for a repository with no git index', function()
+    local root = support.copy(support.fixture 'repo', support.emptied(scratch, 'build-untracked'))
+    local work = support.emptied(scratch, 'build-untracked-work')
+    expect(function() build.build(root, { workspace = work, dist = `{work}/dist` }) end).toThrow 'missing .git/index'
+  end)
+end)
+
+return suite

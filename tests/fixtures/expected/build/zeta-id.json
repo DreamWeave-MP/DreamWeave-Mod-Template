@@ -1,0 +1,87 @@
+{
+  "schema_version": "3",
+  "document": "project",
+  "generator": "DreamWeave Mod Template 0.3.0",
+  "project": {
+    "id": "zeta-id",
+    "name": "Zeta",
+    "type": "library",
+    "status": "active",
+    "versioning": "numeric",
+    "game": "morrowind",
+    "tags": [],
+    "maintainers": [],
+    "links": {
+      "issues": "https://github.com/Owner/Fixture-Mods/issues",
+      "page": "https://mods.test/stash/zeta/",
+      "source": "https://github.com/Owner/Fixture-Mods"
+    },
+    "integrations": {},
+    "media": [],
+    "credits": []
+  },
+  "channels": {
+    "development": {
+      "version": "0.0.1-dev.1"
+    }
+  },
+  "releases": [
+    {
+      "version": "0.0.1-dev.1",
+      "channel": "development",
+      "date": "2026-01-01",
+      "status": "available",
+      "source": {
+        "repository": "https://github.com/Owner/Fixture-Mods",
+        "release": "development",
+        "revision": "0123456789abcdef0123456789abcdef01234567"
+      },
+      "runtimes": {},
+      "platforms": [],
+      "provides": [],
+      "relationships": [],
+      "components": [
+        {
+          "id": "main",
+          "name": "Zeta",
+          "path": ".",
+          "required": true,
+          "default": true,
+          "requires": [],
+          "conflicts": [],
+          "suggested_with": []
+        }
+      ],
+      "groups": [],
+      "extensions": {},
+      "critical_extensions": [],
+      "artifacts": [
+        {
+          "id": "jpk",
+          "format": "jpk",
+          "filename": "org.fixture.zeta-0.0.1-dev.1.jpk",
+          "media_type": "application/vnd.jess.jpk",
+          "size": 398,
+          "digests": {
+            "sha256": "d26a3fa17175e78696bb61610cc2be135c78bf17e513903b6f5b9fbfd0380d36"
+          },
+          "jess": {
+            "package": "org.fixture.zeta",
+            "jess_api": "1",
+            "content_digest": "4a06d345d8476691909af96dcfa07f30a24e934fa279caee9ebb9ae1cfaaff74",
+            "dependencies": {
+              "org.fixture.words": "1.2"
+            }
+          },
+          "sources": [
+            {
+              "url": "https://github.com/Owner/Fixture-Mods/releases/download/development/org.fixture.zeta-0.0.1-dev.1.jpk",
+              "kind": "publisher"
+            }
+          ],
+          "signatures": []
+        }
+      ]
+    }
+  ]
+}

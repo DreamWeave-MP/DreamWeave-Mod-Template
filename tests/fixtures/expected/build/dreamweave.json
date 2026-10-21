@@ -1,0 +1,87 @@
+{
+  "schema_version": "3",
+  "document": "index",
+  "generator": "DreamWeave Mod Template 0.3.0",
+  "site": {
+    "name": "Fixture Mods",
+    "url": "https://mods.test/stash/"
+  },
+  "projects": [
+    {
+      "id": "addon-id",
+      "name": "Alpha Addon",
+      "type": "patch",
+      "status": "archived",
+      "page": "https://mods.test/stash/alpha/addon/",
+      "manifest": "https://mods.test/stash/dreamweave/projects/addon-id.json",
+      "manifest_sha256": "<addon-id.json sha256>",
+      "updated": "2026-01-01",
+      "channels": {
+        "development": "0.0.1-dev.1"
+      }
+    },
+    {
+      "id": "alpha-id",
+      "name": "Alpha",
+      "summary": "The first mod",
+      "type": "mod",
+      "status": "active",
+      "page": "https://mods.test/stash/alpha/",
+      "manifest": "https://mods.test/stash/dreamweave/projects/alpha-id.json",
+      "manifest_sha256": "<alpha-id.json sha256>",
+      "updated": "2026-01-01",
+      "channels": {
+        "development": "1.1.1-dev.1",
+        "stable": "1.1.0"
+      }
+    },
+    {
+      "id": "beta-id",
+      "name": "Beta",
+      "summary": "The second mod",
+      "type": "collection",
+      "status": "active",
+      "page": "https://mods.test/stash/beta/",
+      "manifest": "https://mods.test/stash/dreamweave/projects/beta-id.json",
+      "manifest_sha256": "<beta-id.json sha256>",
+      "updated": "2026-01-01",
+      "channels": {
+        "development": "0.001-dev.1"
+      }
+    },
+    {
+      "id": "delta-id",
+      "name": "Delta",
+      "type": "mod",
+      "status": "active",
+      "page": "https://mods.test/stash/delta/",
+      "manifest": "https://mods.test/stash/dreamweave/projects/delta-id.json",
+      "manifest_sha256": "<delta-id.json sha256>",
+      "channels": {}
+    },
+    {
+      "id": "gamma-id",
+      "name": "",
+      "type": "mod",
+      "status": "active",
+      "page": "https://mods.test/stash/gamma/",
+      "manifest": "https://mods.test/stash/dreamweave/projects/gamma-id.json",
+      "manifest_sha256": "<gamma-id.json sha256>",
+      "channels": {}
+    },
+    {
+      "id": "zeta-id",
+      "name": "Zeta",
+      "type": "library",
+      "jess_package": "org.fixture.zeta",
+      "status": "active",
+      "page": "https://mods.test/stash/zeta/",
+      "manifest": "https://mods.test/stash/dreamweave/projects/zeta-id.json",
+      "manifest_sha256": "<zeta-id.json sha256>",
+      "updated": "2026-01-01",
+      "channels": {
+        "development": "0.0.1-dev.1"
+      }
+    }
+  ]
+}

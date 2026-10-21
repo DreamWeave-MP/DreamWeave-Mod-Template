@@ -170,7 +170,24 @@ rather than hard-coding them, and draw one still frame under `prefers-reduced-mo
 
 ## Templates
 
-Everything under `templates/` can be overridden by editing it; Zola has no theme layer in between.
+The theme package provides every template, stylesheet, font, image and script the site is made of,
+and your repository carries none of them. Updating the template version in `jess-workspace.toml`
+updates all of it at once: a shortcode added two years from now reaches your site with the next
+`jess workspace sync`, because nothing of the theme is checked into your repository to go stale.
+
+To change something the hooks above don't reach, put a file of the same path in your repository:
+`templates/mod/landing.html`, `sass/_tokens.sass`, `static/img/glider.svg`. The generator lays the
+theme under your repository's own files, so yours renders in the theme's place, and a template of
+your own may `extends` or `import` a theme template by name. That file is then yours entirely: it
+stays as it is when the template moves, and whatever the theme later changes in its copy never
+reaches you. `dreamweave-check` prints a `note:` for every such file on every push, so a copy made
+for one line two years ago is not a surprise. `sass/brand.sass` is the one file meant to be
+replaced, and the check leaves it alone.
+
+A site built from an older template still carries the old theme's `templates/`, `sass/` and
+`static/` folders. Under the new generator every file in them replaces the theme's, so the site
+looks exactly as it did and updates change nothing. The check's notes are the list of what to
+delete: remove everything it names except what you changed on purpose, and keep `sass/brand.sass`.
 `base.html` defines the blocks every page fills: `title`, `extra_head`, `discovery`, `header`,
 `search`, `offline_banner`, `content`, `footer` and `extra_body`. Comments are
 `templates/comments.html`, included at the end of each page's body column. The project page is
@@ -208,7 +225,7 @@ network page have no thread. Docs pages have none unless their docs root sets
 offline documentation inside archives never loads comments.
 
 The DreamWeave giscus theme is served from your site (`giscus/<palette>.css`) and applies on the
-published site. A plain `zola serve` has no thread at all, because the ids come from CI's lookup. A
+published site. A local preview has no thread at all, because the ids come from CI's lookup. A
 CI build served from your own machine does, but cannot show the theme: giscus's iframe lives on a
 public origin, and browsers block public pages from fetching files on your machine, so it uses
 GitHub's dark theme and says so above the thread.
@@ -228,5 +245,5 @@ documentation never loads them.
 
 ## Search
 
-Search runs in the browser over Zola's index, without a library. On docs pages it only searches that
+Search runs in the browser over the generator's index, without a library. On docs pages it only searches that
 project's docs. Press `/` to focus it. Turn it off with `build_search_index = false`.

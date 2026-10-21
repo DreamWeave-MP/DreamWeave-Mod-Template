@@ -1,0 +1,31 @@
+{
+  "schema_version": "3",
+  "document": "release-payload",
+  "project": {
+    "id": "addon-id",
+    "name": "Alpha Addon",
+    "slug": "alpha-addon",
+    "versioning": "numeric"
+  },
+  "version": "0.0.1-dev.1",
+  "format": "flat",
+  "runtimes": {},
+  "platforms": [],
+  "provides": [],
+  "relationships": [],
+  "components": [
+    {
+      "id": "main",
+      "name": "Alpha Addon",
+      "path": ".",
+      "required": true,
+      "default": true,
+      "requires": [],
+      "conflicts": [],
+      "suggested_with": []
+    }
+  ],
+  "groups": [],
+  "extensions": {},
+  "critical_extensions": []
+}

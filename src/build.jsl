@@ -1,0 +1,1100 @@
+--!strict
+-- The build of a mod repository: the site built once for reading offline, each project's
+-- tracked files and its crawled documentation packed into an archive, and the manifests, the
+-- index and the diagnostics the live site serves, written into the repository's `static` folder
+-- for the site build that follows.
+local archive = require './archive'
+local bytes = require '@dream/bytes'
+local fs = require '@dream/fs'
+local gitIndex = require './git_index'
+local jessJson = require '@jess/json'
+local jessPackage = require '@jess/package'
+local json = require '@dreamweave/site/json'
+local magick = require '@magick'
+local model = require './model'
+local offline = require './offline'
+local records = require './records'
+local process = require '@dream/process'
+local site = require '@dreamweave/site'
+local theme = require '@dreamweave/theme'
+local util = require './util'
+local version = require './version'
+local vfs = require '@vfs'
+
+export type Options = {
+  head: string?,
+  buildNumber: number?,
+  allowInvalid: boolean?,
+  dist: string?,
+  workspace: string?,
+  date: string?,
+  commentsMessage: string?,
+  --- The site's URL, when it is not config.toml's: GitHub Pages' on CI.
+  baseUrl: string?,
+  --- The git ref development builds are signed under; `refs/heads/main` unless given.
+  developmentRef: string?,
+  --- The Sigstore identity this run signs with, when the workflow names one.
+  signingIdentity: string?,
+}
+
+--- An environment variable, when the runtime may read them; nil otherwise, so a build without
+--- the grant takes its defaults instead of stopping.
+local function environment(name: string): string?
+  if not jess.granted 'process.environment' then return nil end
+
+  return process.env(name)
+end
+
+--- A theme as the generator takes it: its files and a read of one.
+type Theme = { files: { string }, read: (path: string) -> buffer? }
+
+--- The theme every DreamWeave site is laid over.
+local function themes(): { Theme } return { { files = theme.files, read = theme.read } } end
+
+--- The generator's build, whose own source is untyped, under the signature it keeps.
+local buildSite = (site :: { [string]: unknown }).build :: (root: string, public: string, options: { [string]: unknown }) -> { [string]: unknown }
+
+--- The DreamWeave Mod Template's own repository publishes development builds under `dev-build`.
+local function siteBaseUrl(repo: model.Repository, given: Options): string
+  return (string.gsub(given.baseUrl or environment 'DREAMWEAVE_BASE_URL' or repo.site.base_url, '/+$', ''))
+end
+
+export type Entry = archive.Entry
+
+export type Result = {
+  repository: model.Repository,
+  artifacts: { [string]: { records.Artifact } },
+  archives: { [string]: archive.Written },
+  projects: number,
+  errors: { string },
+  public: string,
+}
+
+type Document = records.Document
+
+type Manifest = { doc: Document, text: string }
+
+local build = {}
+
+local function object(order: { string }?, fields: Document?): Document
+  return json.object(fields or {}, order)
+end
+
+--- The page a project's changelog is rendered from: a stub beside its own page, which the
+--- template fills from the project's releases.
+local function changelogStub(project: model.Project): string
+  return '+++\ntitle = '
+    .. json.encode(project.name .. ' changelog', false)
+    .. '\nslug = "changelog"\ntemplate = "mod/changelog.html"\n\n[extra]\nproject = '
+    .. json.encode(project.page_path, false)
+    .. '\ncomments = false\n+++\n'
+end
+
+function build.writeChangelogStubs(repo: model.Repository)
+  for _, project in ipairs(repo.projects) do
+    util.write(fs.join(repo.root, project.directory, '_changelog.md'), changelogStub(project))
+  end
+end
+
+--- The files of a project that are its documentation's sources, by relative path: every
+--- `index.md`, and everything in a folder that has an `_index.md`, unless the folder is hidden.
+--- An archive carries the rendered pages in their place.
+@native
+local function documentationSources(files: { gitIndex.File }): { [string]: boolean }
+  local sections: { string } = {}
+
+  for _, file in files do
+    local hidden = false
+    for part in string.gmatch(file.relative, '[^/]+') do
+      if string.sub(part, 1, 1) == '.' then
+        hidden = true
+        break
+      end
+    end
+
+    if hidden or util.basename(file.relative) ~= '_index.md' then continue end
+
+    local folder = util.dirname(file.relative)
+    if folder ~= '' then table.insert(sections, folder .. '/') end
+  end
+
+  local sources: { [string]: boolean } = {}
+
+  for _, file in files do
+    local taken = util.basename(file.relative) == 'index.md'
+      or any[for section in sections => util.startsWith(file.relative, section)]
+
+    if taken then sources[file.relative] = true end
+  end
+
+  return sources
+end
+
+--- The tracked files of `project` an archive holds as they are: not its lock file, not its
+--- documentation's sources when the documentation is packed, and nothing of a project nested in
+--- its folder.
+local function payloadFiles(repo: model.Repository, project: model.Project): { gitIndex.File }
+  local files, problem = gitIndex.filesUnder(repo.root, project.directory)
+  if not files then error(problem, 0) end
+
+  local nested = model.nestedDirectories(repo, project)
+  local sources = if project.package_documentation then documentationSources(files) else {}
+  local prefixes: { string }?
+  local out: { gitIndex.File } = {}
+
+  for _, file in files do
+    if file.relative == 'mod.lock' or sources[file.relative] then continue end
+
+    -- A nested project's folder is taken relative to this one's by a pattern made of this one's
+    -- name, as it always was, the first time a file gets this far.
+    local below = prefixes
+      or [for directory in nested => string.gsub(directory, '^' .. project.directory .. '/', '') .. '/']
+    prefixes = below
+
+    local nestedFile = any[for prefix in below => util.startsWith(file.relative, prefix)]
+    if nestedFile then continue end
+
+    table.insert(out, file)
+  end
+
+  return out
+end
+
+--- What the archive of `project` at `released` holds, and how it is laid out: the payload, the
+--- manifest under the project's own name, the release document, and the crawled
+--- `documentation` in a folder of its own when the project packs any.
+local function archiveEntries(
+  repo: model.Repository,
+  project: model.Project,
+  released: unknown,
+  documentation: { offline.Entry }?
+): ({ Entry }, Document)
+  local entries: { Entry } = [for file in payloadFiles(repo, project) => {
+    path = if file.relative == 'mod.toml' then project.slug .. '-dwmod.toml' else file.relative,
+    executable = file.executable,
+    source = file.disk,
+  } :: Entry]
+
+  table.insert(entries, {
+    path = 'dreamweave.release.json',
+    executable = false,
+    content = records.payloadReleaseDocument(project, released),
+  })
+
+  local layout = object({ 'release_document', 'documentation' }, { release_document = 'dreamweave.release.json' })
+
+  if project.package_documentation then
+    local folder = project.slug .. '-Documentation'
+
+    for _, document in ipairs(documentation or {}) do
+      table.insert(entries, { path = folder .. '/' .. document.path, executable = false, source = document.source })
+    end
+
+    layout.documentation = folder .. '/index.html'
+  end
+
+  return entries, layout
+end
+
+local function buildArchive(
+  repo: model.Repository,
+  project: model.Project,
+  released: version.Version,
+  documentation: { offline.Entry },
+  dist: string
+): (records.Artifact, archive.Written)
+  local entries, layout = archiveEntries(repo, project, released, documentation)
+  local filename = project.slug .. '.zip'
+  local written = archive.write(fs.join(dist, filename), entries)
+
+  local artifact: records.Artifact = {
+    id = project.package_format,
+    format = project.package_format,
+    filename = filename,
+    media_type = 'application/zip',
+    size = written.size,
+    digests = { sha256 = written.sha256 },
+    layout = layout,
+  }
+
+  return artifact, written
+end
+
+--- What a page built for an archive is told: that it is offline, and the version it is
+--- packed with.
+local function offlineView(repo: model.Repository, versions: { [string]: version.Version }): Document
+  local projects = object()
+
+  for _, project in ipairs(repo.projects) do
+    local facts = object { 'packaged_version' }
+    local packaged = versions[project.id]
+    if packaged then facts.packaged_version = packaged.text end
+
+    projects[project.page_path] = facts
+  end
+
+  return object(
+    { 'offline', 'generator', 'projects' },
+    { offline = true, generator = records.GENERATOR, projects = projects }
+  )
+end
+
+local function commentsDocument(repo: model.Repository, options: Options): Document
+  local extra = repo.site.extra
+  local comments = (if extra then extra.comments else nil) :: Document?
+  -- Comments are on unless the site says `false`.
+  if not comments or comments.enabled == false then return object({ 'state' }, { state = 'off' }) end
+
+  local message = options.commentsMessage
+    or `could not reach giscus to look up {repo.site.repository}'s Discussions; comments are left out of this build`
+
+  return object({ 'repo', 'category', 'reactions', 'theme', 'mapping', 'state', 'message' }, {
+    repo = repo.site.repository,
+    category = comments.category or 'General',
+    reactions = comments.reactions == true,
+    theme = comments.theme or jessJson.null,
+    mapping = comments.mapping or 'pathname',
+    state = 'unreachable',
+    message = message,
+  })
+end
+
+--- The plugins among a project's payload that no component declares, by relative path.
+local function undeclaredContent(repo: model.Repository, project: model.Project): { string }
+  local declared: { [string]: boolean } = {}
+
+  for _, component in ipairs(project.components or {}) do
+    local directories: { unknown } = component.openmw.data_directories or { '.' }
+
+    for _, directory in ipairs(directories) do
+      local prefix = (if component.path == '.' then '' else component.path .. '/')
+        .. (if directory == '.' then '' else (directory :: string) .. '/')
+
+      for _, name in ipairs(component.openmw.content_files or {}) do
+        declared[string.lower(prefix .. (name :: string))] = true
+      end
+
+      for _, name in ipairs(component.openmw.groundcover_files or {}) do
+        declared[string.lower(prefix .. (name :: string))] = true
+      end
+    end
+  end
+
+  local out: { string } = {}
+
+  for _, file in payloadFiles(repo, project) do
+    local lowered = string.lower(file.relative)
+    local plugin = util.endsWith(lowered, '.esm')
+      or util.endsWith(lowered, '.esp')
+      or util.endsWith(lowered, '.omwgame')
+      or util.endsWith(lowered, '.omwaddon')
+      or util.endsWith(lowered, '.omwscripts')
+
+    if plugin and not declared[lowered] then table.insert(out, file.relative) end
+  end
+
+  table.sort(out)
+
+  return out
+end
+
+local function check(id: string, label: string, state: string, detail: string): Document
+  return object({ 'id', 'label', 'state', 'detail' }, { id = id, label = label, state = state, detail = detail })
+end
+
+--- What the project's page reports of how it is published, check by check.
+local function diagnosticChecks(
+  repo: model.Repository,
+  project: model.Project,
+  manifest: Document,
+  archivesBuilt: boolean
+): { Document }
+  local planned = [for release in project.releases => release.version]
+  local releases = manifest.releases :: { Document }
+  local checks = json.array() :: { Document }
+
+  table.insert(checks, check('identity', 'Stable identity', 'pass', 'id ' .. project.id .. '; survives renames and host moves'))
+  table.insert(
+    checks,
+    check('discovery', 'Discovery', 'pass', 'listed in dreamweave.json and linked from every page with <link rel="alternate">')
+  )
+
+  table.insert(
+    checks,
+    check(
+      'manifest',
+      'Manifest',
+      'pass',
+      'schema_version ' .. (manifest.schema_version :: string) .. ', ' .. tostring(#releases) .. ' release(s) published'
+    )
+  )
+
+  table.insert(
+    checks,
+    check('releases', 'Published releases', 'warn', 'no release tag has been pushed yet; clients only see the development channel')
+  )
+
+  if #planned > 0 then
+    local tag = model.releaseTag(project, planned[1]) :: string
+    table.insert(
+      checks,
+      check('planned', 'Declared, not tagged', 'info', table.concat(planned, ', ') .. ': push the tag ' .. tag .. ' to publish')
+    )
+  end
+
+  local channels: { string } = {}
+  local declared = manifest.channels :: { [string]: Document }?
+
+  for channel, release in pairs(declared or {}) do
+    table.insert(channels, channel .. ' → ' .. (release.version :: string))
+  end
+
+  table.sort(channels)
+
+  if #channels > 0 then
+    table.insert(checks, check('channels', 'Channels', 'pass', table.concat(channels, ', ')))
+  elseif project.package_development and not archivesBuilt then
+    table.insert(checks, check('channels', 'Channels', 'info', 'the development channel appears once CI packages it'))
+  else
+    table.insert(checks, check('channels', 'Channels', 'fail', 'no channel has an available release'))
+  end
+
+  table.insert(
+    checks,
+    check(
+      'hashes',
+      'Content hashes',
+      if archivesBuilt then 'pass' else 'info',
+      if archivesBuilt
+        then 'every published artifact has a SHA-256 digest and size'
+        else 'development archives were not built in this build'
+    )
+  )
+
+  local identified = 0
+  local unnamed: { string } = {}
+
+  for _, relationship in ipairs(project.relationships or {}) do
+    if relationship.project_id or relationship.capability then
+      identified += 1
+    elseif relationship.name then
+      table.insert(unnamed, relationship.name :: string)
+    end
+  end
+
+  if #unnamed > 0 then
+    table.insert(
+      checks,
+      check(
+        'relationships',
+        'Relationships',
+        'info',
+        tostring(identified) .. ' machine-resolvable; ' .. table.concat(unnamed, ', ') .. ' named for humans only (no id)'
+      )
+    )
+  elseif #(project.relationships or {}) > 0 then
+    table.insert(checks, check('relationships', 'Relationships', 'pass', tostring(identified) .. ' machine-resolvable'))
+  else
+    table.insert(checks, check('relationships', 'Relationships', 'info', 'none declared'))
+  end
+
+  table.insert(
+    checks,
+    check(
+      'provenance',
+      'Signatures',
+      if project.sigstore then 'pass' else 'info',
+      if project.sigstore
+        then 'CI signs each archive with Sigstore (keyless, tied to this repository\'s workflow)'
+        else 'not signed; hashes still verify integrity. Set [provenance] sigstore = true to add build provenance'
+    )
+  )
+
+  table.insert(checks, check('source', 'Source revisions', 'pass', '0 of 0 published releases map to a commit'))
+
+  local mirrors = #(project.mirrors or {})
+  table.insert(
+    checks,
+    check(
+      'mirrors',
+      'Mirrors',
+      if mirrors > 0 then 'pass' else 'info',
+      tostring(mirrors) .. ' configured; every artifact also has its publisher source'
+    )
+  )
+
+  local undeclared = undeclaredContent(repo, project)
+  if #undeclared > 0 then
+    table.insert(
+      checks,
+      check('content', 'Content files', 'info', 'not declared in openmw.content_files: ' .. table.concat(undeclared, ', '))
+    )
+  end
+
+  return checks
+end
+
+--- What a page of the live site is told: each project's manifest digest, its development
+--- release and its checks, and where the index is.
+local function onlineView(
+  repo: model.Repository,
+  manifests: { [string]: Manifest },
+  archivesBuilt: boolean,
+  options: Options
+): Document
+  local projects = object()
+
+  for _, project in ipairs(repo.projects) do
+    local manifest = manifests[project.id]
+    local facts = object(
+      { 'unverified', 'manifest_sha256', 'development', 'checks' },
+      { unverified = json.array() }
+    )
+
+    if manifest then
+      facts.manifest_sha256 = bytes.sha256(manifest.text)
+
+      local releases = manifest.doc.releases :: { Document }?
+
+      for _, release in ipairs(releases or {}) do
+        if release.channel == 'development' then
+          facts.development = release
+          break
+        end
+      end
+
+      facts.checks = diagnosticChecks(repo, project, manifest.doc, archivesBuilt)
+    end
+
+    projects[project.page_path] = facts
+  end
+
+  return object({ 'offline', 'generator', 'projects', 'index_url', 'comments', 'archives_built', 'revision' }, {
+    offline = false,
+    generator = records.GENERATOR,
+    projects = projects,
+    index_url = repo.site.base_url .. '/dreamweave.json',
+    comments = commentsDocument(repo, options),
+    archives_built = archivesBuilt,
+    revision = repo.head,
+  })
+end
+
+--- Builds the site into `workspace` as an archive's documentation reads it, and answers with
+--- the folder it is in.
+local function buildOfflineSite(
+  repo: model.Repository,
+  versions: { [string]: version.Version },
+  workspace: string
+): string
+  build.writeChangelogStubs(repo)
+  util.write(fs.join(repo.root, 'static/dreamweave/view.json'), json.encode(offlineView(repo, versions), true))
+
+  local public = fs.join(workspace, 'public')
+  util.removeTree(public)
+  buildSite(repo.root, public, { offline = true, imageBackend = magick, themes = themes() })
+
+  return public
+end
+
+--- The live site, rendered into `public` with the theme laid under the repository's own files.
+--- `build.build` has to have run: the templates read the manifests and view it writes.
+function build.site(root: string, public: string, options: Options?): { [string]: unknown }
+  local given: Options = options or {}
+  local repo = model.load(root, given)
+  util.removeTree(public)
+
+  return buildSite(root, public, { baseUrl = siteBaseUrl(repo, given), imageBackend = magick, themes = themes() })
+end
+
+
+--- The folders a site may lay its own files over the theme's in.
+local Overlays = { 'templates', 'sass', 'static' }
+
+--- The site's own branding hook: the theme ships it so the stylesheet has something to load, and a
+--- site is meant to replace it.
+local Branding = 'sass/brand.sass'
+
+--- Every file of the site at `root` that replaces a theme file of the same path: the site's copy
+--- is what renders, and it stays as it is when the template moves. Relative paths, sorted.
+function build.shadowed(root: string): { string }
+  local themed: { [string]: boolean } = {}
+
+  for _, found in themes() do
+    for _, path in found.files do
+      themed[path] = true
+    end
+  end
+
+  local shadowed: { string } = {}
+
+  for _, folder in Overlays do
+    for _, entry in util.walk(fs.join(root, folder)) do
+      local path = `{folder}/{entry.relative}`
+      if themed[path] and path ~= Branding then table.insert(shadowed, path) end
+    end
+  end
+
+  table.sort(shadowed)
+
+  return shadowed
+end
+
+--- A Jess package's archive: the project's Package Source, packed by jess into `dist` at
+--- `released`, which revises the manifest's version when it is another, as a development build's
+--- is. The artifact says what jess said of it: the package, its API, its content digest and the
+--- dependencies its manifest declares.
+local function packJess(repo: model.Repository, project: model.Project, released: version.Version, dist: string): records.Artifact
+  local package = project.package_jess :: model.JessPackage
+  local source = if package.source == '.' then repo.root else fs.join(repo.root, package.source)
+  local filename = `{package.id}-{released.text}.jpk`
+  local output = fs.join(dist, filename)
+  local packed = jessPackage.pack(source, output, if released.text == package.version then nil else { version = released.text })
+  local data = fs.readFile(output)
+  if not data then error(`{output} was not written`, 0) end
+
+  local manifest = jessPackage.peek(source).manifest
+  local ids: { string } = {}
+
+  for id in pairs(manifest.dependencies) do
+    table.insert(ids, id)
+  end
+
+  table.sort(ids)
+  local dependencies = object()
+
+  for _, id in ids do
+    dependencies[id] = manifest.dependencies[id]
+  end
+
+  local bytesOf = data :: buffer
+
+  return {
+    id = 'jpk',
+    format = 'jpk',
+    filename = filename,
+    media_type = 'application/vnd.jess.jpk',
+    size = buffer.len(bytesOf),
+    digests = { sha256 = bytes.sha256(bytesOf) },
+    layout = nil,
+    jess = object(
+      { 'package', 'jess_api', 'content_digest', 'dependencies' },
+      { package = package.id, jess_api = manifest.jessApi, content_digest = packed.digest, dependencies = dependencies }
+    ),
+  }
+end
+
+--- Builds the repository at `root`: every development archive into `options.dist` (its `dist`
+--- folder by default, whose files are removed first), and the manifests, index and view into its
+--- `static` folder. A repository with errors is refused unless `options.allowInvalid`.
+function build.build(root: string, options: Options?): Result
+  local given: Options = options or {}
+  local repo = model.load(root, given)
+  if #repo.errors > 0 and not given.allowInvalid then error(table.concat(repo.errors, '\n'), 0) end
+
+  local dist = given.dist or fs.join(root, 'dist')
+  local done, problem = fs.mkdir(dist, { recursive = true })
+  if not done then error(problem, 0) end
+
+  local names, listed = fs.list(dist)
+  if not names then error(listed, 0) end
+
+  for _, name in names do
+    local path = fs.join(dist, name)
+    if fs.isFile(path) then fs.remove(path) end
+  end
+
+  local versions: { [string]: version.Version } = {}
+
+  for _, project in ipairs(repo.projects) do
+    local packed = project.package_development
+      and project.package_format ~= 'binary'
+      and project.package_format ~= 'crate'
+
+    if packed then versions[project.id] = model.developmentVersion(repo, project) end
+  end
+
+  local workspace = given.workspace or '/tmp/dreamweave-mod-template'
+  local done, problem = fs.mkdir(workspace, { recursive = true })
+  if not done then error(problem, 0) end
+
+  local public = buildOfflineSite(repo, versions, workspace)
+  local artifacts: { [string]: { records.Artifact } }, written: { [string]: archive.Written } = {}, {}
+  local staging = fs.join(workspace, 'offline-docs')
+  if vfs.host.exists(staging) then vfs.host.remove(staging, { recursive = true }) end
+
+  local done, problem = fs.mkdir(staging, { recursive = true })
+  if not done then error(problem, 0) end
+
+  for _, project in ipairs(repo.projects) do
+    local released = versions[project.id]
+    if not released then continue end
+
+    if project.package_format == 'jpk' then
+      artifacts[project.id] = { packJess(repo, project, released, dist) }
+      continue
+    end
+
+    local documentation: { offline.Entry } = {}
+    local stage: string?
+
+    if project.package_documentation then
+      stage = fs.join(staging, project.slug)
+      documentation = offline.crawlTo(public, repo.site.base_url, project.page_path, stage)
+    end
+
+    local artifact, result = buildArchive(repo, project, released, documentation, dist)
+    artifacts[project.id] = { artifact }
+    written[project.id] = result
+
+    if stage and vfs.host.exists(stage) then vfs.host.remove(stage, { recursive = true }) end
+  end
+
+  if vfs.host.exists(staging) then vfs.host.remove(staging, { recursive = true }) end
+
+  util.write(fs.join(dist, 'github-release'), repo.site.development_release .. '\n')
+
+  local signed = [for project in repo.projects if project.sigstore and artifacts[project.id] => artifacts[project.id][1].filename]
+  table.sort(signed)
+  util.write(fs.join(dist, 'sign.txt'), if #signed > 0 then table.concat(signed, '\n') .. '\n' else '')
+
+  local base = siteBaseUrl(repo, given)
+  local manifestFolder = fs.join(root, 'static/dreamweave/projects')
+  local done, problem = fs.mkdir(manifestFolder, { recursive = true })
+  if not done then error(problem, 0) end
+
+  local manifests: { [string]: Manifest } = {}
+  local indexEntries = json.array() :: { Document }
+  local date = given.date or os.date '!%Y-%m-%d'
+
+  for _, project in ipairs(repo.projects) do
+    local releases = json.array() :: { Document }
+    local state = model.releaseState(repo, project)
+
+    for _, published in state.published do
+      table.insert(releases, records.releaseDocument(project, repo.site, published, published.tag, `refs/tags/{published.tag}`))
+    end
+
+    if artifacts[project.id] then
+      table.insert(
+        releases,
+        records.developmentRelease(project, repo, artifacts[project.id][1], versions[project.id], date)
+      )
+    end
+
+    -- Newest first by precedence, as the protocol lists releases; a development build sorts
+    -- above every tagged release by construction.
+    table.sort(releases, function(left: Document, right: Document): boolean
+      return version.compare(
+        version.parseOrError(left.version, project.versioning),
+        version.parseOrError(right.version, project.versioning)
+      ) > 0
+    end)
+
+    local document = records.projectManifest(project, repo.site, base, releases)
+    local text = json.encode(document, true)
+    util.write(fs.join(manifestFolder, project.id .. '.json'), text)
+    manifests[project.id] = { doc = document, text = text }
+    table.insert(indexEntries, records.indexEntry(project, base, text, releases))
+  end
+
+  util.write(
+    fs.join(root, 'static/dreamweave.json'),
+    json.encode(records.siteIndex(repo.site, base, indexEntries), true)
+  )
+
+  util.write(
+    fs.join(root, 'static/dreamweave/view.json'),
+    json.encode(onlineView(repo, manifests, true, given), true)
+  )
+
+  return {
+    repository = repo,
+    artifacts = artifacts,
+    archives = written,
+    projects = #repo.projects,
+    errors = repo.errors,
+    public = public,
+  }
+end
+
+--- `tag` as a project and a version: `<slug>-<version>`, a declared release's own tag, or a Rust
+--- project's bare version. An error names what the repository's projects take.
+function build.parseReleaseTag(repo: model.Repository, tag: string): (model.Project, version.Version)
+  for _, project in repo.projects do
+    for _, declared in project.releases do
+      if declared.tag == tag then return project, declared.parsed end
+    end
+  end
+
+  local rust = [for project in repo.projects if project.package_format == 'binary' or project.package_format == 'crate' => project]
+  table.sort(rust, function(left: model.Project, right: model.Project): boolean
+    return (left.package_format == 'binary') and (right.package_format ~= 'binary')
+  end)
+
+  if #rust > 0 and string.find(tag, '^%d') then
+    local first: model.Project?, firstVersion: version.Version?
+
+    for _, project in rust do
+      local parsed, problem = version.parse(tag, project.versioning)
+      if not parsed then error(`Tag '{tag}': {problem}`, 0) end
+
+      if model.declaredRelease(project, tag) then return project, parsed :: version.Version end
+
+      if not first then first, firstVersion = project, parsed end
+    end
+
+    return first :: model.Project, firstVersion :: version.Version
+  end
+
+  local slug, versionText = string.match(tag, '^([^-]+)-(.+)$')
+  local project = if slug then model.projectBySlug(repo, slug :: string) else nil
+
+  if not project then
+    local known = [for candidate in repo.projects => if candidate.package_format == 'binary' or candidate.package_format == 'crate' then '<version>' else `{candidate.slug}-<version>`]
+    table.sort(known)
+    error(
+      `Tag '{tag}' does not name a project. Release tags are <slug>-<version>; this commit's projects take {if #known == 0 then 'none' else table.concat(known, ', ')}.`,
+      0
+    )
+  end
+
+  local found = project :: model.Project
+
+  if found.package_format == 'binary' or found.package_format == 'crate' then
+    error(`Tag '{tag}': a Rust project's tags are bare versions: {versionText}. StroggForge builds and publishes those.`, 0)
+  end
+
+  local parsed, problem = version.parse(versionText, found.versioning)
+  if not parsed then error(`Tag '{tag}': {problem}`, 0) end
+
+  return found, parsed :: version.Version
+end
+
+--- A binary project's archives, one per platform, exactly as the Rust workflow built them into
+--- `dist/binaries`, copied to `dist` unchanged so the bytes published are the bytes hashed.
+--- Answers the artifacts and the archive names missing.
+local function collectBinaries(repo: model.Repository, project: model.Project, dist: string): ({ records.Artifact }, { string })
+  local artifacts: { records.Artifact }, missing: { string } = {}, {}
+
+  for _, platform in ipairs(project.platforms) do
+    local filename = model.binaryArchive(project, platform)
+    local source = fs.join(dist, 'binaries', filename)
+    local data = fs.readFile(source)
+
+    if not data then
+      table.insert(missing, filename)
+      continue
+    end
+
+    local bytesOf = data :: buffer
+    local written, problem = fs.writeFile(fs.join(dist, filename), bytesOf, { atomic = true, createParents = true })
+    if not written then error(problem, 0) end
+
+    local document = object({ 'os', 'arch', 'variant' }, { os = platform.system, arch = platform.architecture })
+    if platform.variant then document.variant = platform.variant end
+
+    table.insert(artifacts, {
+      id = model.platformId(platform),
+      format = 'binary',
+      filename = filename,
+      media_type = 'application/zip',
+      size = buffer.len(bytesOf),
+      digests = { sha256 = bytes.sha256(bytesOf) },
+      layout = nil,
+      platform = document,
+    } :: records.Artifact)
+  end
+
+  return artifacts, missing
+end
+
+--- `dist/release-notes.md`: the GitHub Release body, from the same notes as the changelog.
+local function writeReleaseNotes(repo: model.Repository, project: model.Project, released: version.Version, artifacts: { records.Artifact }, base: string, dist: string)
+  local notes = records.notesDocument(model.declaredRelease(project, released.text))
+  local lines = { `## {project.name} {released.text}`, '' }
+
+  if notes.summary then table.insert(lines, tostring(notes.summary)) table.insert(lines, '') end
+
+  if notes.highlights then table.insert(lines, tostring(notes.highlights)) table.insert(lines, '') end
+
+  for _, pair in { { 'breaking', 'Breaking changes' }, { 'added', 'Added' }, { 'changed', 'Changed' }, { 'fixed', 'Fixed' }, { 'known_issues', 'Known issues' } } do
+    local items = notes[pair[1]]
+    if type(items) ~= 'table' then continue end
+
+    table.insert(lines, `### {pair[2]}`)
+    table.insert(lines, '')
+
+    for _, line in ipairs(items :: { unknown }) do
+      table.insert(lines, `- {tostring(line)}`)
+    end
+
+    table.insert(lines, '')
+  end
+
+  if notes.migration then
+    table.insert(lines, '### Migration')
+    table.insert(lines, '')
+    table.insert(lines, tostring(notes.migration))
+    table.insert(lines, '')
+  end
+
+  if notes.notes then table.insert(lines, tostring(notes.notes)) table.insert(lines, '') end
+
+  table.insert(lines, '---')
+  table.insert(lines, '')
+
+  for _, artifact in artifacts do
+    table.insert(lines, `\`{artifact.filename}\` · {tostring(artifact.size)} bytes · SHA-256 \`{tostring(artifact.digests.sha256)}\`  `)
+  end
+
+  table.insert(lines, '')
+  table.insert(lines, `Project page: {base}/{project.page_path} · Manifest: {base}/dreamweave/projects/{project.id}.json`)
+  util.write(fs.join(dist, 'release-notes.md'), table.concat(lines, '\n') .. '\n')
+end
+
+--- `dist/nexus.json`: the Nexus Mods upload matrix for the workflow; empty when nothing is configured.
+local function writeNexusUploads(project: model.Project, released: version.Version, artifacts: { records.Artifact }, dist: string)
+  local uploads = json.array()
+
+  if project.nexusmods_file_group_id ~= nil and #artifacts > 0 then
+    table.insert(
+      uploads,
+      object({ 'name', 'version', 'file_group_id', 'filename' }, {
+        name = project.name,
+        version = released.text,
+        file_group_id = project.nexusmods_file_group_id,
+        filename = artifacts[1].filename,
+      })
+    )
+  end
+
+  util.write(fs.join(dist, 'nexus.json'), json.encode(uploads, false))
+end
+
+--- A release's record as `dist/release.json` carries it to the default branch's run.
+export type ReleaseRecord = { project: string, name: string, tag: string, release: model.Locked }
+
+export type Released = {
+  project: model.Project,
+  version: version.Version,
+  artifacts: { records.Artifact },
+  --- `dist/release.json`, or nil for a crate, which StroggForge publishes and record-crates records.
+  record: string?,
+}
+
+--- CI, on a tag: builds the tagged release into `dist` and writes `dist/release.json`, its record
+--- for `mod.lock`. Runs with the tag checked out, so an archive holds exactly what the tag does;
+--- recording it on the default branch is `build.record`, run from a checkout of that branch.
+function build.release(root: string, tag: string, options: Options?): Released
+  local given: Options = options or {}
+  local repo = model.load(root, given)
+  if #repo.errors > 0 then error(table.concat(repo.errors, '\n'), 0) end
+
+  local project, released = build.parseReleaseTag(repo, tag)
+  local dist = given.dist or fs.join(root, 'dist')
+  local done, problem = fs.mkdir(dist, { recursive = true })
+  if not done then error(problem, 0) end
+
+  if project.package_format == 'crate' then
+    return { project = project, version = released, artifacts = {}, record = nil }
+  end
+
+  local revision = gitIndex.tagRevision(root, tag)
+
+  if revision and repo.head ~= '' and revision ~= repo.head then
+    error(`Check out {tag} before building it; HEAD is {string.sub(repo.head, 1, 12)}, the tag is {string.sub(revision, 1, 12)}.`, 0)
+  end
+
+  local declared = model.declaredRelease(project, released.text)
+
+  if not declared then
+    error(
+      `{tag}: {project.directory}/mod.toml has no [[releases]] entry for {released.text} at this commit. Declare it with its date and notes, commit, and move the tag there: git tag -f {tag} && git push -f origin {tag}`,
+      0
+    )
+  end
+
+  local artifacts: { records.Artifact }
+
+  if project.package_format == 'binary' then
+    local collected, missing = collectBinaries(repo, project, dist)
+
+    if #missing > 0 then
+      error(
+        `{tag}: the Rust workflow's archives are missing from dist/binaries/: {table.concat(missing, ', ')}. A binary project's release is what StroggForge built for each of its [[platforms]].`,
+        0
+      )
+    end
+
+    artifacts = collected
+  elseif project.package_format == 'jpk' then
+    local package = project.package_jess :: model.JessPackage
+
+    if package.version ~= released.text then
+      error(
+        `{model.jessManifestPath(package)} says {package.id} is version {package.version}; the tag releases {released.text}. Set the version there, commit, and move the tag.`,
+        0
+      )
+    end
+
+    artifacts = { packJess(repo, project, released, dist) }
+  else
+    local workspace = given.workspace or '/tmp/dreamweave-mod-template'
+    local made, madeProblem = fs.mkdir(workspace, { recursive = true })
+    if not made then error(madeProblem, 0) end
+
+    local versions: { [string]: version.Version } = { [project.id] = released }
+    local public = buildOfflineSite(repo, versions, workspace)
+    local documentation: { offline.Entry } = {}
+    local stage = fs.join(workspace, 'release-docs')
+    if vfs.host.exists(stage) then vfs.host.remove(stage, { recursive = true }) end
+
+    if project.package_documentation then
+      documentation = offline.crawlTo(public, repo.site.base_url, project.page_path, stage)
+    end
+
+    local artifact = buildArchive(repo, project, released, documentation, dist)
+    artifacts = { artifact }
+    if vfs.host.exists(stage) then vfs.host.remove(stage, { recursive = true }) end
+  end
+
+  local locked: model.Locked = {
+    version = released.text,
+    parsed = released,
+    locked_from = repo.head,
+    signing_identity = (function(): string?
+      local identity = records.signingIdentity(project, repo.site, `refs/tags/{tag}`, given.signingIdentity or environment 'DREAMWEAVE_SIGNING_IDENTITY')
+
+      return if identity == '' then nil else identity
+    end)(),
+    artifacts = [for artifact in artifacts => (function(): Document
+      local document = object({ 'id', 'format', 'filename', 'media_type', 'size', 'digests', 'platform', 'jess', 'layout' }, {
+        id = artifact.id,
+        format = artifact.format,
+        filename = artifact.filename,
+        media_type = artifact.media_type,
+        size = artifact.size,
+        digests = object({ 'sha256' }, { sha256 = artifact.digests.sha256 }),
+      })
+      if (artifact :: Document).platform ~= nil then document.platform = (artifact :: Document).platform end
+      if artifact.jess ~= nil then document.jess = artifact.jess end
+      if artifact.layout ~= nil then document.layout = artifact.layout end
+
+      return document
+    end)()],
+    semantics = records.releaseSemantics(project),
+  }
+
+  local record = object({ 'project', 'name', 'tag', 'release' }, {
+    project = project.id,
+    name = project.name,
+    tag = tag,
+    release = records.lockDocument(locked),
+  })
+  local recordPath = fs.join(dist, 'release.json')
+  util.write(recordPath, json.encode(record, true))
+
+  local base = siteBaseUrl(repo, given)
+  writeNexusUploads(project, released, artifacts, dist)
+  writeReleaseNotes(repo, project, released, artifacts, base, dist)
+
+  local signed = if project.sigstore then [for artifact in artifacts => artifact.filename] else {}
+  util.write(fs.join(dist, 'sign.txt'), if #signed > 0 then table.concat(signed, '\n') .. '\n' else '')
+  util.write(fs.join(dist, 'github-release'), tag .. '\n')
+
+  return { project = project, version = released, artifacts = artifacts, record = recordPath }
+end
+
+--- CI, on the default branch: adds the release `build.release` recorded at `recordPath` to its
+--- project's `mod.lock`. Answers the lock's path when it changed, nil when the release was already
+--- recorded as it is. A release already recorded has to match its record: a published archive
+--- never changes, whatever its tag points at now.
+function build.record(root: string, recordPath: string, options: Options?): string?
+  local given: Options = options or {}
+  local repo = model.load(root, given)
+  if #repo.errors > 0 then error(table.concat(repo.errors, '\n'), 0) end
+
+  -- The decoder throws on malformed JSON, with a position and no file name.
+  local text = util.read(recordPath)
+  local ok, document = pcall(function(): unknown return jessJson.decode(text) end)
+  if not ok or type(document) ~= 'table' then error(`{recordPath} is not a release record: {tostring(document)}`, 0) end
+
+  local fields = document :: Document
+  local tag = tostring(fields.tag)
+  local project: model.Project?
+
+  for _, candidate in repo.projects do
+    if candidate.id == fields.project then project = candidate end
+  end
+
+  if not project then
+    error(
+      `{tag}: project {tostring(fields.project)} ({tostring(fields.name)}) is not on this branch, so it has no mod.lock to record the release in. Merge the tagged commit into this branch, then re-run the job.`,
+      0
+    )
+  end
+
+  local found = project :: model.Project
+  local problems: { string } = {}
+  local built = model.parseLocked(fields.release, found, recordPath, problems)
+  if #problems > 0 or not built then error(table.concat(problems, '\n'), 0) end
+
+  local release = built :: model.Locked
+
+  if not model.declaredRelease(found, release.version) then
+    error(
+      `{tag}: {found.directory}/mod.toml on this branch does not declare {release.version}. Merge the tagged commit into this branch, then re-run the job.`,
+      0
+    )
+  end
+
+  local recorded: model.Locked?
+
+  for _, existing in repo.locks[found.id] or {} do
+    if version.compare(existing.parsed, release.parsed) == 0 then recorded = existing end
+  end
+
+  if not recorded then
+    local releases = table.clone(repo.locks[found.id] or {})
+    table.insert(releases, release)
+
+    return records.writeLock(found, root, releases)
+  end
+
+  local existing = recorded :: model.Locked
+  local sameBytes = records.fingerprint(existing) == records.fingerprint(release)
+  local sameMeaning = json.encode(records.lockDocument(existing), false) == json.encode(records.lockDocument({
+    version = existing.version,
+    parsed = existing.parsed,
+    locked_from = existing.locked_from,
+    signing_identity = existing.signing_identity,
+    artifacts = existing.artifacts,
+    semantics = release.semantics,
+  }), false)
+
+  if sameBytes and sameMeaning then return nil end
+
+  local lines = { `{tag} is not the release already recorded for {release.version}.` }
+
+  for _, pair in { { 'mod.lock', existing }, { 'this tag', release } } do
+    for _, artifact in ipairs((pair[2] :: model.Locked).artifacts) do
+      local digests: Document = if type(artifact.digests) == 'table' then artifact.digests :: Document else {}
+      table.insert(lines, `  {pair[1]}: {tostring(artifact.filename)} {tostring(artifact.size)} bytes sha256 {tostring(digests.sha256)}`)
+    end
+  end
+
+  if sameBytes then table.insert(lines, '  The archives match, but the install or compatibility data in mod.toml does not.') end
+
+  table.insert(
+    lines,
+    `A published release never changes: players and mirrors already have its bytes. Declare the next version in [[releases]] and tag that. If the tag moved by mistake, move it back to the commit mod.lock names (locked_from {string.sub(existing.locked_from, 1, 12)}).`
+  )
+  error(table.concat(lines, '\n'), 0)
+end
+
+build.load = model.load
+build.archiveEntries = archiveEntries
+build.themes = themes
+
+return build

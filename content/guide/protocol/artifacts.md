@@ -1,6 +1,6 @@
 +++
 title = "Artifacts"
-description = "Digests, sources, verification, signatures, and what is inside an archive."
+description = "Digests, sources, verification, signatures, what is inside an archive, and Jess packages."
 weight = 40
 
 [extra]
@@ -12,12 +12,13 @@ kind = "reference"
 | Field | Meaning |
 |---|---|
 | `id` | Token, unique within the release. |
-| `format` | `flat`, `bain` or `fomod`: game data, laid out as [Installation](@/guide/protocol/installation.md) describes. `binary`: a program built for one platform. `crate`: a Rust crate, as crates.io serves it. |
+| `format` | `flat`, `bain` or `fomod`: game data, laid out as [Installation](@/guide/protocol/installation.md) describes. `binary`: a program built for one platform. `crate`: a Rust crate, as crates.io serves it. `jpk`: a Jess package archive. See [Jess packages](#jess-packages). |
 | `filename` | A suggested file name. Not identity. |
-| `media_type` | `application/zip`, and `application/gzip` for `crate`. |
+| `media_type` | `application/zip`; `application/gzip` for `crate`; `application/vnd.jess.jpk` for `jpk`. |
 | `size` | Bytes. |
 | `digests` | `{ "sha256": "<64 lowercase hex>" }`. Further algorithms MAY be added; `sha256` is always present. |
 | `platform` | `{ os, arch, variant? }`, required when `format` is `binary`: the one platform the program runs on. See [Programs](#programs). |
+| `jess` | `{ package, jess_api, content_digest, dependencies }`, required when `format` is `jpk` and not allowed otherwise: what the Jess package inside is. See [Jess packages](#jess-packages). |
 | `layout` | *Optional.* Paths inside the archive: `release_document`, `documentation` (the offline docs' entry page), `installer` (`fomod/ModuleConfig.xml`). |
 | `sources` | At least one `{ url, kind, name? }`. `kind` is `publisher` for locations the project operates, `mirror` otherwise. |
 | `signatures` | `[{ format, url, issuer?, identity? }]`. May be empty. |
@@ -102,3 +103,29 @@ A Rust library's release has one `crate` artifact: the `.crate` file crates.io s
 version, with its publisher source on `static.crates.io`. Its SHA-256 is the checksum the crates.io
 index lists, which Cargo verifies on every download. A crate is not installed by DreamWeave
 clients; the artifact exists so an index can track the release and verify what crates.io serves.
+
+## Jess packages
+
+A Jess package's release has one `jpk` artifact: the JPK jess packed from the release's commit,
+served from the project's own sources like any archive. A `development` release of the package is
+the same kind of artifact at a pre-release version, `0.3.1-dev.57`: the package's files at the
+default branch with the manifest's version revised, which Jess chooses only when a requirement names
+that version exactly. The artifact's `jess` block says what is inside:
+
+| Field | Meaning |
+|---|---|
+| `package` | The Jess package id, reverse-DNS, as the package's `jess.toml` declares it. One project publishes one package; the project's index entry repeats the id as `jess_package`. |
+| `jess_api` | The package API the package declares. |
+| `content_digest` | The digest of the package's content, the one `jess.lock` pins and Jess checks after opening the archive. It is not the archive's digest: `digests.sha256` is, and a client checks that first, before opening anything. |
+| `dependencies` | The package's `[dependencies]` as declared, by package id: `"org.example.words": "^1.2"`. |
+
+A JPK is not game data and not a program. A DreamWeave client MUST NOT install or run it; Jess
+does, from a workspace that pins the package by `content_digest` and its publisher by the manifest
+that listed it. An index tracks the release like any other, keyed by `(package, origin)` as it keys
+projects by `(project.id, origin)`: the package id proves nothing about who publishes it, and two
+sites listing one id is a disagreement to show, never a choice to make. The `dependencies` are
+stated so an index can show them; resolving them, across publishers, is Jess's job and no
+manifest's.
+
+Everything else about the release is as for any project: its date, channel, notes, `yanked` and
+`deprecated` state, sources, mirrors and signatures mean what they mean on the other pages.

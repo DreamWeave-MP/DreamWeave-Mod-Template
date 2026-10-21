@@ -19,15 +19,15 @@ shape and not another.
 | A project's identity and structured facts | `content/<p>/mod.toml` | the author |
 | What a published release contains, including digests | `content/<p>/mod.lock` | CI, when a release tag is pushed, as a `github-actions[bot]` commit |
 | The site's URL, title, repository, palette | `config.toml` | the author |
-| Presentation | `templates/`, `sass/`, `static/` | the template; `sass/brand.sass` belongs to the author |
+| Presentation | the theme package, `org.dreamweave.theme`, laid under the repository's own `templates/`, `sass/` and `static/` | the template; `sass/brand.sass` belongs to the author |
 | Protocol documents | `static/dreamweave.json`, `static/dreamweave/` | generated, gitignored |
 | Archives | `dist/` | generated, gitignored |
 | The protocol's structure | `static/schemas/` | the template |
 
-Every structured fact is written once. Pages and manifests are built from the same files: Zola's
-templates read `mod.toml` and `mod.lock` to render a page, CI's tooling reads them to write the
-manifest, and the tests check that the two say the same thing. That is also why an author's plain
-`zola serve` shows the page as it will be published.
+Every structured fact is written once. Pages and manifests are built from the same files: the
+theme's templates read `mod.toml` and `mod.lock` to render a page, the build tool reads them to
+write the manifest, and the tests check that the two say the same thing. That is also why a local
+preview shows the page as it will be published.
 
 ## What `modManifest` represents
 
@@ -56,9 +56,9 @@ served from the project's own site, and it is the only authority for those claim
 
 | Part | Owns |
 |---|---|
-| `./buildSite` | Validation, packaging, recording releases, the protocol documents. It runs only in CI; authors never need Python |
-| Zola | Rendering pages from `mod.toml` and `mod.lock`, the search index, resizing images, the offline documentation render |
-| StroggForge's `modGlobalBuild` | Running `./buildSite` on every push and tag: recording and publishing mod releases, deploying Pages. `build_site.yml` calls it |
+| `org.dreamweave.mod-template`, the build tool | Validation, packaging, recording releases, the protocol documents. A Jess package `jess.lock` pins; CI runs its command targets, and so can an author, with `jess workspace run` |
+| `org.dreamweave.site` and `org.dreamweave.theme` | Rendering pages from `mod.toml` and `mod.lock`, the search index, resizing images, the offline documentation render; the generator and the presentation it lays under a site's own files |
+| StroggForge's `modGlobalBuild` | Running the build tool's targets on every push and tag: recording and publishing mod releases, deploying Pages. `build_site.yml` calls it |
 | StroggForge's Rust workflows | Testing, building, signing, scanning and publishing programs and crates. With `mod_template` they hand the published release to `modGlobalBuild`, which records it |
 | Client software (CHIMERA and others) | Discovery, trust policy, dependency resolution, choosing releases, downloading, verifying, installing |
 | St4sh and other indexes | Crawling, caching, search, curation, mirroring. Not identity, not release data |

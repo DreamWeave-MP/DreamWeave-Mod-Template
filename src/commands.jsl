@@ -1,0 +1,108 @@
+--!strict
+-- The template's commands, as typed requests and results: what CI and a maintainer run, with
+-- nothing of the terminal in it. `cli/` turns arguments into these and prints what comes back.
+local build = require './build'
+local fs = require '@dream/fs'
+local model = require './model'
+local record = require './record'
+local sitecheck = require './sitecheck'
+
+local commands = {}
+
+export type Checked = { ok: boolean, projects: number, errors: { string }, notes: { string }, shadowed: { string } }
+
+--- Validates every project without writing anything.
+function commands.check(root: string): Checked
+  local repo = model.load(root)
+
+  return {
+    ok = #repo.errors == 0,
+    projects = #repo.projects,
+    errors = repo.errors,
+    notes = [for note in repo.notes => tostring(note)],
+    shadowed = build.shadowed(root),
+  }
+end
+
+export type BuildOptions = { baseUrl: string?, buildNumber: number?, dist: string?, workspace: string?, date: string? }
+
+--- `builds` is every development build written into dist: the archives, and the JPKs jess packed.
+export type Built = { projects: number, builds: { string }, errors: { string } }
+
+--- Packages every development build and writes the site's protocol files.
+function commands.build(root: string, options: BuildOptions?): Built
+  local given: BuildOptions = options or {}
+  local result = build.build(root, {
+    baseUrl = given.baseUrl,
+    buildNumber = given.buildNumber,
+    dist = given.dist,
+    workspace = given.workspace,
+    date = given.date,
+  })
+  local dist = given.dist or fs.join(root, 'dist')
+  local builds = {}
+
+  for _, artifacts in result.artifacts do
+    for _, artifact in artifacts do
+      table.insert(builds, fs.join(dist, artifact.filename))
+    end
+  end
+
+  table.sort(builds)
+
+  return { projects = result.projects, builds = builds, errors = result.errors }
+end
+
+export type Rendered = { public: string, pages: number }
+
+--- Renders the live site into `public`, the theme laid under the repository's own files.
+function commands.site(root: string, public: string, baseUrl: string?): Rendered
+  local report = build.site(root, public, { baseUrl = baseUrl })
+
+  return { public = public, pages = (report.pages :: number?) or 0 }
+end
+
+export type Release = { project: string, version: string, artifacts: { string }, record: string? }
+
+--- With a tag checked out: builds that release into dist, with its record for mod.lock.
+function commands.release(root: string, tag: string, options: BuildOptions?): Release
+  local given: BuildOptions = options or {}
+  local released = build.release(root, tag, { baseUrl = given.baseUrl, dist = given.dist, workspace = given.workspace })
+
+  return {
+    project = released.project.id,
+    version = released.version.text,
+    artifacts = [for artifact in released.artifacts => artifact.filename],
+    record = released.record,
+  }
+end
+
+export type Recorded = { lock: string?, changed: boolean }
+
+--- On the default branch: adds the record `release` wrote to its project's mod.lock.
+function commands.record(root: string, recordPath: string?): Recorded
+  local path = build.record(root, recordPath or fs.join(root, 'dist/release.json'))
+
+  return { lock = path, changed = path ~= nil }
+end
+
+--- On the default branch: records the crate versions crates.io has and mod.lock lacks.
+function commands.recordCrates(root: string, options: record.Options): record.Recorded
+  return record.crates(root, options)
+end
+
+--- On the default branch: records a program's tagged releases from their GitHub releases.
+function commands.recordReleases(root: string, options: record.Options): record.Recorded
+  return record.githubReleases(root, options)
+end
+
+export type Links = { checked: number, problems: { string } }
+
+--- Checks the built site's local links, assets and anchors.
+function commands.links(public: string, baseUrl: string): Links
+  local report = sitecheck.check(public, baseUrl)
+
+  return { checked = report.links, problems = report.problems }
+end
+
+return commands

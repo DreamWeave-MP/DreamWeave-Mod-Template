@@ -45,7 +45,7 @@ The display name and summary are `title` and `description` in `index.md`'s front
 |---|---|---|
 | `source` | the site's repository | Where the source lives. |
 | `issues` | the repository's issues | Where to report problems. |
-| `documentation` | none | A URL or a Zola `@/` path to the docs. |
+| `documentation` | none | A URL or an `@/` content path to the docs. |
 | `support`, `donate`, `homepage`, `nexusmods` | none | URLs. |
 
 ## `[runtimes]`

@@ -1,0 +1,8 @@
+id = "gamma-id"
+slug = "gamma"
+
+[package]
+format = "crate"
+crate = "gamma-rs"
+binary = "gamma"
+include = ["src", "Cargo.toml"]

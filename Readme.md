@@ -19,8 +19,15 @@ read without scraping it.
    release tags.
 4. Replace Candlelight's files in `content/home` with your mod, and rewrite `content/home/index.md`:
    `title` is the mod's name, `description` its summary, the body its page.
-5. Preview with `zola serve`, then commit and push. The workflow validates everything and publishes
-   the page and a development build.
+5. Commit and push. On the first push the workflow finishes the copy: it removes the template's own
+   source (`src/`, `tests/`, `bench/`, `jess.toml`, `content/template`), names the template as your
+   site's tool in `jess-workspace.toml`, pins it in `jess.lock`, and commits both; `git pull` before
+   your next push. Then it validates everything and publishes the page and a development build. To preview
+   first, [install jess](https://github.com/DreamWeave-MP/jess/releases), then
+   `jess workspace sync --publisher https://dreamweave-mp.github.io/DreamWeave-Mod-Template/`
+   once (`sync --locked` once the lock exists) and
+   `jess workspace run --trusted dreamweave-site -- public http://localhost:8000/` for every look;
+   serve `public/` with any static file server.
 6. Release: add a `[[releases]]` entry, then
 
    ```sh
@@ -32,8 +39,8 @@ read without scraping it.
    publishes it.
 
 [Start here](https://dreamweave-mp.github.io/DreamWeave-Mod-Template/guide/start-here/) walks
-through it properly. You need git, plus [Zola](https://www.getzola.org/) to preview. Everything
-else runs in GitHub Actions: no Python, no Node, no Rust, no accounts.
+through it properly. You need git, plus [jess](https://github.com/DreamWeave-MP/jess) to preview.
+Everything else runs in GitHub Actions: no Python, no Node, no Rust, no accounts.
 
 ## What you get
 
@@ -61,19 +68,33 @@ else runs in GitHub Actions: no Python, no Node, no Rust, no accounts.
 
 ## What CI runs
 
-You never run `./buildSite`; CI does, through StroggForge's `modGlobalBuild` workflow, which
-`.github/workflows/build_site.yml` calls. It is Python, and it lives in `tools/dreamweave/`.
+You never run the template's tooling; CI does, through StroggForge's `modGlobalBuild` workflow,
+which `.github/workflows/build_site.yml` calls. The tooling is a Jess package,
+`org.dreamweave.mod-template`, whose source is this repository's `src/`; a site made from the
+template names it in `jess-workspace.toml` instead, and `jess.lock` pins the exact version the site
+builds with, together with the theme and the site generator it uses. `jess workspace sync --locked`
+restores them from their publisher, checked against the digests the lock holds, and each step below
+is one of the package's own command targets, run over the repository.
 
 | Command | When | Does |
 |---|---|---|
-| `./buildSite check` | every push | Validate every project, including its files against `mod.toml`; suggest a `mod.toml` for V4 pages |
-| `./buildSite build` | every push | Package development builds and write the protocol files |
-| `./buildSite links` | every push | Check the built site's local links, anchors and HTML structure |
-| `./buildSite schemas` | every push | Validate the generated index and manifests against the published schemas |
-| `./buildSite release <tag>` | release tags | Build a release from its tag |
-| `./buildSite record` | release tags | Record that release in `mod.lock` on the default branch |
-| `./buildSite record-crates` | the default branch | Record the declared crate versions crates.io has |
-| `./buildSite record-releases` | the default branch | Record a program's tagged releases from their GitHub releases |
+| `jess workspace run --trusted dreamweave-check` | every push | Validate every project, including its files against `mod.toml`; suggest a `mod.toml` for V4 pages |
+| `jess workspace run --trusted dreamweave-build -- <base url>` | every push | Package development builds and write the protocol files |
+| `jess workspace run --trusted dreamweave-site -- public <base url>` | every push | Render the site into `public/` |
+| `jess workspace run --trusted dreamweave-links -- public <base url>` | every push | Check the built site's local links, anchors and HTML structure |
+| `jess workspace run --trusted dreamweave-release -- <tag>` | release tags | Build a release from its tag |
+| `jess workspace run --trusted dreamweave-record -- dist/release.json` | release tags | Record that release in `mod.lock` on the default branch |
+| `jess workspace run --trusted dreamweave-record-crates` | the default branch | Record the declared crate versions crates.io has |
+| `jess workspace run --trusted dreamweave-record-releases` | the default branch | Record a program's tagged releases from their GitHub releases |
+
+`jess.lock` is written by the first sync against the template's publisher,
+`https://dreamweave-mp.github.io/DreamWeave-Mod-Template/`: CI does that on a site's first push and
+commits the lock, so nobody needs jess installed to start. To move a site to a newer template,
+change the requirement in `jess-workspace.toml`, sync again and commit the lock it writes. Every file
+of the theme comes from the pinned packages, none from your repository, which is what keeps sites
+from drifting apart: see [Customizing](https://dreamweave-mp.github.io/DreamWeave-Mod-Template/guide/customizing/#templates). This repository is the template, so its workspace's one member
+is the root package and it builds its own site with its working tree; its tests run with
+`jess workspace test`.
 
 ## Where things live
 
@@ -85,10 +106,10 @@ You never run `./buildSite`; CI does, through StroggForge's `modGlobalBuild` wor
 | `content/<project>/…` | The mod itself and its docs; all of it ships |
 | `config.toml` | The site: URL, title, repository, palette, header links |
 | `sass/brand.sass` | Your branding; the template never touches it |
-| `templates/`, `sass/`, `static/` | The template's presentation |
-| `tools/dreamweave/` | The tooling CI runs through `./buildSite` |
+| `templates/`, `sass/`, `static/` | Files laid over the theme package's: a template of the same name replaces the theme's. The template ships none but `sass/brand.sass`'s home |
+| `jess-workspace.toml`, `jess.lock` | Which template version builds the site, pinned with its theme and generator. Here, the workspace of the build tool itself |
+| `jess.toml`, `src/`, `tests/`, `bench/` | The build tool, `org.dreamweave.mod-template`: a Jess package whose project page is `content/template`. CI removes these from a copy on its first push |
 | `static/schemas/` | JSON Schemas for everything the site publishes |
-| `tools/tests/` | The template's own tests: `python3 -m unittest discover -s tools/tests` |
 
 ## Documentation
 

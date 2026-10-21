@@ -1,0 +1,19 @@
+--!strict
+-- `jess workspace run --trusted dreamweave-record-crates`: on the default branch, record the
+-- declared crate versions crates.io has in mod.lock.
+local commands = require '@dreamweave/mod-template/commands'
+local common = require './common'
+
+local recorded = commands.recordCrates(common.root(), {
+  fetch = common.fetch,
+  cratesIndex = common.environment 'DREAMWEAVE_CRATES_INDEX',
+  cratesDownload = common.environment 'DREAMWEAVE_CRATES_DOWNLOAD',
+})
+
+common.report(recorded.notes)
+
+for _, lock in recorded.locks do
+  print(`Recorded in {lock}`)
+end
+
+return 0

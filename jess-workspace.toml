@@ -1,0 +1,14 @@
+# This repository as a jess workspace: its root is the DreamWeave Mod Template's build tool, the
+# package org.dreamweave.mod-template, and the site is built by that package's own command targets,
+# `jess workspace run --trusted dreamweave-build` and the rest, from the working tree. A site made
+# from this template lists no members and names the template in [dev-dependencies] instead:
+#
+#   [workspace]
+#   members = []
+#
+#   [dev-dependencies]
+#   "org.dreamweave.mod-template" = "0.3"
+manifest_version = 1
+
+[workspace]
+members = ["."]

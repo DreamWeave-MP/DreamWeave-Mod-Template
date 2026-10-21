@@ -51,6 +51,7 @@ palette = "purple"
 # Header links. `url` may be a Zola @/ path or an absolute URL.
 menu_items = [
     { name = "Candlelight", url = "@/home/index.md" },
+    { name = "Template", url = "@/template/index.md" },
     { name = "Guide", url = "@/guide/_index.md" },
     { name = "Network", url = "@/network.md" },
 ]

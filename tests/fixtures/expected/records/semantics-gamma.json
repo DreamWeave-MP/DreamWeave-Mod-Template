@@ -1,0 +1,21 @@
+{
+  "runtimes": {},
+  "platforms": [],
+  "provides": [],
+  "relationships": [],
+  "components": [
+    {
+      "id": "main",
+      "name": "Main",
+      "path": ".",
+      "required": true,
+      "default": true,
+      "requires": [],
+      "conflicts": [],
+      "suggested_with": []
+    }
+  ],
+  "groups": [],
+  "extensions": {},
+  "critical_extensions": []
+}

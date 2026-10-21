@@ -1,0 +1,36 @@
+alpha: {"release_document":"dreamweave.release.json","documentation":"alpha-Documentation/index.html"}
+  Alpha.esp <- <root>/content/alpha/Alpha.esp false
+  Extra.omwscripts <- <root>/content/alpha/Extra.omwscripts false
+  alpha-dwmod.toml <- <root>/content/alpha/mod.toml false
+  scripts/alpha.lua <- <root>/content/alpha/scripts/alpha.lua true
+  shot.png <- <root>/content/alpha/shot.png false
+  dreamweave.release.json <- 1071 bytes false
+  alpha-Documentation/index.html <- /staged/index.html false
+  alpha-Documentation/_site/site.css <- /staged/_site/site.css false
+alpha-addon: {"release_document":"dreamweave.release.json"}
+  Addon.omwaddon <- <root>/content/alpha/addon/Addon.omwaddon false
+  index.md <- <root>/content/alpha/addon/index.md false
+  alpha-addon-dwmod.toml <- <root>/content/alpha/addon/mod.toml false
+  dreamweave.release.json <- 598 bytes false
+beta: {"release_document":"dreamweave.release.json","documentation":"beta-Documentation/index.html"}
+  core/Beta.esp <- <root>/content/beta/core/Beta.esp false
+  core/BetaGrass.esp <- <root>/content/beta/core/BetaGrass.esp false
+  extras/Extras.esp <- <root>/content/beta/extras/Extras.esp false
+  extras/Stray.ESP <- <root>/content/beta/extras/Stray.ESP false
+  beta-dwmod.toml <- <root>/content/beta/mod.toml false
+  shot.png <- <root>/content/beta/shot.png false
+  dreamweave.release.json <- 2768 bytes false
+  beta-Documentation/index.html <- /staged/index.html false
+  beta-Documentation/_site/site.css <- /staged/_site/site.css false
+delta: {"release_document":"dreamweave.release.json"}
+  index.md <- <root>/content/delta/index.md false
+  delta-dwmod.toml <- <root>/content/delta/mod.toml false
+  dreamweave.release.json <- 582 bytes false
+gamma: {"release_document":"dreamweave.release.json"}
+  index.md <- <root>/content/gamma/index.md false
+  gamma-dwmod.toml <- <root>/content/gamma/mod.toml false
+  dreamweave.release.json <- 575 bytes false
+zeta: {"release_document":"dreamweave.release.json"}
+  index.md <- <root>/content/zeta/index.md false
+  zeta-dwmod.toml <- <root>/content/zeta/mod.toml false
+  dreamweave.release.json <- 575 bytes false

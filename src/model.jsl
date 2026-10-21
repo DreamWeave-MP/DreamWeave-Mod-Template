@@ -1,0 +1,925 @@
+--!strict
+-- A repository of mods as the build sees it: the site's configuration, and every project found
+-- under `content` by its `mod.toml`, with the page beside it read for its title, summary and
+-- tags. What a manifest leaves out is filled in here, once, so nothing downstream asks whether a
+-- field is there.
+local fs = require '@dream/fs'
+local gitIndex = require './git_index'
+local jessJson = require '@jess/json'
+local toml = require '@jess/data/toml'
+local util = require './util'
+local version = require './version'
+local yaml = require '@jess/yaml'
+
+-- What a manifest's author wrote: a decoded table whose values are whatever they put there.
+export type Table = { [string]: unknown }
+
+export type Person = { name: string, url: unknown }
+
+export type OpenmwComponent = {
+  data_directories: { unknown },
+  content_files: { unknown },
+  groundcover_files: { unknown },
+  fallback_archives: { unknown },
+  fallback_entries: Table,
+  config: boolean,
+  requires_content: { unknown },
+}
+
+export type Component = {
+  id: string,
+  name: string,
+  path: string,
+  description: unknown,
+  required: boolean,
+  default: boolean,
+  group: unknown,
+  requires: { unknown },
+  conflicts: { unknown },
+  suggested_with: { unknown },
+  openmw: OpenmwComponent,
+}
+
+export type Release = {
+  version: string,
+  parsed: version.Version,
+  date: string,
+  channel: string,
+  tag: unknown,
+  notes: Table,
+  yanked: unknown,
+  deprecated: unknown,
+  replacement: unknown,
+}
+
+export type Relationship = {
+  kind: string,
+  project_id: unknown,
+  capability: unknown,
+  name: unknown,
+  version: unknown,
+  url: unknown,
+  reason: unknown,
+}
+
+export type Media = {
+  kind: string,
+  file: unknown,
+  url: unknown,
+  alt: string,
+  caption: unknown,
+  category: unknown,
+  featured: boolean,
+  thumbnail: unknown,
+}
+
+export type Credit = { name: string, role: unknown, url: unknown }
+
+export type Platform = { system: string, architecture: string, variant: unknown }
+
+--- The Jess package a `format = "jpk"` project publishes: the Package Source its `jess` key names,
+--- one of the repository's jess workspace members, as that member's `jess.toml` declares it.
+--- `source` is the member's folder, `.` for the repository root.
+export type JessPackage = { id: string, version: string, jess_api: string, dependencies: { [string]: string }, source: string }
+
+export type Project = {
+  directory: string,
+  page_path: string,
+  id: string,
+  slug: string,
+  name: string,
+  summary: unknown,
+  tags: { unknown },
+  type: string,
+  status: string,
+  versioning: string,
+  game: string,
+  license: unknown,
+  maintainers: { Person },
+  links: Table,
+  runtimes: Table,
+  platforms: { Platform },
+  provides: { unknown },
+  relationships: { Relationship },
+  components: { Component },
+  groups: { Table },
+  openmw: { lua_api: unknown, requires_content: { unknown }, settings: { Table } },
+  package_format: string,
+  package_documentation: boolean,
+  package_development: boolean,
+  package_binary: unknown,
+  package_include: { unknown },
+  package_crate: unknown,
+  --- `[package] jess`, the id of the Jess package a `jpk` project publishes, as written.
+  package_jess_name: unknown,
+  package_jess: JessPackage?,
+  install: Table,
+  media: { Media },
+  credits: { Credit },
+  mirrors: { unknown },
+  nexusmods_mod_id: unknown,
+  nexusmods_file_group_id: unknown,
+  sigstore: boolean,
+  releases: { Release },
+  extensions: Table,
+  raw: Table,
+}
+
+export type Site = {
+  title: string,
+  base_url: string,
+  repository_owner: string,
+  repository_name: string,
+  repository: string,
+  repository_url: string,
+  development_release: string,
+  extra: Table,
+}
+
+--- A release CI recorded in a project's `mod.lock`: the version, the commit it was built from,
+--- who signed it, the archives it published, and what the release meant when it was built.
+export type Locked = {
+  version: string,
+  parsed: version.Version,
+  locked_from: string,
+  signing_identity: string?,
+  artifacts: { Table },
+  semantics: Table,
+}
+
+--- A release the site publishes: recorded in `mod.lock`, and declared in `mod.toml` unless the
+--- declaration went away.
+export type Published = {
+  declared: Release?,
+  locked: Locked,
+  tag: string,
+  revision: string?,
+  channel: string,
+  date: string?,
+}
+
+--- Where each declared release of a project stands: published, recorded in `mod.lock`;
+--- unverified, tagged but never recorded, like tags from before this template; planned,
+--- declared and not tagged yet.
+export type ReleaseState = { published: { Published }, unverified: { string }, planned: { string } }
+
+export type Repository = {
+  root: string,
+  site: Site,
+  projects: { Project },
+  --- Each project's recorded releases, by project id, in version order.
+  locks: { [string]: { Locked } },
+  head: string,
+  build_number: number,
+  errors: { string },
+  notes: { unknown },
+}
+
+export type Options = { head: string?, buildNumber: number? }
+
+local LockFile = 'mod.lock'
+--- What a lock record says of a release besides its artifacts, in the order a release document
+--- carries it. Every one but critical_extensions is required.
+local SemanticKeys = { 'runtimes', 'platforms', 'provides', 'relationships', 'components', 'groups', 'extensions' }
+
+local model = {}
+
+--- `value` when it is a table, and an empty one for anything else.
+local function tableOr(value: unknown): Table
+  return if type(value) == 'table' then value :: Table else {}
+end
+
+local function listOr(value: unknown): { Table }
+  return if type(value) == 'table' then value :: { Table } else {}
+end
+
+--- `text` as the table of TOML it is; an empty one for a document that decodes to nothing.
+local function decoded(text: string): Table
+  return ((toml.decode(text) or {}) :: unknown) :: Table
+end
+
+--- The front matter of the page at `path`: TOML between `+++` fences or YAML between `---`
+--- ones, at the very start. A page with neither, or with a fence it never closes, has none.
+@native
+local function frontMatter(path: string): Table
+  local text = string.gsub(util.read(path), '\r\n?', '\n')
+
+  if string.sub(text, 1, 4) == '+++\n' then
+    local finish = string.find(text, '\n+++', 5, true)
+    if not finish then return {} end
+
+    return decoded(string.sub(text, 5, finish - 1))
+  end
+
+  if string.sub(text, 1, 4) == '---\n' then
+    local finish = string.find(text, '\n---', 5, true)
+    if not finish then return {} end
+
+    return ((yaml.decode(string.sub(text, 5, finish - 1)) or {}) :: unknown) :: Table
+  end
+
+  return {}
+end
+
+--- How a component is installed into OpenMW. A project with no components is one, whose
+--- content the game requires nothing more for; `componentLevel` is false for it.
+local function openmwComponent(given: unknown, componentLevel: boolean): OpenmwComponent
+  local source = tableOr(given)
+
+  return {
+    data_directories = if #listOr(source.data_directories) > 0
+      then util.arrayCopy(source.data_directories :: { unknown })
+      else { '.' },
+    content_files = util.arrayCopy(source.content_files :: { unknown }?),
+    groundcover_files = util.arrayCopy(source.groundcover_files :: { unknown }?),
+    fallback_archives = util.arrayCopy(source.fallback_archives :: { unknown }?),
+    fallback_entries = tableOr(source.fallback_entries),
+    -- Only a manifest that says `true` asks for the configuration to be written.
+    config = source.config == true,
+    requires_content = if componentLevel then util.arrayCopy(source.requires_content :: { unknown }?) else {},
+  }
+end
+
+--- The Package Sources of the repository's jess workspace, by package id: the members
+--- `jess-workspace.toml` lists, or the root's own `jess.toml` when there is no workspace file. A
+--- member without a readable manifest is left out; what is wrong with it is jess's to say.
+local function jessPackages(root: string): { [string]: JessPackage }
+  local members: { string } = {}
+  local workspace = fs.readFileString(fs.join(root, 'jess-workspace.toml'))
+
+  if workspace then
+    for _, member in ipairs(listOr(tableOr(decoded(workspace).workspace).members)) do
+      table.insert(members, tostring(member))
+    end
+  elseif fs.readFileString(fs.join(root, 'jess.toml')) then
+    members = { '.' }
+  end
+
+  local packages: { [string]: JessPackage } = {}
+
+  for _, member in members do
+    local folder = if member == '.' then root else fs.join(root, member)
+    local text = fs.readFileString(fs.join(folder, 'jess.toml'))
+    if text == nil then continue end
+
+    local manifest = decoded(text)
+    local package = tableOr(manifest.package)
+    local dependencies: { [string]: string } = {}
+
+    for id, requirement in pairs(tableOr(manifest.dependencies)) do
+      dependencies[tostring(id)] = tostring(requirement)
+    end
+
+    local id = tostring(package.id or '')
+    if id == '' then continue end
+
+    packages[id] = {
+      id = id,
+      version = tostring(package.version or ''),
+      jess_api = tostring(package.jess_api or ''),
+      dependencies = dependencies,
+      source = member,
+    }
+  end
+
+  return packages
+end
+
+--- Where the manifest of `package` is, relative to the repository, for messages.
+function model.jessManifestPath(package: JessPackage): string
+  return if package.source == '.' then 'jess.toml' else `{package.source}/jess.toml`
+end
+
+local function readProject(root: string, directory: string): Project
+  local mod = decoded(util.read(fs.join(root, directory, 'mod.toml')))
+  local matter = frontMatter(fs.join(root, directory, 'index.md'))
+  local openmw = tableOr(mod.openmw)
+  local name, versioning = tostring(matter.title or ''), tostring(mod.versioning or 'numeric')
+  local components: { Component } = {}
+
+  if #listOr(mod.components) == 0 then
+    local main: Component = {
+      id = 'main',
+      name = if name ~= '' then name else 'Main',
+      path = '.',
+      required = true,
+      default = true,
+      requires = {},
+      conflicts = {},
+      suggested_with = {},
+      openmw = openmwComponent(openmw, false),
+    }
+    table.insert(components, main)
+  else
+    for _, given in ipairs(mod.components :: { Table }) do
+      local installed = tableOr(given.openmw)
+
+      local component: Component = {
+        id = tostring(given.id or ''),
+        name = tostring(given.name or given.id or ''),
+        path = tostring(given.path or ''),
+        description = given.description,
+        required = given.required == true,
+        default = given.default == true or given.required == true,
+        group = given.group,
+        requires = util.arrayCopy(given.requires :: { unknown }?),
+        conflicts = util.arrayCopy(given.conflicts :: { unknown }?),
+        suggested_with = util.arrayCopy(given.suggested_with :: { unknown }?),
+        openmw = openmwComponent(installed, true),
+      }
+      table.insert(components, component)
+    end
+  end
+
+  local releases: { Release } = {}
+
+  for _, given in ipairs(listOr(mod.releases)) do
+    if not given.version then continue end
+
+    table.insert(releases, {
+      version = tostring(given.version),
+      parsed = version.parseOrError(tostring(given.version), versioning),
+      date = tostring(given.date or ''),
+      channel = tostring(given.channel or 'stable'),
+      tag = given.tag,
+      -- A release's notes are its own keys in mod.toml: summary, added, fixed and the rest.
+      notes = (function(): Table
+        local notes: Table = {}
+
+        for _, key in { 'summary', 'highlights', 'added', 'changed', 'fixed', 'breaking', 'migration', 'known_issues', 'notes' } do
+          if given[key] ~= nil then notes[key] = given[key] end
+        end
+
+        return notes
+      end)(),
+      yanked = given.yanked,
+      deprecated = given.deprecated,
+      replacement = given.replacement,
+    })
+  end
+
+  local relationships: { Relationship } = {}
+
+  for _, kind in ipairs { 'requires', 'recommends', 'conflicts', 'compatible', 'replaces' } do
+    for _, given in ipairs(listOr(mod[kind])) do
+      table.insert(relationships, {
+        kind = kind,
+        project_id = given.id,
+        capability = given.capability,
+        name = given.name,
+        version = given.version,
+        url = given.url,
+        reason = given.reason,
+      })
+    end
+  end
+
+  local media: { Media } = {}
+
+  for _, given in ipairs(listOr(mod.media)) do
+    table.insert(media, {
+      kind = if given.video then 'video' else 'image',
+      file = given.file,
+      url = given.video,
+      alt = tostring(given.alt or ''),
+      caption = given.caption,
+      category = given.category,
+      featured = given.featured == true,
+      thumbnail = given.thumbnail,
+    })
+  end
+
+  local credits: { Credit } = {}
+
+  for _, given in ipairs(listOr(mod.credits)) do
+    table.insert(credits, { name = tostring(given.name or ''), role = given.role, url = given.url })
+  end
+
+  local maintainers: { Person } = {}
+
+  for _, given in ipairs(listOr(mod.maintainers)) do
+    table.insert(maintainers, { name = tostring(given.name or ''), url = given.url })
+  end
+
+  local platforms: { Platform } = {}
+
+  for _, given in ipairs(listOr(mod.platforms)) do
+    table.insert(platforms, {
+      system = tostring(given.os or 'linux'),
+      architecture = tostring(given.arch or 'x86_64'),
+      variant = given.variant,
+    })
+  end
+
+  local package = (mod.package or {}) :: Table
+  local nexusmods, provenance = (mod.nexusmods or {}) :: Table, (mod.provenance or {}) :: Table
+  local taxonomies = (matter.taxonomies or {}) :: Table
+
+  local project: Project = {
+    directory = util.norm(directory),
+    page_path = string.gsub(util.norm(directory), '^content/', '') .. '/',
+    id = tostring(mod.id or ''),
+    slug = tostring(mod.slug or ''),
+    name = name,
+    summary = matter.description,
+    tags = (taxonomies.tags or {}) :: { unknown },
+    type = tostring(mod.type or 'mod'),
+    status = tostring(mod.status or 'active'),
+    versioning = versioning,
+    game = tostring(mod.game or 'morrowind'),
+    license = mod.license,
+    maintainers = maintainers,
+    links = tableOr(mod.links),
+    runtimes = tableOr(mod.runtimes),
+    platforms = platforms,
+    provides = util.arrayCopy(mod.provides :: { unknown }?),
+    relationships = relationships,
+    components = components,
+    groups = util.arrayCopy(mod.groups :: { Table }?),
+    openmw = {
+      lua_api = openmw.lua_api,
+      requires_content = util.arrayCopy(openmw.requires_content :: { unknown }?),
+      settings = util.arrayCopy(openmw.settings :: { Table }?),
+    },
+    package_format = tostring(package.format or 'flat'),
+    -- Documentation and development builds are on unless a manifest says `false`.
+    package_documentation = package.documentation ~= false and tostring(package.format or 'flat') ~= 'binary',
+    package_development = package.development ~= false,
+    package_binary = package.binary,
+    package_include = util.arrayCopy(package.include :: { unknown }?),
+    package_crate = package.crate,
+    package_jess_name = package.jess,
+    package_jess = nil,
+    install = tableOr(mod.install),
+    media = media,
+    credits = credits,
+    mirrors = util.arrayCopy(mod.mirrors :: { unknown }?),
+    nexusmods_mod_id = nexusmods.mod_id,
+    nexusmods_file_group_id = nexusmods.file_group_id,
+    sigstore = provenance.sigstore == true,
+    releases = releases,
+    extensions = tableOr(mod.extensions),
+    raw = mod,
+  }
+
+  if project.package_format == 'crate' then
+    project.package_documentation = false
+    project.package_development = false
+  end
+
+  if project.package_format == 'jpk' then
+    -- A JPK's documentation stays on the site: its payload is what its jess.toml includes. Which
+    -- Package Source it is, `model.load` settles across the repository.
+    project.package_documentation = false
+  end
+
+  return project
+end
+
+--- The commit the checkout at `root` is on, from its `HEAD`: followed once through a branch,
+--- empty for no repository.
+local function isHex64(value: unknown): boolean
+  return type(value) == 'string' and #(value :: string) == 64 and string.find(value :: string, '^%x+$') ~= nil
+end
+
+--- One record of a lock, checked as far as a client would check it: a version under the
+--- project's scheme, archives with a digest and a size, and every semantic field present.
+function model.parseLocked(record: unknown, project: Project, where: string, problems: { string }): Locked?
+  if type(record) ~= 'table' then
+    table.insert(problems, `{where} is not an object`)
+    return nil
+  end
+
+  local fields = record :: Table
+  local parsed, problem = version.parse(fields.version, project.versioning)
+
+  if not parsed then
+    table.insert(problems, `{where}: {problem}`)
+    return nil
+  end
+
+  local artifacts = fields.artifacts
+
+  if type(artifacts) ~= 'table' or #(artifacts :: { unknown }) == 0 then
+    table.insert(problems, `{where} has no artifacts`)
+    return nil
+  end
+
+  for _, artifact in artifacts :: { unknown } do
+    local entry: Table = if type(artifact) == 'table' then artifact :: Table else {}
+    local digests: Table = if type(entry.digests) == 'table' then entry.digests :: Table else {}
+
+    if not isHex64(digests.sha256) then
+      table.insert(problems, `{where}: artifact '{tostring(entry.id)}' has a malformed sha256 digest '{tostring(digests.sha256)}'`)
+    end
+
+    local size = entry.size
+
+    if type(size) ~= 'number' or size <= 0 or size ~= math.floor(size) then
+      table.insert(problems, `{where}: artifact '{tostring(entry.id)}' has no valid size`)
+    end
+  end
+
+  local missing = [for key in SemanticKeys if fields[key] == nil => key]
+
+  if #missing > 0 then
+    table.insert(problems, `{where} is missing {table.concat(missing, ', ')}`)
+    return nil
+  end
+
+  local semantics: Table = {}
+
+  for _, key in SemanticKeys do
+    semantics[key] = fields[key]
+  end
+
+  if fields.critical_extensions ~= nil then semantics.critical_extensions = fields.critical_extensions end
+
+  local identity = fields.signing_identity
+
+  return {
+    version = (parsed :: version.Version).text,
+    parsed = parsed :: version.Version,
+    locked_from = tostring(fields.locked_from or ''),
+    signing_identity = if type(identity) == 'string' and identity ~= '' then identity else nil,
+    artifacts = artifacts :: { Table },
+    semantics = semantics,
+  }
+end
+
+--- The releases `project`'s `mod.lock` records, with every problem a client would trip on
+--- appended to `problems`: a lock that is not JSON, not a lock, another project's, repeats a
+--- version, or records a version `mod.toml` no longer declares.
+function model.readLock(root: string, project: Project, problems: { string }): { Locked }
+  local where = `{project.directory}/{LockFile}`
+  local text = fs.readFileString(fs.join(root, where))
+
+  if text == nil then return {} end
+
+  -- The decoder throws on malformed JSON, with a position and no file name.
+  local ok, document = pcall(function(): unknown return jessJson.decode(text) end)
+
+  if not ok then
+    table.insert(problems, `{where} is not valid JSON ({document}); CI writes it when a release tag is pushed`)
+    return {}
+  end
+
+  if type(document) ~= 'table' then
+    table.insert(problems, `{where} is not a schema_version 2 or 3 lock document`)
+    return {}
+  end
+
+  local fields = document :: Table
+
+  -- A lock written under schema_version 2 reads as it was: version 3 added to artifacts and
+  -- changed nothing a lock already held.
+  if (fields.schema_version ~= '2' and fields.schema_version ~= '3') or fields.document ~= 'lock' then
+    table.insert(problems, `{where} is not a schema_version 2 or 3 lock document`)
+    return {}
+  end
+
+  if fields.project ~= project.id then
+    table.insert(
+      problems,
+      `{where} belongs to project '{tostring(fields.project)}', not '{project.id}'; a copied lock file claims someone else's releases`
+    )
+    return {}
+  end
+
+  local releases: { Locked } = {}
+
+  for index, record in ipairs(if type(fields.releases) == 'table' then fields.releases :: { unknown } else {}) do
+    local release = model.parseLocked(record, project, `{where} releases[{index - 1}]`, problems)
+
+    if release then table.insert(releases, release) end
+  end
+
+  local seen: { [string]: boolean } = {}
+
+  for _, release in releases do
+    if seen[release.version] then
+      table.insert(problems, `{where} records version {release.version} more than once`)
+      break
+    end
+
+    seen[release.version] = true
+  end
+
+  for _, release in releases do
+    if not model.declaredRelease(project, release.version) then
+      table.insert(problems, `{where} records {release.version}, which mod.toml does not declare in [[releases]]`)
+    end
+  end
+
+  return releases
+end
+
+--- The declared release of `project` whose version is `text` under the project's scheme.
+function model.declaredRelease(project: Project, text: string): Release?
+  local wanted = version.parse(text, project.versioning)
+
+  if not wanted then return nil end
+
+  for _, release in ipairs(project.releases) do
+    if version.compare(release.parsed, wanted :: version.Version) == 0 then return release end
+  end
+
+  return nil
+end
+
+local function repositoryHead(root: string): string
+  local head = fs.readFileString(fs.join(root, '.git/HEAD'))
+  if not head then return '' end
+
+  local trimmed = util.trim(head)
+  local reference = string.match(trimmed, '^ref:%s*(.+)$')
+  if reference then return util.trim(fs.readFileString(fs.join(root, '.git', reference)) or '') end
+
+  return trimmed
+end
+
+--- The repository at `root`. What is wrong with it as a whole (an id or a slug used twice, a
+--- channel whose releases are out of order) is listed in `errors`; a manifest that cannot be
+--- read at all is raised.
+@native
+function model.load(root: string, options: Options?): Repository
+  local given: Options = options or {}
+  local configuration = decoded(util.read(fs.join(root, 'config.toml')))
+  local extra = tableOr(configuration.extra)
+  local owner, name = tostring(extra.github_username or ''), tostring(extra.github_project or '')
+  local repository = owner .. '/' .. name
+
+  local site: Site = {
+    title = tostring(configuration.title or ''),
+    base_url = (string.gsub(tostring(configuration.base_url or ''), '/+$', '')),
+    repository_owner = owner,
+    repository_name = name,
+    repository = repository,
+    repository_url = 'https://github.com/' .. repository,
+    -- The template's own repository publishes its development builds under another name.
+    development_release = if string.lower(repository) == 'dreamweave-mp/dreamweave-mod-template'
+      then 'dev-build'
+      else 'development',
+    extra = extra,
+  }
+
+  local directories = [for entry in util.walk(fs.join(root, 'content')) if util.basename(entry.relative) == 'mod.toml' => 'content/' .. util.dirname(entry.relative)]
+  table.sort(directories)
+
+  local projects = [for directory in directories => readProject(root, directory)]
+
+  local repo: Repository = {
+    root = root,
+    site = site,
+    projects = projects,
+    locks = {},
+    head = given.head or repositoryHead(root),
+    build_number = given.buildNumber or 1,
+    errors = {},
+    notes = {},
+  }
+
+  for _, project in projects do
+    repo.locks[project.id] = model.readLock(root, project, repo.errors)
+  end
+
+  local byId: { [string]: string }, bySlug: { [string]: string } = {}, {}
+
+  for _, project in projects do
+    if byId[project.id] then table.insert(repo.errors, project.directory .. ': duplicate id ' .. project.id) end
+
+    byId[project.id] = project.directory
+    if bySlug[project.slug] then
+      table.insert(repo.errors, project.directory .. ': duplicate slug ' .. project.slug)
+    end
+
+    bySlug[project.slug] = project.directory
+  end
+
+  -- A `jpk` project names the Package Source it publishes, one of the repository's jess workspace
+  -- members; one project publishes one package, and a repository publishes as many as it has
+  -- projects for.
+  local packages = jessPackages(root)
+  local publishers: { [string]: string } = {}
+
+  for _, project in projects do
+    if project.package_format ~= 'jpk' then continue end
+
+    local name = project.package_jess_name
+
+    if type(name) ~= 'string' or name == '' then
+      table.insert(
+        repo.errors,
+        `{project.directory}/mod.toml: format = "jpk" needs jess = "<package id>", the Jess package this project publishes`
+      )
+      continue
+    end
+
+    local package = packages[name]
+
+    if package == nil then
+      local known: { string } = {}
+
+      for id in pairs(packages) do
+        table.insert(known, id)
+      end
+
+      table.sort(known)
+      local has = if #known > 0
+        then `; it has {table.concat(known, ', ')}`
+        else ': there is no jess-workspace.toml and no jess.toml at the root'
+      table.insert(
+        repo.errors,
+        `{project.directory}/mod.toml: jess = "{name}" names no Package Source of this repository's jess workspace{has}`
+      )
+      continue
+    end
+
+    if publishers[name] then
+      table.insert(
+        repo.errors,
+        `{project.directory}: {publishers[name]} already publishes {name}; one project publishes one package`
+      )
+      continue
+    end
+
+    publishers[name] = project.directory
+
+    local declared = package :: JessPackage
+    local manifest = model.jessManifestPath(declared)
+
+    if not string.find(declared.id, '^[a-z0-9][a-z0-9.-]*$') or not string.find(declared.id, '.', 1, true) then
+      table.insert(repo.errors, `{manifest}: [package] id '{declared.id}' is not a Jess package id (lowercase words joined by dots, org.example.name)`)
+    elseif declared.version == '' then
+      table.insert(repo.errors, `{manifest}: [package] needs a version, the one its next release tag names`)
+    else
+      project.package_jess = declared
+    end
+  end
+
+  for _, project in projects do
+    local {directory, versioning} = project
+    local channels: { [string]: { Release } } = {}
+
+    for _, release in project.releases do
+      channels[release.channel] = channels[release.channel] or {}
+      table.insert(channels[release.channel], release)
+    end
+
+    for _, releases in pairs(channels) do
+      table.sort(releases, function(left: Release, right: Release): boolean
+        if left.date ~= right.date then return left.date < right.date end
+
+        return version.compare(left.parsed, right.parsed) < 0
+      end)
+
+      for index = 2, #releases do
+        local later, earlier = releases[index], releases[index - 1]
+        if version.compare(later.parsed, earlier.parsed) >= 0 then continue end
+
+        table.insert(
+          repo.errors,
+          `{directory}/mod.toml: {later.channel} release {later.version} ({later.date}) sorts below {earlier.version} ({earlier.date}) under {versioning} versioning`
+        )
+      end
+    end
+  end
+
+  return repo
+end
+
+function model.projectBySlug(repo: Repository, slug: string): Project?
+  for _, project in ipairs(repo.projects) do
+    if project.slug == slug then return project end
+  end
+
+  return nil
+end
+
+--- The folders of the projects that sit inside `project`'s own.
+function model.nestedDirectories(repo: Repository, project: Project): { string }
+  local out = {}
+
+  for _, other in ipairs(repo.projects) do
+    if other.directory == project.directory then continue end
+    if util.startsWith(other.directory, project.directory .. '/') then table.insert(out, other.directory) end
+  end
+
+  return out
+end
+
+--- Where each of `project`'s declared releases stands. A tag that resolves in `.git` counts as
+--- tagged; a crate version below a tagged one counts as tagged too, since crates published
+--- before a repository tagged its releases are on crates.io.
+function model.releaseState(repo: Repository, project: Project): ReleaseState
+  local locked: { [string]: Locked } = {}
+
+  for _, release in repo.locks[project.id] or {} do
+    locked[release.version] = release
+  end
+
+  local tagged: { version.Version } = {}
+
+  for _, declared in project.releases do
+    if gitIndex.tagRevision(repo.root, tostring(model.releaseTag(project, declared.version))) then
+      table.insert(tagged, declared.parsed)
+    end
+  end
+
+  local newestTag: version.Version?
+
+  if project.package_format == 'crate' then
+    for _, candidate in tagged do
+      if not newestTag or version.compare(candidate, newestTag :: version.Version) > 0 then newestTag = candidate end
+    end
+  end
+
+  local state: ReleaseState = { published = {}, unverified = {}, planned = {} }
+
+  for _, declared in project.releases do
+    local tag = tostring(model.releaseTag(project, declared.version))
+    local record = locked[declared.parsed.text]
+    local isTagged = false
+
+    for _, candidate in tagged do
+      if version.compare(candidate, declared.parsed) == 0 then isTagged = true end
+    end
+
+    if record then
+      table.insert(state.published, {
+        declared = declared,
+        locked = record,
+        tag = tag,
+        revision = if record.locked_from ~= '' then record.locked_from else nil,
+        channel = declared.channel,
+        date = if declared.date ~= '' then declared.date else nil,
+      })
+    elseif isTagged or (newestTag ~= nil and version.compare(declared.parsed, newestTag :: version.Version) < 0) then
+      table.insert(state.unverified, declared.version)
+    else
+      table.insert(state.planned, declared.version)
+    end
+  end
+
+  return state
+end
+
+--- The version a development build of `project` is: past the newest tagged release, published or
+--- not, by the repository's build number. An unrecorded tag still says what players may have
+--- installed, so a development build sorts above it even though the manifest cannot list it.
+function model.developmentVersion(repo: Repository, project: Project): version.Version
+  local state = model.releaseState(repo, project)
+  local base: version.Version?
+
+  for _, release in state.published do
+    if not base or version.compare(release.locked.parsed, base :: version.Version) > 0 then base = release.locked.parsed end
+  end
+
+  for _, declared in project.releases do
+    if table.find(state.unverified, declared.version) and (not base or version.compare(declared.parsed, base :: version.Version) > 0) then
+      base = declared.parsed
+    end
+  end
+
+  if not base then
+    base = version.parseOrError(if project.versioning == 'numeric' then '0.0.0' else '0', project.versioning)
+  end
+
+  return version.nextDevelopment(base :: version.Version, repo.build_number)
+end
+
+--- The archive StroggForge builds for one platform of a binary project.
+function model.binaryArchive(project: Project, platform: Platform): string
+  local systems: { [string]: string } = { windows = 'Windows', macos = 'macOS', linux = 'Linux', android = 'Android' }
+  local architectures: { [string]: string } = { x86_64 = 'X64', aarch64 = 'ARM64' }
+  local systemName, suffix = systems[platform.system] or platform.system, '.zip'
+
+  if platform.variant == 'portmaster' then
+    systemName = 'Portmaster'
+  elseif platform.variant == 'muos' then
+    systemName, suffix = 'Portmaster', '.muxapp'
+  end
+
+  return `{tostring(project.package_binary)}-{systemName}-{architectures[platform.architecture] or platform.architecture}{suffix}`
+end
+
+--- A token for a platform's artifact id: linux-x64, macos-arm64, linux-arm64-portmaster.
+function model.platformId(platform: Platform): string
+  local architectures: { [string]: string } = { x86_64 = 'x64', aarch64 = 'arm64' }
+  local base = `{platform.system}-{architectures[platform.architecture] or platform.architecture}`
+
+  return if platform.variant then `{base}-{tostring(platform.variant)}` else base
+end
+
+--- The git tag `text`, a version of `project`, is released under.
+function model.releaseTag(project: Project, text: string): unknown
+  for _, release in ipairs(project.releases) do
+    if release.version == text and release.tag then return release.tag end
+  end
+
+  if project.package_format == 'binary' or project.package_format == 'crate' then return text end
+
+  return project.slug .. '-' .. text
+end
+
+return model

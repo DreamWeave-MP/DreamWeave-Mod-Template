@@ -1,0 +1,11 @@
+base_url = "https://mods.test/stash/"
+title = "Fixture Mods"
+taxonomies = [{ name = "tags" }]
+
+[extra]
+github_username = "Owner"
+github_project = "Fixture-Mods"
+
+[extra.comments]
+category = "Mods"
+reactions = true

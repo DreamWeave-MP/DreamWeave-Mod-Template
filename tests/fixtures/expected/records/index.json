@@ -1,0 +1,37 @@
+{
+  "schema_version": "3",
+  "document": "index",
+  "generator": "DreamWeave Mod Template 0.3.0",
+  "site": {
+    "name": "Fixture Mods",
+    "url": "https://base.test/"
+  },
+  "projects": [
+    {
+      "id": "beta-id",
+      "name": "Beta",
+      "summary": "The second mod",
+      "type": "collection",
+      "status": "active",
+      "page": "https://base.test/beta/",
+      "manifest": "https://base.test/dreamweave/projects/beta-id.json",
+      "manifest_sha256": "06ea1d81ce95afb2c95c55b9a914d6e9a7208ad2ece4cf0dc10e9b0dd254efe2",
+      "updated": "2026-01-01",
+      "channels": {
+        "development": "0.61-dev.1",
+        "nightly": "0.7",
+        "stable": "0.6"
+      }
+    },
+    {
+      "id": "gamma-id",
+      "name": "",
+      "type": "mod",
+      "status": "active",
+      "page": "https://base.test/gamma/",
+      "manifest": "https://base.test/dreamweave/projects/gamma-id.json",
+      "manifest_sha256": "2857b2b9338178e84c35b163dc079d5d2270c8e523dc64daf9e50fbbde147828",
+      "channels": {}
+    }
+  ]
+}

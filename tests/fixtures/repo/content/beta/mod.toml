@@ -1,0 +1,142 @@
+id = "beta-id"
+slug = "beta"
+versioning = "decimal"
+type = "collection"
+license = "GPL-3.0"
+provides = ["beta-capability"]
+mirrors = ["https://mirror.test/beta"]
+
+[links]
+documentation = "@/beta/index.md"
+source = "https://code.test/beta"
+discord = "https://chat.test/beta"
+
+[runtimes]
+openmw = "0.50"
+morrowind = 1.6
+
+[openmw]
+requires_content = ["Morrowind.esm"]
+lua_api = 71
+
+[[openmw.settings]]
+category = "Shaders"
+key = "force shaders"
+value = true
+
+[nexusmods]
+mod_id = 4242
+file_group_id = "77"
+
+[extensions.custom]
+flag = true
+
+[[maintainers]]
+name = "Ada"
+url = "https://ada.test"
+
+[[maintainers]]
+name = "Bob"
+
+[[credits]]
+name = "Cyd"
+role = "Models"
+url = "https://cyd.test"
+
+[[credits]]
+name = "Dee"
+
+[[platforms]]
+os = "windows"
+
+[[platforms]]
+os = "linux"
+arch = "aarch64"
+
+[[platforms]]
+os = "macos"
+variant = "universal"
+
+[[platforms]]
+os = "haiku"
+
+[[requires]]
+id = "alpha-id"
+version = ">=1.0"
+reason = "Shares scripts"
+
+[[recommends]]
+name = "Some Other Mod"
+url = "https://other.test"
+
+[[conflicts]]
+capability = "old-beta"
+
+[[media]]
+file = "shot.png"
+alt = "A shot"
+caption = "The shot"
+category = "screens"
+featured = true
+thumbnail = "thumb.png"
+
+[[media]]
+video = "https://video.test/beta"
+
+[[groups]]
+id = "flavour"
+name = "Flavour"
+select = "one"
+description = "Pick one"
+
+[[groups]]
+id = "loose"
+name = "Loose"
+selection = "many"
+
+[[components]]
+id = "core"
+name = "Core"
+path = "core"
+required = true
+description = "The core files"
+
+[components.openmw]
+content_files = ["Beta.esp"]
+groundcover_files = ["BetaGrass.esp"]
+fallback_archives = ["Beta.bsa"]
+config = true
+requires_content = ["Tribunal.esm"]
+
+[components.openmw.fallback_entries]
+Weather_Clear = "1"
+
+[[components]]
+id = "extras"
+path = "extras"
+default = true
+group = "flavour"
+requires = ["core"]
+conflicts = ["other"]
+suggested_with = ["core"]
+
+[components.openmw]
+data_directories = ["00 Data", "."]
+content_files = ["Extras.esp"]
+
+[[releases]]
+version = "0.5"
+date = 2025-07-10
+
+[[releases]]
+version = "0.51"
+date = 2025-07-11
+channel = "beta"
+yanked = true
+deprecated = "use 0.6"
+replacement = "0.6"
+summary = "Fixes"
+
+[[releases]]
+version = "0.6"
+date = 2025-08-01

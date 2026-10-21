@@ -3,5 +3,5 @@
     "runtime.version": "LuaJIT",
     "diagnostics.globals": [],
     "workspace.checkThirdParty": false,
-    "workspace.ignoreDir": ["public", "dist", "static", "templates", "tools"]
+    "workspace.ignoreDir": ["public", "dist", "static", "templates"]
 }

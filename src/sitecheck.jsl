@@ -1,0 +1,451 @@
+--!strict
+-- The check a built site gets before it ships: every page's block elements balance, every link
+-- into the site names a file that is there, and every fragment names an id on the page it points
+-- at. It reads the HTML the generator wrote, tag by tag, and nothing else.
+local fs = require '@dream/fs'
+local util = require './util'
+
+export type Report = { pages: number, links: number, problems: { string } }
+
+type Url = { scheme: string, netloc: string, path: string, fragment: string }
+
+type Document = { ids: { [string]: boolean }, links: { string }, balance_errors: { string } }
+
+-- What a check makes of one link: whether it counts as followed, and what is wrong with it, as
+-- the text a problem ends in after the page's own path.
+type Verdict = { read counted: boolean, read problem: string? }
+
+local sitecheck = {}
+
+-- The elements whose open and close tags must pair up. The rest (`p`, `li`, `td`, the void
+-- elements) may be left open, as HTML lets them be.
+local Balanced: { [string]: boolean } = {
+  div = true,
+  main = true,
+  section = true,
+  article = true,
+  aside = true,
+  header = true,
+  footer = true,
+  nav = true,
+  ul = true,
+  ol = true,
+  table = true,
+  details = true,
+  figure = true,
+  dl = true,
+}
+
+-- What a byte of a tag can be, as bits, one byte for each byte value: whitespace, the slash,
+-- a byte of a tag's or an attribute's name, and the angle a tag ends on. The classes are Lua's
+-- own, asked of its patterns once, so a byte is what `%s` and `%w` say it is.
+local Space, Slashed, Named, Closing = 1, 2, 4, 8
+local Classes = buffer.create(256)
+
+for code = 0, 255 do
+  local character = string.char(code)
+  local class = if string.match(character, '%s') then Space else 0
+  if character == '/' then class += Slashed end
+  if string.match(character, '[%w:_-]') then class += Named end
+  if character == '>' then class += Closing end
+
+  buffer.writeu8(Classes, code, class)
+end
+
+local Bang, DoubleQuote, SingleQuote, Dash, Slash, Equals = 33, 34, 39, 45, 47, 61
+
+-- The letters of the three attributes a check reads, in lower case. A letter of either case has
+-- its lower case's code once bit 32 is set.
+local LowerC, LowerD, LowerE, LowerF, LowerH, LowerI, LowerR, LowerS = 99, 100, 101, 102, 104, 105, 114, 115
+
+--- `value` with the six entities the generator writes into an attribute turned back, one after
+--- another, so `&amp;lt;` comes out as `<`. A value with no ampersand holds none of them.
+local function decode(value: string): string
+  if not string.find(value, '&', 1, true) then return value end
+
+  local text = string.gsub(value, '&amp;', '&')
+  text = string.gsub(text, '&quot;', '"')
+  text = string.gsub(text, '&#x27;', "'")
+  text = string.gsub(text, '&#39;', "'")
+  text = string.gsub(text, '&lt;', '<')
+  text = string.gsub(text, '&gt;', '>')
+
+  return text
+end
+
+local function percentDecode(text: string): string
+  return (
+    string.gsub(text or '', '%%(%x%x)', @native function(digits: string): string
+      return string.char(tonumber(digits, 16) :: number)
+    end)
+  )
+end
+
+--- What a page declares: the ids on it, what it links to and loads, and where its balanced
+--- elements fail to pair. A tag ends at the first `>` after its `<`, whatever is quoted between.
+---
+--- The page is read where it stands, byte by byte, with no string made for a tag or for any
+--- attribute but the three a check reads: `id`, `href` and `src`, in either case. One written
+--- twice keeps its last value, and a value with no closing quote runs to the end of the tag.
+@native
+local function document(text: string): Document
+  local ids: { [string]: boolean }, links: { string } = {}, {}
+  local open: { string }, errors: { string } = {}, {}
+  local at = 1
+
+  while true do
+    local start = string.find(text, '<', at, true)
+    if not start then break end
+
+    if
+      string.byte(text, start + 1) == Bang
+      and string.byte(text, start + 2) == Dash
+      and string.byte(text, start + 3) == Dash
+    then
+      local finish = string.find(text, '-->', start + 4, true)
+      at = if finish then finish + 3 else #text + 1
+      continue
+    end
+
+    local finish = string.find(text, '>', start + 1, true)
+    if not finish then break end
+
+    at = finish + 1
+
+    -- The angle at `finish` is in no class a scan below runs through, so each stops there at the
+    -- latest and never reads past the tag.
+    local cursor = start + 1
+    while bit32.band(buffer.readu8(Classes, (string.byte(text, cursor))), Space) ~= 0 do
+      cursor += 1
+    end
+
+    local ending = string.byte(text, cursor) == Slash
+    if ending then
+      cursor += 1
+      while bit32.band(buffer.readu8(Classes, (string.byte(text, cursor))), Space) ~= 0 do
+        cursor += 1
+      end
+    end
+
+    local nameAt = cursor
+    while bit32.band(buffer.readu8(Classes, (string.byte(text, cursor))), Named) ~= 0 do
+      cursor += 1
+    end
+
+    if cursor == nameAt then continue end
+
+    local name = string.lower(string.sub(text, nameAt, cursor - 1))
+
+    if ending then
+      if not Balanced[name] then continue end
+
+      if #open > 0 and open[#open] == name then
+        table.remove(open)
+      else
+        table.insert(errors, `</{name}> closes {if #open > 0 then open[#open] else 'nothing'}`)
+      end
+
+      continue
+    end
+
+    if Balanced[name] then table.insert(open, name) end
+
+    local id: string?, href: string?, source: string?
+
+    while cursor <= finish do
+      while bit32.band(buffer.readu8(Classes, (string.byte(text, cursor))), Space + Slashed) ~= 0 do
+        cursor += 1
+      end
+
+      if cursor == finish then break end
+
+      local first = cursor
+      while bit32.band(buffer.readu8(Classes, (string.byte(text, cursor))), Named) ~= 0 do
+        cursor += 1
+      end
+
+      if cursor == first then
+        cursor += 1
+        continue
+      end
+
+      local length = cursor - first
+      while bit32.band(buffer.readu8(Classes, (string.byte(text, cursor))), Space) ~= 0 do
+        cursor += 1
+      end
+
+      -- The value is `text[from:to]`: nothing, for an attribute with none.
+      local from, to = 1, 0
+
+      if string.byte(text, cursor) == Equals then
+        cursor += 1
+        while bit32.band(buffer.readu8(Classes, (string.byte(text, cursor))), Space) ~= 0 do
+          cursor += 1
+        end
+
+        local quote = string.byte(text, cursor)
+        if quote == DoubleQuote or quote == SingleQuote then
+          cursor += 1
+          from = cursor
+          while cursor <= finish and string.byte(text, cursor) ~= quote do
+            cursor += 1
+          end
+
+          to = cursor - 1
+          cursor += 1
+        else
+          from = cursor
+          while bit32.band(buffer.readu8(Classes, (string.byte(text, cursor))), Space + Closing) == 0 do
+            cursor += 1
+          end
+
+          to = cursor - 1
+        end
+      end
+
+      if length == 2 then
+        if
+          bit32.bor(string.byte(text, first), 32) == LowerI
+          and bit32.bor(string.byte(text, first + 1), 32) == LowerD
+        then
+          id = decode(string.sub(text, from, to))
+        end
+      elseif length == 3 then
+        if
+          bit32.bor(string.byte(text, first), 32) == LowerS
+          and bit32.bor(string.byte(text, first + 1), 32) == LowerR
+          and bit32.bor(string.byte(text, first + 2), 32) == LowerC
+        then
+          source = decode(string.sub(text, from, to))
+        end
+      elseif length == 4 then
+        if
+          bit32.bor(string.byte(text, first), 32) == LowerH
+          and bit32.bor(string.byte(text, first + 1), 32) == LowerR
+          and bit32.bor(string.byte(text, first + 2), 32) == LowerE
+          and bit32.bor(string.byte(text, first + 3), 32) == LowerF
+        then
+          href = decode(string.sub(text, from, to))
+        end
+      end
+    end
+
+    -- An id with no value is the empty id, and is one.
+    if id then ids[id] = true end
+    if (name == 'a' or name == 'link') and href and href ~= '' then table.insert(links, href) end
+
+    if (name == 'img' or name == 'script' or name == 'source') and source and source ~= '' then
+      table.insert(links, source)
+    end
+  end
+
+  if #open > 0 then
+    local from = math.max(1, #open - 2)
+    table.insert(errors, `never closed: {table.concat(open[from:#open], ', ')}`)
+  end
+
+  return { ids = ids, links = links, balance_errors = errors }
+end
+
+--- `text` split the way a browser splits a URL, as far as a link check needs: a scheme and a
+--- host only before `://`, then the path, without its query, and the fragment.
+local function parseUrl(text: string): Url
+  local scheme, rest = string.match(text, '^([%a][%w+.-]*):%/%/(.*)$')
+  local netloc, path = '', text
+
+  if scheme and rest then
+    local cut = string.find(rest, '[/#?]')
+    if cut then
+      netloc = string.sub(rest, 1, cut - 1)
+      path = string.sub(rest, cut)
+    else
+      netloc = rest
+      path = '/'
+    end
+  end
+
+  local fragment = ''
+  local hash = string.find(path, '#', 1, true)
+  if hash then
+    fragment = string.sub(path, hash + 1)
+    path = string.sub(path, 1, hash - 1)
+  end
+
+  local query = string.find(path, '?', 1, true)
+  if query then path = string.sub(path, 1, query - 1) end
+
+  return { scheme = scheme or '', netloc = netloc, path = path, fragment = fragment }
+end
+
+--- `path` without its `.` segments and with each `..` taking the segment before it, if any.
+@native
+local function normalizePath(path: string): string
+  local segments: { string } = {}
+
+  for segment in string.gmatch(path, '[^/]+') do
+    if segment == '..' then
+      if #segments > 0 then table.remove(segments) end
+    elseif segment ~= '.' then
+      table.insert(segments, segment)
+    end
+  end
+
+  local lead = if string.sub(path, 1, 1) == '/' then '/' else ''
+  local trail = if string.sub(path, -1) == '/' and #segments > 0 then '/' else ''
+
+  return lead .. table.concat(segments, '/') .. trail
+end
+
+--- Where `reference` points when it is found on the page at `base`, and whether it points there
+--- from any page of the site: one with a scheme, a host or a path from the root does, since every
+--- page of one site shares its scheme and host.
+local function joinUrl(base: Url, reference: string): (Url, boolean)
+  if string.sub(reference, 1, 1) == '#' then
+    local target = { scheme = base.scheme, netloc = base.netloc, path = base.path, fragment = string.sub(reference, 2) }
+
+    return target, false
+  end
+
+  local parsed = parseUrl(reference)
+  if parsed.scheme ~= '' then return parsed, true end
+  if string.sub(reference, 1, 2) == '//' then return parseUrl(`{base.scheme}:{reference}`), true end
+
+  local path, fragment = reference, ''
+  local hash = string.find(path, '#', 1, true)
+  if hash then
+    fragment = string.sub(path, hash + 1)
+    path = string.sub(path, 1, hash - 1)
+  end
+
+  local query = string.find(path, '?', 1, true)
+  if query then path = string.sub(path, 1, query - 1) end
+
+  local rooted = string.sub(path, 1, 1) == '/'
+  if rooted then
+    path = normalizePath(path)
+  else
+    local folder = base.path
+    if string.sub(folder, -1) ~= '/' then folder = string.match(folder, '^(.*)/') or '/' end
+
+    path = normalizePath(folder .. path)
+  end
+
+  return { scheme = base.scheme, netloc = base.netloc, path = path, fragment = fragment }, rooted
+end
+
+local function htmlFiles(root: string): { util.Entry }
+  local out = [for entry in util.walk(root) if util.endsWith(string.lower(entry.relative), '.html') => entry]
+  table.sort(out, function(left: util.Entry, right: util.Entry): boolean return left.relative < right.relative end)
+
+  return out
+end
+
+-- What a check makes of a link that is not followed, and of one that is and is fine.
+local Skipped = table.freeze({ counted = false } :: Verdict)
+local Followed = table.freeze({ counted = true } :: Verdict)
+
+--- Checks the site built into `public`, which is served from `baseUrl`. The problems come page
+--- by page in path order: at most two of a page's unbalanced tags, then its links in the order
+--- it makes them.
+function sitecheck.check(public: string, baseUrl: string): Report
+  local base = parseUrl(string.gsub(baseUrl, '/+$', '') .. '/')
+  local documents: { [string]: Document } = {}
+  local files = htmlFiles(public)
+
+  if #files == 0 then
+    return { pages = 0, links = 0, problems = { `{public} has no HTML; run zola build first` } }
+  end
+
+  for _, file in files do
+    documents[file.path] = document(util.read(file.path))
+  end
+
+  -- The file each path below the base names, or false where there is none. A site's pages link
+  -- to the same few hundred places thousands of times, and the disk is asked about each once:
+  -- the check changes nothing on it between one link and the next.
+  local found: { [string]: string | false } = {}
+
+  --- What the check makes of `link` on the page at `current`, and whether it would make the same
+  --- of it on any page.
+  local function judge(link: string, current: Url): (Verdict, boolean)
+    -- A reference that is a scheme and no address (`data:,`, `mailto:`, `javascript:`) is not
+    -- a place on the site, or anywhere a check could follow.
+    if string.match(link, '^%a[%w+.-]*:') and not string.match(link, '^%a[%w+.-]*://') then return Skipped, true end
+
+    local target, anywhere = joinUrl(current, link)
+    -- The host is compared as written, case and all, the way the Python checker this follows
+    -- compared what urllib handed it.
+    if (target.scheme ~= 'http' and target.scheme ~= 'https') or target.netloc ~= base.netloc then
+      return Skipped, anywhere
+    end
+
+    if not util.startsWith(target.path, base.path) then
+      if parseUrl(link).netloc ~= '' then return Skipped, anywhere end
+
+      return { counted = false, problem = `: {link} escapes the site's base path {base.path}` }, anywhere
+    end
+
+    local targetFile = found[target.path]
+    if targetFile == nil then
+      local relative = string.gsub(percentDecode(string.sub(target.path, #base.path + 1)), '^/+', '')
+      local candidate = if relative == '' then public else fs.join(public, relative)
+      if fs.isDir(candidate) then candidate = fs.join(candidate, 'index.html') end
+
+      targetFile = if fs.isFile(candidate) then candidate else false
+      found[target.path] = targetFile
+    end
+
+    if not targetFile then return { counted = true, problem = `: missing target {link}` }, anywhere end
+    if target.fragment == '' or not util.endsWith(string.lower(targetFile), '.html') then return Followed, anywhere end
+
+    local targetPage = documents[targetFile]
+    if not targetPage then
+      targetPage = document(util.read(targetFile))
+      documents[targetFile] = targetPage
+    end
+
+    if targetPage.ids[percentDecode(target.fragment)] then return Followed, anywhere end
+
+    return { counted = true, problem = `: missing anchor {link}` }, anywhere
+  end
+
+  local problems: { string } = {}
+  local checked = 0
+
+  -- A link is judged once where it stands, and once for the whole site when it points to the same
+  -- place from every page, as a navigation bar's do: nothing a verdict rests on changes while
+  -- the check runs.
+  local everywhere: { [string]: Verdict } = {}
+
+  for _, file in files do
+    local page = documents[file.path]
+    for index = 1, math.min(2, #page.balance_errors) do
+      table.insert(problems, `{file.relative}: unbalanced HTML, {page.balance_errors[index]}`)
+    end
+
+    local current = joinUrl(base, (string.gsub(file.relative, 'index%.html$', '')))
+    local here: { [string]: Verdict } = {}
+
+    for _, link in page.links do
+      local verdict = everywhere[link] or here[link]
+
+      if not verdict then
+        local anywhere
+        verdict, anywhere = judge(link, current)
+
+        if anywhere then
+          everywhere[link] = verdict
+        else
+          here[link] = verdict
+        end
+      end
+
+      if verdict.counted then checked += 1 end
+      if verdict.problem then table.insert(problems, file.relative .. verdict.problem) end
+    end
+  end
+
+  return { pages = #files, links = checked, problems = problems }
+end
+
+return sitecheck

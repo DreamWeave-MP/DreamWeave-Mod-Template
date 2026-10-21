@@ -1,7 +1,8 @@
 name: Build, release and publish
 
-# Authors never run ./buildSite; StroggForge's modGlobalBuild does, on every push: it validates,
-# records and publishes releases, and deploys the site. Rust repositories do not use this file:
+# Authors never run the template's tooling; StroggForge's modGlobalBuild does, on every push: it
+# restores the template, theme and generator jess.lock pins, validates, records and publishes
+# releases, and deploys the site. Rust repositories do not use this file:
 # their StroggForge workflow sets mod_template: true and runs the same stage after publishing.
 #
 # Pull requests and other branches: validate, test, build the site. Nothing is published.
@@ -32,5 +33,5 @@ jobs:
       contents: write # releases, and the mod.lock commit
       id-token: write # Sigstore and Pages
       pages: write
-    uses: DreamWeave-MP/StroggForge/.github/workflows/modGlobalBuild.yml@v53
+    uses: DreamWeave-MP/StroggForge/.github/workflows/modGlobalBuild.yml@v57
     secrets: inherit

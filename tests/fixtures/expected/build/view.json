@@ -1,0 +1,816 @@
+{
+  "offline": false,
+  "generator": "DreamWeave Mod Template 0.3.0",
+  "projects": {
+    "alpha/": {
+      "unverified": [],
+      "manifest_sha256": "<alpha-id.json sha256>",
+      "development": {
+        "version": "1.1.1-dev.1",
+        "channel": "development",
+        "date": "2026-01-01",
+        "status": "available",
+        "source": {
+          "repository": "https://github.com/Owner/Fixture-Mods",
+          "release": "development",
+          "revision": "0123456789abcdef0123456789abcdef01234567"
+        },
+        "runtimes": {
+          "openmw": ">=0.49"
+        },
+        "platforms": [],
+        "provides": [],
+        "relationships": [],
+        "components": [
+          {
+            "id": "main",
+            "name": "Alpha",
+            "path": ".",
+            "required": true,
+            "default": true,
+            "requires": [],
+            "conflicts": [],
+            "suggested_with": []
+          }
+        ],
+        "groups": [],
+        "extensions": {
+          "openmw": {
+            "components": {
+              "main": {
+                "data_directories": [
+                  "."
+                ],
+                "content_files": [
+                  "Alpha.esp"
+                ],
+                "groundcover_files": [],
+                "fallback_archives": [],
+                "fallback_entries": {},
+                "config": false,
+                "requires_content": []
+              }
+            },
+            "requires_content": [],
+            "settings": [],
+            "lua_api": "70"
+          }
+        },
+        "critical_extensions": [
+          "openmw"
+        ],
+        "artifacts": [
+          {
+            "id": "flat",
+            "format": "flat",
+            "filename": "alpha.zip",
+            "media_type": "application/zip",
+            "size": <alpha-id size>,
+            "digests": {
+              "sha256": "<alpha-id sha256>"
+            },
+            "layout": {
+              "release_document": "dreamweave.release.json",
+              "documentation": "alpha-Documentation/index.html"
+            },
+            "sources": [
+              {
+                "url": "https://github.com/Owner/Fixture-Mods/releases/download/development/alpha.zip",
+                "kind": "publisher"
+              }
+            ],
+            "signatures": []
+          }
+        ]
+      },
+      "checks": [
+        {
+          "id": "identity",
+          "label": "Stable identity",
+          "state": "pass",
+          "detail": "id alpha-id; survives renames and host moves"
+        },
+        {
+          "id": "discovery",
+          "label": "Discovery",
+          "state": "pass",
+          "detail": "listed in dreamweave.json and linked from every page with <link rel=\"alternate\">"
+        },
+        {
+          "id": "manifest",
+          "label": "Manifest",
+          "state": "pass",
+          "detail": "schema_version 3, 2 release(s) published"
+        },
+        {
+          "id": "releases",
+          "label": "Published releases",
+          "state": "warn",
+          "detail": "no release tag has been pushed yet; clients only see the development channel"
+        },
+        {
+          "id": "planned",
+          "label": "Declared, not tagged",
+          "state": "info",
+          "detail": "1.0.0, 1.1.0: push the tag alpha-1.0.0 to publish"
+        },
+        {
+          "id": "channels",
+          "label": "Channels",
+          "state": "pass",
+          "detail": "development → 1.1.1-dev.1, stable → 1.1.0"
+        },
+        {
+          "id": "hashes",
+          "label": "Content hashes",
+          "state": "pass",
+          "detail": "every published artifact has a SHA-256 digest and size"
+        },
+        {
+          "id": "relationships",
+          "label": "Relationships",
+          "state": "info",
+          "detail": "none declared"
+        },
+        {
+          "id": "provenance",
+          "label": "Signatures",
+          "state": "info",
+          "detail": "not signed; hashes still verify integrity. Set [provenance] sigstore = true to add build provenance"
+        },
+        {
+          "id": "source",
+          "label": "Source revisions",
+          "state": "pass",
+          "detail": "0 of 0 published releases map to a commit"
+        },
+        {
+          "id": "mirrors",
+          "label": "Mirrors",
+          "state": "info",
+          "detail": "0 configured; every artifact also has its publisher source"
+        },
+        {
+          "id": "content",
+          "label": "Content files",
+          "state": "info",
+          "detail": "not declared in openmw.content_files: Extra.omwscripts"
+        }
+      ]
+    },
+    "alpha/addon/": {
+      "unverified": [],
+      "manifest_sha256": "<addon-id.json sha256>",
+      "development": {
+        "version": "0.0.1-dev.1",
+        "channel": "development",
+        "date": "2026-01-01",
+        "status": "available",
+        "source": {
+          "repository": "https://github.com/Owner/Fixture-Mods",
+          "release": "development",
+          "revision": "0123456789abcdef0123456789abcdef01234567"
+        },
+        "runtimes": {},
+        "platforms": [],
+        "provides": [],
+        "relationships": [],
+        "components": [
+          {
+            "id": "main",
+            "name": "Alpha Addon",
+            "path": ".",
+            "required": true,
+            "default": true,
+            "requires": [],
+            "conflicts": [],
+            "suggested_with": []
+          }
+        ],
+        "groups": [],
+        "extensions": {},
+        "critical_extensions": [],
+        "artifacts": [
+          {
+            "id": "flat",
+            "format": "flat",
+            "filename": "alpha-addon.zip",
+            "media_type": "application/zip",
+            "size": <addon-id size>,
+            "digests": {
+              "sha256": "<addon-id sha256>"
+            },
+            "layout": {
+              "release_document": "dreamweave.release.json"
+            },
+            "sources": [
+              {
+                "url": "https://github.com/Owner/Fixture-Mods/releases/download/development/alpha-addon.zip",
+                "kind": "publisher"
+              }
+            ],
+            "signatures": []
+          }
+        ]
+      },
+      "checks": [
+        {
+          "id": "identity",
+          "label": "Stable identity",
+          "state": "pass",
+          "detail": "id addon-id; survives renames and host moves"
+        },
+        {
+          "id": "discovery",
+          "label": "Discovery",
+          "state": "pass",
+          "detail": "listed in dreamweave.json and linked from every page with <link rel=\"alternate\">"
+        },
+        {
+          "id": "manifest",
+          "label": "Manifest",
+          "state": "pass",
+          "detail": "schema_version 3, 1 release(s) published"
+        },
+        {
+          "id": "releases",
+          "label": "Published releases",
+          "state": "warn",
+          "detail": "no release tag has been pushed yet; clients only see the development channel"
+        },
+        {
+          "id": "channels",
+          "label": "Channels",
+          "state": "pass",
+          "detail": "development → 0.0.1-dev.1"
+        },
+        {
+          "id": "hashes",
+          "label": "Content hashes",
+          "state": "pass",
+          "detail": "every published artifact has a SHA-256 digest and size"
+        },
+        {
+          "id": "relationships",
+          "label": "Relationships",
+          "state": "info",
+          "detail": "none declared"
+        },
+        {
+          "id": "provenance",
+          "label": "Signatures",
+          "state": "pass",
+          "detail": "CI signs each archive with Sigstore (keyless, tied to this repository's workflow)"
+        },
+        {
+          "id": "source",
+          "label": "Source revisions",
+          "state": "pass",
+          "detail": "0 of 0 published releases map to a commit"
+        },
+        {
+          "id": "mirrors",
+          "label": "Mirrors",
+          "state": "info",
+          "detail": "0 configured; every artifact also has its publisher source"
+        },
+        {
+          "id": "content",
+          "label": "Content files",
+          "state": "info",
+          "detail": "not declared in openmw.content_files: Addon.omwaddon"
+        }
+      ]
+    },
+    "beta/": {
+      "unverified": [],
+      "manifest_sha256": "<beta-id.json sha256>",
+      "development": {
+        "version": "0.001-dev.1",
+        "channel": "development",
+        "date": "2026-01-01",
+        "status": "available",
+        "source": {
+          "repository": "https://github.com/Owner/Fixture-Mods",
+          "release": "development",
+          "revision": "0123456789abcdef0123456789abcdef01234567"
+        },
+        "runtimes": {
+          "morrowind": "1.6",
+          "openmw": "0.50"
+        },
+        "platforms": [
+          {
+            "os": "windows",
+            "arch": "x86_64"
+          },
+          {
+            "os": "linux",
+            "arch": "aarch64"
+          }
+        ],
+        "provides": [
+          "beta-capability"
+        ],
+        "relationships": [
+          {
+            "kind": "requires",
+            "project": "alpha-id",
+            "version": ">=1.0",
+            "reason": "Shares scripts"
+          },
+          {
+            "kind": "recommends",
+            "name": "Some Other Mod",
+            "url": "https://other.test"
+          },
+          {
+            "kind": "conflicts",
+            "capability": "old-beta"
+          }
+        ],
+        "components": [
+          {
+            "id": "core",
+            "name": "Core",
+            "description": "The core files",
+            "path": "core",
+            "required": true,
+            "default": true,
+            "requires": [],
+            "conflicts": [],
+            "suggested_with": []
+          },
+          {
+            "id": "extras",
+            "name": "extras",
+            "path": "extras",
+            "required": false,
+            "default": true,
+            "group": "flavour",
+            "requires": [
+              "core"
+            ],
+            "conflicts": [
+              "other"
+            ],
+            "suggested_with": [
+              "core"
+            ]
+          }
+        ],
+        "groups": [
+          {
+            "id": "flavour",
+            "name": "Flavour",
+            "select": "one",
+            "description": "Pick one"
+          },
+          {
+            "id": "loose",
+            "name": "Loose",
+            "select": "many"
+          }
+        ],
+        "extensions": {
+          "custom": {
+            "flag": true
+          },
+          "openmw": {
+            "components": {
+              "core": {
+                "data_directories": [
+                  "."
+                ],
+                "content_files": [
+                  "Beta.esp"
+                ],
+                "groundcover_files": [
+                  "BetaGrass.esp"
+                ],
+                "fallback_archives": [
+                  "Beta.bsa"
+                ],
+                "fallback_entries": {
+                  "Weather_Clear": "1"
+                },
+                "config": true,
+                "requires_content": [
+                  "Tribunal.esm"
+                ]
+              },
+              "extras": {
+                "data_directories": [
+                  "00 Data",
+                  "."
+                ],
+                "content_files": [
+                  "Extras.esp"
+                ],
+                "groundcover_files": [],
+                "fallback_archives": [],
+                "fallback_entries": {},
+                "config": false,
+                "requires_content": []
+              }
+            },
+            "requires_content": [
+              "Morrowind.esm"
+            ],
+            "settings": [
+              {
+                "category": "Shaders",
+                "key": "force shaders",
+                "value": "true"
+              }
+            ],
+            "lua_api": "71"
+          }
+        },
+        "critical_extensions": [
+          "openmw"
+        ],
+        "artifacts": [
+          {
+            "id": "flat",
+            "format": "flat",
+            "filename": "beta.zip",
+            "media_type": "application/zip",
+            "size": <beta-id size>,
+            "digests": {
+              "sha256": "<beta-id sha256>"
+            },
+            "layout": {
+              "release_document": "dreamweave.release.json",
+              "documentation": "beta-Documentation/index.html"
+            },
+            "sources": [
+              {
+                "url": "https://github.com/Owner/Fixture-Mods/releases/download/development/beta.zip",
+                "kind": "publisher"
+              },
+              {
+                "url": "https://mirror.test/beta",
+                "kind": "mirror"
+              }
+            ],
+            "signatures": []
+          }
+        ]
+      },
+      "checks": [
+        {
+          "id": "identity",
+          "label": "Stable identity",
+          "state": "pass",
+          "detail": "id beta-id; survives renames and host moves"
+        },
+        {
+          "id": "discovery",
+          "label": "Discovery",
+          "state": "pass",
+          "detail": "listed in dreamweave.json and linked from every page with <link rel=\"alternate\">"
+        },
+        {
+          "id": "manifest",
+          "label": "Manifest",
+          "state": "pass",
+          "detail": "schema_version 3, 1 release(s) published"
+        },
+        {
+          "id": "releases",
+          "label": "Published releases",
+          "state": "warn",
+          "detail": "no release tag has been pushed yet; clients only see the development channel"
+        },
+        {
+          "id": "planned",
+          "label": "Declared, not tagged",
+          "state": "info",
+          "detail": "0.5, 0.51, 0.6: push the tag beta-0.5 to publish"
+        },
+        {
+          "id": "channels",
+          "label": "Channels",
+          "state": "pass",
+          "detail": "development → 0.001-dev.1"
+        },
+        {
+          "id": "hashes",
+          "label": "Content hashes",
+          "state": "pass",
+          "detail": "every published artifact has a SHA-256 digest and size"
+        },
+        {
+          "id": "relationships",
+          "label": "Relationships",
+          "state": "info",
+          "detail": "2 machine-resolvable; Some Other Mod named for humans only (no id)"
+        },
+        {
+          "id": "provenance",
+          "label": "Signatures",
+          "state": "info",
+          "detail": "not signed; hashes still verify integrity. Set [provenance] sigstore = true to add build provenance"
+        },
+        {
+          "id": "source",
+          "label": "Source revisions",
+          "state": "pass",
+          "detail": "0 of 0 published releases map to a commit"
+        },
+        {
+          "id": "mirrors",
+          "label": "Mirrors",
+          "state": "pass",
+          "detail": "1 configured; every artifact also has its publisher source"
+        },
+        {
+          "id": "content",
+          "label": "Content files",
+          "state": "info",
+          "detail": "not declared in openmw.content_files: extras/Stray.ESP"
+        }
+      ]
+    },
+    "delta/": {
+      "unverified": [],
+      "manifest_sha256": "<delta-id.json sha256>",
+      "checks": [
+        {
+          "id": "identity",
+          "label": "Stable identity",
+          "state": "pass",
+          "detail": "id delta-id; survives renames and host moves"
+        },
+        {
+          "id": "discovery",
+          "label": "Discovery",
+          "state": "pass",
+          "detail": "listed in dreamweave.json and linked from every page with <link rel=\"alternate\">"
+        },
+        {
+          "id": "manifest",
+          "label": "Manifest",
+          "state": "pass",
+          "detail": "schema_version 3, 0 release(s) published"
+        },
+        {
+          "id": "releases",
+          "label": "Published releases",
+          "state": "warn",
+          "detail": "no release tag has been pushed yet; clients only see the development channel"
+        },
+        {
+          "id": "planned",
+          "label": "Declared, not tagged",
+          "state": "info",
+          "detail": "2.0.0: push the tag 2.0.0 to publish"
+        },
+        {
+          "id": "channels",
+          "label": "Channels",
+          "state": "fail",
+          "detail": "no channel has an available release"
+        },
+        {
+          "id": "hashes",
+          "label": "Content hashes",
+          "state": "pass",
+          "detail": "every published artifact has a SHA-256 digest and size"
+        },
+        {
+          "id": "relationships",
+          "label": "Relationships",
+          "state": "info",
+          "detail": "none declared"
+        },
+        {
+          "id": "provenance",
+          "label": "Signatures",
+          "state": "info",
+          "detail": "not signed; hashes still verify integrity. Set [provenance] sigstore = true to add build provenance"
+        },
+        {
+          "id": "source",
+          "label": "Source revisions",
+          "state": "pass",
+          "detail": "0 of 0 published releases map to a commit"
+        },
+        {
+          "id": "mirrors",
+          "label": "Mirrors",
+          "state": "info",
+          "detail": "0 configured; every artifact also has its publisher source"
+        }
+      ]
+    },
+    "gamma/": {
+      "unverified": [],
+      "manifest_sha256": "<gamma-id.json sha256>",
+      "checks": [
+        {
+          "id": "identity",
+          "label": "Stable identity",
+          "state": "pass",
+          "detail": "id gamma-id; survives renames and host moves"
+        },
+        {
+          "id": "discovery",
+          "label": "Discovery",
+          "state": "pass",
+          "detail": "listed in dreamweave.json and linked from every page with <link rel=\"alternate\">"
+        },
+        {
+          "id": "manifest",
+          "label": "Manifest",
+          "state": "pass",
+          "detail": "schema_version 3, 0 release(s) published"
+        },
+        {
+          "id": "releases",
+          "label": "Published releases",
+          "state": "warn",
+          "detail": "no release tag has been pushed yet; clients only see the development channel"
+        },
+        {
+          "id": "channels",
+          "label": "Channels",
+          "state": "fail",
+          "detail": "no channel has an available release"
+        },
+        {
+          "id": "hashes",
+          "label": "Content hashes",
+          "state": "pass",
+          "detail": "every published artifact has a SHA-256 digest and size"
+        },
+        {
+          "id": "relationships",
+          "label": "Relationships",
+          "state": "info",
+          "detail": "none declared"
+        },
+        {
+          "id": "provenance",
+          "label": "Signatures",
+          "state": "info",
+          "detail": "not signed; hashes still verify integrity. Set [provenance] sigstore = true to add build provenance"
+        },
+        {
+          "id": "source",
+          "label": "Source revisions",
+          "state": "pass",
+          "detail": "0 of 0 published releases map to a commit"
+        },
+        {
+          "id": "mirrors",
+          "label": "Mirrors",
+          "state": "info",
+          "detail": "0 configured; every artifact also has its publisher source"
+        }
+      ]
+    },
+    "zeta/": {
+      "unverified": [],
+      "manifest_sha256": "<zeta-id.json sha256>",
+      "development": {
+        "version": "0.0.1-dev.1",
+        "channel": "development",
+        "date": "2026-01-01",
+        "status": "available",
+        "source": {
+          "repository": "https://github.com/Owner/Fixture-Mods",
+          "release": "development",
+          "revision": "0123456789abcdef0123456789abcdef01234567"
+        },
+        "runtimes": {},
+        "platforms": [],
+        "provides": [],
+        "relationships": [],
+        "components": [
+          {
+            "id": "main",
+            "name": "Zeta",
+            "path": ".",
+            "required": true,
+            "default": true,
+            "requires": [],
+            "conflicts": [],
+            "suggested_with": []
+          }
+        ],
+        "groups": [],
+        "extensions": {},
+        "critical_extensions": [],
+        "artifacts": [
+          {
+            "id": "jpk",
+            "format": "jpk",
+            "filename": "org.fixture.zeta-0.0.1-dev.1.jpk",
+            "media_type": "application/vnd.jess.jpk",
+            "size": 398,
+            "digests": {
+              "sha256": "d26a3fa17175e78696bb61610cc2be135c78bf17e513903b6f5b9fbfd0380d36"
+            },
+            "jess": {
+              "package": "org.fixture.zeta",
+              "jess_api": "1",
+              "content_digest": "4a06d345d8476691909af96dcfa07f30a24e934fa279caee9ebb9ae1cfaaff74",
+              "dependencies": {
+                "org.fixture.words": "1.2"
+              }
+            },
+            "sources": [
+              {
+                "url": "https://github.com/Owner/Fixture-Mods/releases/download/development/org.fixture.zeta-0.0.1-dev.1.jpk",
+                "kind": "publisher"
+              }
+            ],
+            "signatures": []
+          }
+        ]
+      },
+      "checks": [
+        {
+          "id": "identity",
+          "label": "Stable identity",
+          "state": "pass",
+          "detail": "id zeta-id; survives renames and host moves"
+        },
+        {
+          "id": "discovery",
+          "label": "Discovery",
+          "state": "pass",
+          "detail": "listed in dreamweave.json and linked from every page with <link rel=\"alternate\">"
+        },
+        {
+          "id": "manifest",
+          "label": "Manifest",
+          "state": "pass",
+          "detail": "schema_version 3, 1 release(s) published"
+        },
+        {
+          "id": "releases",
+          "label": "Published releases",
+          "state": "warn",
+          "detail": "no release tag has been pushed yet; clients only see the development channel"
+        },
+        {
+          "id": "planned",
+          "label": "Declared, not tagged",
+          "state": "info",
+          "detail": "0.1.0: push the tag zeta-0.1.0 to publish"
+        },
+        {
+          "id": "channels",
+          "label": "Channels",
+          "state": "pass",
+          "detail": "development → 0.0.1-dev.1"
+        },
+        {
+          "id": "hashes",
+          "label": "Content hashes",
+          "state": "pass",
+          "detail": "every published artifact has a SHA-256 digest and size"
+        },
+        {
+          "id": "relationships",
+          "label": "Relationships",
+          "state": "info",
+          "detail": "none declared"
+        },
+        {
+          "id": "provenance",
+          "label": "Signatures",
+          "state": "info",
+          "detail": "not signed; hashes still verify integrity. Set [provenance] sigstore = true to add build provenance"
+        },
+        {
+          "id": "source",
+          "label": "Source revisions",
+          "state": "pass",
+          "detail": "0 of 0 published releases map to a commit"
+        },
+        {
+          "id": "mirrors",
+          "label": "Mirrors",
+          "state": "info",
+          "detail": "0 configured; every artifact also has its publisher source"
+        }
+      ]
+    }
+  },
+  "index_url": "https://mods.test/stash/dreamweave.json",
+  "comments": {
+    "repo": "Owner/Fixture-Mods",
+    "category": "Mods",
+    "reactions": true,
+    "theme": null,
+    "mapping": "pathname",
+    "state": "unreachable",
+    "message": "could not reach giscus to look up Owner/Fixture-Mods's Discussions; comments are left out of this build"
+  },
+  "archives_built": true,
+  "revision": "0123456789abcdef0123456789abcdef01234567"
+}

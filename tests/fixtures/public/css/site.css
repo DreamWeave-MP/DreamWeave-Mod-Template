@@ -1,0 +1,7 @@
+body { background: url("../img/bg.png"); }
+h1 { background: url('../img/logo.png'); }
+h2 { background: url(../img/a%20b.png); }
+h3 { background: url(https://elsewhere.test/far.png); }
+h4 { background: url("data:image/png;base64,AAAA"); }
+h5 { background: url(../img/missing.png); }
+@import url("more.css");

@@ -1,0 +1,31 @@
+{
+  "schema_version": "3",
+  "document": "release-payload",
+  "project": {
+    "id": "gamma-id",
+    "name": "",
+    "slug": "gamma",
+    "versioning": "numeric"
+  },
+  "version": "1.2.3",
+  "format": "crate",
+  "runtimes": {},
+  "platforms": [],
+  "provides": [],
+  "relationships": [],
+  "components": [
+    {
+      "id": "main",
+      "name": "Main",
+      "path": ".",
+      "required": true,
+      "default": true,
+      "requires": [],
+      "conflicts": [],
+      "suggested_with": []
+    }
+  ],
+  "groups": [],
+  "extensions": {},
+  "critical_extensions": []
+}

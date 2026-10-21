@@ -1,0 +1,10 @@
+manifest_version = 1
+
+[package]
+id = "org.fixture.zeta"
+version = "0.1.0"
+jess_api = "1"
+include = ["src"]
+
+[dependencies]
+"org.fixture.words" = "1.2"

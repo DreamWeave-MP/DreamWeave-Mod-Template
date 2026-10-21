@@ -1,0 +1,137 @@
+{
+  "runtimes": {
+    "morrowind": "1.6",
+    "openmw": "0.50"
+  },
+  "platforms": [
+    {
+      "os": "windows",
+      "arch": "x86_64"
+    },
+    {
+      "os": "linux",
+      "arch": "aarch64"
+    }
+  ],
+  "provides": [
+    "beta-capability"
+  ],
+  "relationships": [
+    {
+      "kind": "requires",
+      "project": "alpha-id",
+      "version": ">=1.0",
+      "reason": "Shares scripts"
+    },
+    {
+      "kind": "recommends",
+      "name": "Some Other Mod",
+      "url": "https://other.test"
+    },
+    {
+      "kind": "conflicts",
+      "capability": "old-beta"
+    }
+  ],
+  "components": [
+    {
+      "id": "core",
+      "name": "Core",
+      "description": "The core files",
+      "path": "core",
+      "required": true,
+      "default": true,
+      "requires": [],
+      "conflicts": [],
+      "suggested_with": []
+    },
+    {
+      "id": "extras",
+      "name": "extras",
+      "path": "extras",
+      "required": false,
+      "default": true,
+      "group": "flavour",
+      "requires": [
+        "core"
+      ],
+      "conflicts": [
+        "other"
+      ],
+      "suggested_with": [
+        "core"
+      ]
+    }
+  ],
+  "groups": [
+    {
+      "id": "flavour",
+      "name": "Flavour",
+      "select": "one",
+      "description": "Pick one"
+    },
+    {
+      "id": "loose",
+      "name": "Loose",
+      "select": "many"
+    }
+  ],
+  "extensions": {
+    "custom": {
+      "flag": true
+    },
+    "openmw": {
+      "components": {
+        "core": {
+          "data_directories": [
+            "."
+          ],
+          "content_files": [
+            "Beta.esp"
+          ],
+          "groundcover_files": [
+            "BetaGrass.esp"
+          ],
+          "fallback_archives": [
+            "Beta.bsa"
+          ],
+          "fallback_entries": {
+            "Weather_Clear": "1"
+          },
+          "config": true,
+          "requires_content": [
+            "Tribunal.esm"
+          ]
+        },
+        "extras": {
+          "data_directories": [
+            "00 Data",
+            "."
+          ],
+          "content_files": [
+            "Extras.esp"
+          ],
+          "groundcover_files": [],
+          "fallback_archives": [],
+          "fallback_entries": {},
+          "config": false,
+          "requires_content": []
+        }
+      },
+      "requires_content": [
+        "Morrowind.esm"
+      ],
+      "settings": [
+        {
+          "category": "Shaders",
+          "key": "force shaders",
+          "value": "true"
+        }
+      ],
+      "lua_api": "71"
+    }
+  },
+  "critical_extensions": [
+    "openmw"
+  ]
+}

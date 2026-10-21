@@ -1,0 +1,696 @@
+--!strict
+-- The documentation an archive carries: a project's pages crawled out of the built site, with
+-- every link, image and stylesheet they reach, and each reference rewritten to work from a
+-- folder on disk. A project's own pages keep their layout; what they use from the rest of the
+-- site goes under `_site`; a page of another project stays a link to the live site.
+local fs = require '@dream/fs'
+local util = require './util'
+local vfs = require '@vfs'
+
+export type Url = { scheme: string, netloc: string, path: string, fragment: string }
+
+export type Entry = { path: string, source: string, executable: boolean }
+
+local offline = { SITE_ASSET_ROOT = '_site' }
+
+local Slash, Backslash = 47, 92
+
+local function splitUrl(text: string): Url
+  local scheme, rest = string.match(text, '^([%a][%w+.-]*):%/%/(.*)$')
+  local netloc, path, fragment = '', text, ''
+
+  if scheme and rest then
+    local slash = string.find(rest, '/', 1, true)
+    if slash then
+      netloc = string.sub(rest, 1, slash - 1)
+      path = string.sub(rest, slash)
+    else
+      netloc = rest
+      path = '/'
+    end
+  end
+
+  local hash = string.find(path, '#', 1, true)
+  if hash then
+    fragment = string.sub(path, hash + 1)
+    path = string.sub(path, 1, hash - 1)
+  end
+
+  local query = string.find(path, '?', 1, true)
+  if query then path = string.sub(path, 1, query - 1) end
+
+  return { scheme = scheme or '', netloc = netloc, path = path, fragment = fragment }
+end
+
+-- Each of the three below looks for what it would change before it substitutes: most references
+-- hold no escape, no entity and nothing to escape, and a search is cheaper than a substitution
+-- that finds nothing. What is not text goes through the substitutions, which convert or refuse
+-- it as they always have.
+
+local function percentDecode(text: string): string
+  if type(text) == 'string' and not string.find(text, '%', 1, true) then return text end
+
+  return (
+    string.gsub(text, '%%(%x%x)', function(digits: string): string
+      return string.char(tonumber(digits, 16) :: number)
+    end)
+  )
+end
+
+--- `text` with the six entities the generator writes into an attribute turned back, one after
+--- another.
+local function unescape(text: string): string
+  if type(text) == 'string' and not string.find(text, '&', 1, true) then return text end
+
+  local out = string.gsub(text, '&amp;', '&')
+  out = string.gsub(out, '&quot;', '"')
+  out = string.gsub(out, '&#x27;', "'")
+  out = string.gsub(out, '&#39;', "'")
+  out = string.gsub(out, '&lt;', '<')
+  out = string.gsub(out, '&gt;', '>')
+
+  return out
+end
+
+@native
+local function escapeAttribute(text: string): string
+  if type(text) == 'string' and not string.find(text, '[&"\'<>]') then return text end
+
+  local out = string.gsub(text, '&', '&amp;')
+  out = string.gsub(out, '"', '&quot;')
+  out = string.gsub(out, "'", '&#x27;')
+  out = string.gsub(out, '<', '&lt;')
+  out = string.gsub(out, '>', '&gt;')
+
+  return out
+end
+
+--- `path` without its `.` segments and with each `..` taking the segment before it; nothing for
+--- a path that climbs above where it starts. A trailing slash is kept.
+local function normalize(path: string): string?
+  local segments: { string } = {}
+
+  for part in string.gmatch(path, '[^/]+') do
+    if part == '..' then
+      if #segments == 0 then return nil end
+
+      table.remove(segments)
+    elseif part ~= '.' and part ~= '' then
+      table.insert(segments, part)
+    end
+  end
+
+  local out = table.concat(segments, '/')
+  if string.sub(path, -1) == '/' then out ..= '/' end
+
+  return out
+end
+
+--- The way from the folder `directory` to the file `target`, both from one root.
+local function relativePath(target: string, directory: string): string
+  local to: { string }, from: { string } = {}, {}
+
+  for part in string.gmatch(target, '[^/]+') do
+    table.insert(to, part)
+  end
+
+  for part in string.gmatch(directory, '[^/]+') do
+    table.insert(from, part)
+  end
+
+  -- The target's last segment is its file's name, and is never one of the shared folders.
+  local common = 1
+  while common < #to and common <= #from and to[common] == from[common] do
+    common += 1
+  end
+
+  local out: { string } = {}
+  for _ = common, #from do
+    table.insert(out, '..')
+  end
+
+  for index = common, #to do
+    table.insert(out, to[index])
+  end
+
+  return if #out == 0 then '.' else table.concat(out, '/')
+end
+
+local Crawler = {}
+Crawler.__index = Crawler
+
+export type DocumentationCrawler = typeof(setmetatable(
+  {} :: {
+    output: string,
+    base: Url,
+    pagePath: string,
+    pending: { string },
+    visited: { [string]: boolean },
+  },
+  Crawler
+))
+
+--- A crawler of the site built into `output` and served from `baseUrl`, for the project whose
+--- pages are below `pagePath`.
+function Crawler.new(output: string, baseUrl: string, pagePath: string): DocumentationCrawler
+  local base = splitUrl(string.gsub(baseUrl, '/+$', '') .. '/')
+
+  return setmetatable({ output = output, base = base, pagePath = pagePath, pending = {}, visited = {} }, Crawler)
+end
+
+--- The path below the site's root that `reference`, found on the page `current`, points at; or
+--- nothing for a fragment, another host, a path outside the base, or one above the root.
+@native
+function Crawler.sitePath(self: DocumentationCrawler, reference: string, current: string): string?
+  local parts = splitUrl(reference)
+  if
+    parts.scheme == 'mailto'
+    or parts.scheme == 'javascript'
+    or parts.scheme == 'data'
+    or parts.scheme == 'tel'
+    or string.sub(reference, 1, 1) == '#'
+  then
+    return nil
+  end
+
+  local path
+  if parts.scheme ~= '' or parts.netloc ~= '' then
+    if parts.netloc ~= self.base.netloc or not util.startsWith(parts.path, self.base.path) then return nil end
+
+    path = string.sub(parts.path, #self.base.path + 1)
+  elseif string.sub(parts.path, 1, 1) == '/' then
+    if not util.startsWith(parts.path, self.base.path) then return nil end
+
+    path = string.sub(parts.path, #self.base.path + 1)
+  else
+    local folder = util.dirname(current)
+    local joined = if folder ~= '' then folder .. '/' .. parts.path else parts.path
+    local normal = normalize((string.gsub(joined, '/+$', '')))
+    if not normal then return nil end
+
+    path = normal
+  end
+
+  return percentDecode(path)
+end
+
+--- The file `sitePath` names in the built site, a folder's being its `index.html`; or nothing.
+function Crawler.resolveFile(self: DocumentationCrawler, sitePath: string): string?
+  local candidate = fs.join(self.output, sitePath)
+  local resolved = sitePath
+
+  if util.endsWith(sitePath, '/') or sitePath == '' or fs.isDir(candidate) then
+    candidate = fs.join(candidate, 'index.html')
+
+    if sitePath == '' or sitePath == '/' then
+      resolved = 'index.html'
+    elseif util.endsWith(sitePath, '/') then
+      resolved = sitePath .. 'index.html'
+    else
+      resolved = sitePath .. '/index.html'
+    end
+  end
+
+  if fs.isFile(candidate) then return resolved end
+
+  return nil
+end
+
+--- Where an archive keeps the site's `sitePath`: a project's own files by their path below its
+--- page, everything else below the asset root.
+function Crawler.archivePath(self: DocumentationCrawler, sitePath: string): string
+  if util.startsWith(sitePath, self.pagePath) then return string.sub(sitePath, #self.pagePath + 1) end
+
+  return offline.SITE_ASSET_ROOT .. '/' .. sitePath
+end
+
+function Crawler.isProjectPage(self: DocumentationCrawler, sitePath: string): boolean
+  return util.startsWith(sitePath, self.pagePath) and util.endsWith(sitePath, '.html')
+end
+
+function Crawler.enqueue(self: DocumentationCrawler, sitePath: string)
+  if self.visited[sitePath] then return end
+
+  self.visited[sitePath] = true
+  table.insert(self.pending, sitePath)
+end
+
+-- What the rewriting of one page remembers. While a page is rewritten nothing is written, and
+-- queuing a file twice does nothing the second time, so a reference seen again on the page is
+-- what it was the first time: `localized` holds each, and `here` the folder the page's
+-- references are made relative to. `resolved` outlives the page: it is the files of the built
+-- site a whole crawl has looked for, which a crawl may keep when it writes nowhere near the site.
+--
+-- A crawler whose methods are not this module's own is given no memory, and every step goes
+-- through its methods, one call for each, as it would have.
+type Memory = {
+  localized: { [string]: string },
+  resolved: { [string]: string | false }?,
+  here: string?,
+}
+
+-- The methods as this module defines them, kept once it has: one replaced on a crawler, on a
+-- class built over this one, or on the exported class itself is no longer among them.
+local Own: { [string]: unknown } = {}
+
+local function own(self: DocumentationCrawler): boolean
+  return self.sitePath == Own.sitePath
+    and self.resolveFile == Own.resolveFile
+    and self.archivePath == Own.archivePath
+    and self.isProjectPage == Own.isProjectPage
+    and self.enqueue == Own.enqueue
+    and self.localize == Own.localize
+    and self.rewriteSrcset == Own.rewriteSrcset
+    and self.rewriteTag == Own.rewriteTag
+    and self.rewriteCss == Own.rewriteCss
+end
+
+local function pageMemory(self: DocumentationCrawler, resolved: { [string]: string | false }?): Memory?
+  if not own(self) then return nil end
+
+  return { localized = {}, resolved = resolved }
+end
+
+local function localize(self: DocumentationCrawler, reference: string, current: string, memory: Memory?): string
+  local plain = unescape(reference)
+  local parts = splitUrl(plain)
+  local target = self:sitePath(plain, current)
+  if not target then return plain end
+
+  local resolved: string?
+  local known = if memory then memory.resolved else nil
+
+  if known then
+    local found: (string | false)? = known[target]
+    if found == nil then
+      found = (self:resolveFile(target) or false) :: string | false
+      known[target] = found
+    end
+
+    resolved = found or nil
+  else
+    resolved = self:resolveFile(target)
+  end
+
+  if not resolved then return plain end
+
+  local fragment = if parts.fragment ~= '' then '#' .. parts.fragment else ''
+  if util.endsWith(resolved, '.html') and not self:isProjectPage(resolved) then
+    return self.base.scheme .. '://' .. self.base.netloc .. self.base.path .. target .. fragment
+  end
+
+  self:enqueue(resolved)
+
+  local here = (if memory then memory.here else nil) or util.dirname(self:archivePath(current))
+  if memory then memory.here = here end
+
+  return relativePath(self:archivePath(resolved), here) .. fragment
+end
+
+--- `reference` localized for a page being rewritten: from the page's memory when it has been
+--- seen there, through the crawler's own method when there is none.
+local function localizeOnPage(
+  self: DocumentationCrawler,
+  reference: string,
+  current: string,
+  memory: Memory?
+): string
+  if not memory then return self:localize(reference, current) end
+
+  local known = memory.localized[reference]
+  if known then return known end
+
+  local localized = localize(self, reference, current, memory)
+  memory.localized[reference] = localized
+
+  return localized
+end
+
+--- `reference`, found on the page `current`, as it reads from the archive: a relative path to a
+--- file the crawl will bring along, which is queued; the live URL of a page of another project;
+--- or the reference itself, unescaped, when it points nowhere in the built site.
+function Crawler.localize(self: DocumentationCrawler, reference: string, current: string): string
+  return localize(self, reference, current, nil)
+end
+
+@native
+local function rewriteSrcset(self: DocumentationCrawler, value: string, current: string, memory: Memory?): string
+  local out: { string } = {}
+
+  for candidate in string.gmatch(value .. ',', '(.-),') do
+    local parts: { string } = {}
+    for part in string.gmatch(util.trim(candidate), '%S+') do
+      table.insert(parts, part)
+    end
+
+    if #parts == 0 then continue end
+
+    parts[1] = localizeOnPage(self, parts[1], current, memory)
+    table.insert(out, table.concat(parts, ' '))
+  end
+
+  return table.concat(out, ', ')
+end
+
+function Crawler.rewriteSrcset(self: DocumentationCrawler, value: string, current: string): string
+  return rewriteSrcset(self, value, current, nil)
+end
+
+-- Whether a byte is one Lua's `%w` matches, asked of the pattern once for each byte value.
+local Alphanumeric = buffer.create(256)
+
+for code = 0, 255 do
+  if string.match(string.char(code), '%w') then buffer.writeu8(Alphanumeric, code, 1) end
+end
+
+--- `tag` with the value of each attribute written `opener` (a lower-case name, `="` after it)
+--- localized: every reference of a `srcset`, or the one a link is. The name must start a word,
+--- as `%f[%w]` has it, and its value ends at the next double quote; a tag with no such attribute
+--- is handed back as it is.
+---
+--- This is `string.gsub(tag, '(%f[%w]name)="([^"]*)"', ...)` without the pattern: the opener is
+--- searched for as plain text, which finds nothing in most tags and costs next to nothing.
+@native
+local function rewriteAttribute(
+  self: DocumentationCrawler,
+  tag: string,
+  opener: string,
+  current: string,
+  srcset: boolean,
+  memory: Memory?
+): string
+  local at = string.find(tag, opener, 1, true)
+  if not at then return tag end
+
+  local out: { string } = {}
+  local copied = 1
+
+  while at do
+    local valueAt = at + #opener
+    local wordStart = at == 1 or buffer.readu8(Alphanumeric, (string.byte(tag, at - 1))) == 0
+    local close = if wordStart then string.find(tag, '"', valueAt, true) else nil
+
+    if not close then
+      at = string.find(tag, opener, at + 1, true)
+      continue
+    end
+
+    local value = string.sub(tag, valueAt, close - 1)
+    local localized
+
+    if not srcset then
+      localized = localizeOnPage(self, value, current, memory)
+    elseif memory then
+      localized = rewriteSrcset(self, unescape(value), current, memory)
+    else
+      localized = self:rewriteSrcset(unescape(value), current)
+    end
+
+    table.insert(out, string.sub(tag, copied, valueAt - 1))
+    table.insert(out, escapeAttribute(localized))
+    copied = close
+    at = string.find(tag, opener, close + 1, true)
+  end
+
+  if copied == 1 then return tag end
+
+  table.insert(out, string.sub(tag, copied))
+
+  return table.concat(out)
+end
+
+@native
+local function rewriteTag(self: DocumentationCrawler, tag: string, current: string, memory: Memory?): string
+  if string.find(tag, 'data-dw-online', 1, true) then return tag end
+
+  -- What is not text is `gsub`'s to convert or refuse, as it always was.
+  local text = if type(tag) == 'string' then tag else (string.gsub(tag, '', ''))
+  -- Each of the four is a name, an equals sign and a double quote: a tag with no `="` has none.
+  if not string.find(text, '="', 1, true) then return text end
+
+  local out = rewriteAttribute(self, text, 'href="', current, false, memory)
+  out = rewriteAttribute(self, out, 'src="', current, false, memory)
+  out = rewriteAttribute(self, out, 'poster="', current, false, memory)
+
+  return rewriteAttribute(self, out, 'srcset="', current, true, memory)
+end
+
+--- `tag` with its `href`, `src`, `poster` and `srcset` localized, where each is written in lower
+--- case and in double quotes; or as it is when it says it must stay online.
+function Crawler.rewriteTag(self: DocumentationCrawler, tag: string, current: string): string
+  return rewriteTag(self, tag, current, nil)
+end
+
+local DoubleQuote, SingleQuote, CloseParenthesis = 34, 39, 41
+
+--- `css` with the reference of each `url("...")` localized, for the `opener` and `quote` of one
+--- kind of quote: `string.gsub(css, 'url%("([^"]+)"%)', ...)` without the pattern. A reference
+--- is at least a byte long and its quote is followed by the parenthesis at once.
+local function rewriteQuotedUrls(
+  self: DocumentationCrawler,
+  css: string,
+  opener: string,
+  quote: string,
+  current: string,
+  memory: Memory?
+): string
+  local at = string.find(css, opener, 1, true)
+  if not at then return css end
+
+  local out: { string } = {}
+  local copied = 1
+
+  while at do
+    local valueAt = at + #opener
+    local close = string.find(css, quote, valueAt, true)
+    -- An opener ends in the quote, so with no quote from here on there is no opener either.
+    if not close then break end
+
+    if close == valueAt or string.byte(css, close + 1) ~= CloseParenthesis then
+      at = string.find(css, opener, at + 1, true)
+      continue
+    end
+
+    table.insert(out, string.sub(css, copied, valueAt - 1))
+    table.insert(out, localizeOnPage(self, string.sub(css, valueAt, close - 1), current, memory))
+    copied = close
+    at = string.find(css, opener, close + 2, true)
+  end
+
+  if copied == 1 then return css end
+
+  table.insert(out, string.sub(css, copied))
+
+  return table.concat(out)
+end
+
+--- `css` with the reference of each `url(...)` written without quotes localized:
+--- `string.gsub(css, 'url%(([^"\'%)][^%)]*)%)', ...)` without the pattern. A reference starts
+--- with neither quote and runs to the next parenthesis.
+local function rewriteBareUrls(self: DocumentationCrawler, css: string, current: string, memory: Memory?): string
+  local at = string.find(css, 'url(', 1, true)
+  if not at then return css end
+
+  local out: { string } = {}
+  local copied = 1
+
+  while at do
+    local valueAt = at + 4
+    local first = string.byte(css, valueAt)
+
+    if not first or first == DoubleQuote or first == SingleQuote or first == CloseParenthesis then
+      at = string.find(css, 'url(', at + 1, true)
+      continue
+    end
+
+    local close = string.find(css, ')', valueAt + 1, true)
+    -- With no parenthesis from here on, no later reference ends either.
+    if not close then break end
+
+    table.insert(out, string.sub(css, copied, valueAt - 1))
+    table.insert(out, localizeOnPage(self, string.sub(css, valueAt, close - 1), current, memory))
+    copied = close
+    at = string.find(css, 'url(', close + 1, true)
+  end
+
+  if copied == 1 then return css end
+
+  table.insert(out, string.sub(css, copied))
+
+  return table.concat(out)
+end
+
+local function rewriteCss(self: DocumentationCrawler, css: string, current: string, memory: Memory?): string
+  -- What is not text is `gsub`'s to convert or refuse, as it always was.
+  local text = if type(css) == 'string' then css else (string.gsub(css, '', ''))
+  local out = rewriteQuotedUrls(self, text, 'url("', '"', current, memory)
+  out = rewriteQuotedUrls(self, out, "url('", "'", current, memory)
+
+  return rewriteBareUrls(self, out, current, memory)
+end
+
+--- `css` with every `url(...)` localized, in whichever of its three spellings it is written:
+--- the double-quoted ones, then the single-quoted ones of what that left, then the bare ones.
+--- Each is found by plain search, which finds none in most pages and a few in a stylesheet.
+function Crawler.rewriteCss(self: DocumentationCrawler, css: string, current: string): string
+  return rewriteCss(self, css, current, pageMemory(self, nil))
+end
+
+local function rewriteHtml(
+  self: DocumentationCrawler,
+  html: string,
+  current: string,
+  resolved: { [string]: string | false }?
+): string
+  local memory = pageMemory(self, resolved)
+  if not memory then
+    local out = string.gsub(html, '<[%a][^>]*>', function(tag: string): string
+      return self:rewriteTag(tag, current)
+    end)
+
+    return self:rewriteCss(out, current)
+  end
+
+  local out = string.gsub(html, '<[%a][^>]*>', @native function(tag: string): string
+    return rewriteTag(self, tag, current, memory)
+  end)
+
+  return rewriteCss(self, out, current, memory)
+end
+
+function Crawler.rewriteHtml(self: DocumentationCrawler, html: string, current: string): string
+  return rewriteHtml(self, html, current, nil)
+end
+
+local function copyFile(source: string, destination: string)
+  local done, problem = fs.mkdir(fs.parent(destination) :: string, { recursive = true })
+  if not done then error(problem, 0) end
+  vfs.host.copy(source, destination)
+end
+
+--- Writes a page a crawl has rewritten into the folder it stages. The page goes straight to its
+--- file, the way an asset is copied there: `util.write` puts a temporary beside the file and
+--- waits for the disk before it renames it, for every page, and what a crawl stages is read once
+--- by whoever packs it. A write the disk refuses is made again through `util.write`, which
+--- says why in the words it always has; what a replaced method answers with that is not text is
+--- `util.write`'s from the start, to write or to refuse.
+local function writeStaged(path: string, data: string)
+  local done, problem = fs.mkdir(fs.parent(path) :: string, { recursive = true })
+  if not done then error(problem, 0) end
+  if type(data) == 'string' and fs.writeFile(path, data) then return end
+
+  util.write(path, data)
+end
+
+--- Whether the folder `inner` is the folder `outer` or below it, both as the disk names them.
+local function within(inner: string, outer: string): boolean
+  if inner == outer then return true end
+  if string.sub(inner, 1, #outer) ~= outer then return false end
+
+  local last, boundary = string.byte(outer, -1), string.byte(inner, #outer + 1)
+
+  return last == Slash or last == Backslash or boundary == Slash or boundary == Backslash
+end
+
+--- A table for the files of the built site a crawl looks for, when it may keep one: the folder
+--- it writes is neither the site nor inside it, by the names the disk gives both, so nothing
+--- below the site changes while it is crawled. Nothing for any other crawl, which asks the disk
+--- about every reference, as it always did.
+local function crawlMemory(output: string, destination: string): { [string]: string | false }?
+  local site, staged = fs.canonicalize(output), fs.canonicalize(destination)
+  if not site or not staged then return nil end
+  if within(staged, site) or within(site, staged) then return nil end
+
+  return {}
+end
+
+--- Crawls the project into the folder `destination`, emptied first, and lists what it put there
+--- by path: its pages and stylesheets rewritten, everything else copied.
+function Crawler.crawlTo(self: DocumentationCrawler, destination: string): { Entry }
+  if vfs.host.exists(destination) then vfs.host.remove(destination, { recursive = true }) end
+
+  local done, problem = fs.mkdir(destination, { recursive = true })
+  if not done then error(problem, 0) end
+
+  local start = self:resolveFile(self.pagePath)
+  if not start then error('offline build has no page at ' .. self.pagePath, 0) end
+
+  self:enqueue(start)
+
+  local entries: { Entry } = {}
+  local resolved = crawlMemory(self.output, destination)
+  local head = 1
+
+  -- The queue grows as the pages read from it are rewritten.
+  while head <= #self.pending do
+    local sitePath = self.pending[head]
+    head += 1
+
+    local archivePath = self:archivePath(sitePath)
+    local source = fs.join(self.output, sitePath)
+    local staged = fs.join(destination, archivePath)
+
+    if util.endsWith(sitePath, '.html') then
+      local rewrite = self.rewriteHtml
+      if rewrite == Own.rewriteHtml then
+        writeStaged(staged, rewriteHtml(self, util.read(source), sitePath, resolved))
+      else
+        writeStaged(staged, self:rewriteHtml(util.read(source), sitePath))
+      end
+    elseif util.endsWith(sitePath, '.css') then
+      local memory = pageMemory(self, resolved)
+      if memory then
+        writeStaged(staged, rewriteCss(self, util.read(source), sitePath, memory))
+      else
+        writeStaged(staged, self:rewriteCss(util.read(source), sitePath))
+      end
+    else
+      copyFile(source, staged)
+    end
+
+    table.insert(entries, { path = archivePath, source = staged, executable = false })
+  end
+
+  table.sort(entries, function(left: Entry, right: Entry): boolean return left.path < right.path end)
+
+  return entries
+end
+
+--- Crawls the project into a folder of its own under `/tmp`, removed again, and answers with the
+--- bytes of every file by its path. A build crawls with `crawlTo` and never holds them all.
+function Crawler.crawl(self: DocumentationCrawler): { [string]: string }
+  local staged = '/tmp/dreamweave-offline-crawl-' .. tostring(math.floor(os.clock() * 1000000))
+  local entries = self:crawlTo(staged)
+  local files: { [string]: string } = {}
+
+  for _, entry in entries do
+    files[entry.path] = util.read(entry.source)
+  end
+
+  if vfs.host.exists(staged) then vfs.host.remove(staged, { recursive = true }) end
+
+  return files
+end
+
+Own.sitePath = Crawler.sitePath
+Own.resolveFile = Crawler.resolveFile
+Own.archivePath = Crawler.archivePath
+Own.isProjectPage = Crawler.isProjectPage
+Own.enqueue = Crawler.enqueue
+Own.localize = Crawler.localize
+Own.rewriteSrcset = Crawler.rewriteSrcset
+Own.rewriteTag = Crawler.rewriteTag
+Own.rewriteCss = Crawler.rewriteCss
+Own.rewriteHtml = Crawler.rewriteHtml
+
+offline.DocumentationCrawler = Crawler
+
+function offline.crawl(output: string, baseUrl: string, pagePath: string): { [string]: string }
+  return Crawler.new(output, baseUrl, pagePath):crawl()
+end
+
+function offline.crawlTo(output: string, baseUrl: string, pagePath: string, destination: string): { Entry }
+  return Crawler.new(output, baseUrl, pagePath):crawlTo(destination)
+end
+
+return offline

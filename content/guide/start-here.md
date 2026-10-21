@@ -8,8 +8,7 @@ kind = "guide"
 +++
 
 You need a GitHub account and git. To preview locally you also need
-[Zola](https://www.getzola.org/documentation/getting-started/installation/) 0.22 or newer, which is
-one binary.
+[jess](https://github.com/DreamWeave-MP/jess/releases), which is one binary.
 That is the whole list. Validating, packaging, hashing and publishing all happen in GitHub Actions,
 so there is no Python, Node or Rust to install, and no DreamWeave account.
 
@@ -57,6 +56,29 @@ The template ships two example projects. `content/home` is Candlelight, the comp
 `content/simplified` is Tallow, the minimal one. Turn `content/home` into your mod, and delete
 Tallow once you no longer need to crib from it.
 
+**The copy finishes itself.** This repository is also the template's own build tool: `src/`,
+`tests/`, `bench/`, `jess.toml` and the tool's page at `content/template` are the tool, not your
+site. On your first push, CI removes them, writes a `jess-workspace.toml` that names the template as
+your site's tool, and commits the result; a second commit pins the exact version in `jess.lock`.
+Run `git pull` before your next push. Nothing you changed is ever removed: if you edited those files
+before pushing, CI stops and tells you to make the change by hand instead.
+
+```toml
+# jess-workspace.toml, as CI writes it
+manifest_version = 1
+
+[workspace]
+members = []
+
+[dev-dependencies]
+"org.dreamweave.mod-template" = "0.3"
+```
+
+That names the template version that builds your site, and `jess.lock` pins it exactly, with the
+theme and the generator it uses. Every template, stylesheet and script comes from those packages;
+your repository holds your mod and your `config.toml`, and moving the version here updates the whole
+site.
+
 **Replace the id.** Every project has a permanent identity that no other project may share: a
 random UUID, like `4d0c9f6e-2b1a-4c8e-9f3a-7e5d1b2c6a90`. Anything that makes them will do:
 `uuidgen` on Linux and macOS, `[guid]::NewGuid()` in PowerShell, or any online generator. Or don't
@@ -69,9 +91,9 @@ underscores. The slug becomes your archive's name (`my_mod.zip`) and your releas
 **Rewrite the page.** In `content/home/index.md`, `title` is your mod's display name and
 `description` is its one-line summary. The body is the overview: what the mod does and why.
 
-**Replace the files.** Delete Candlelight's `00 Core`, `10 Tamriel Rebuilt`, `20 Flames 2K`,
-`21 Flames 4K`, `docs` and `media`, and put your mod in `content/home`. For a mod that is one data
-directory, your `scripts/`, `textures/` and content files go straight into `content/home`.
+**Add the files.** Put your mod in `content/home`, laid out the way Candlelight's `00 Core`,
+`10 Tamriel Rebuilt`, `20 Flames 2K`, `21 Flames 4K`, `docs` and `media` are. For a mod that is one
+data directory, your `scripts/`, `textures/` and content files go straight into `content/home`.
 
 Then cut `mod.toml` down to what is true:
 
@@ -97,11 +119,17 @@ rest of what you can say about it, and [mod.toml reference](@/guide/mod-toml.md)
 ## 5. Preview
 
 ```sh
-zola serve
+jess workspace sync --locked
+jess workspace run --trusted dreamweave-site -- public http://127.0.0.1:8000/
 ```
 
-Your site is on <http://127.0.0.1:1111>, and it reloads when you save. The project page is built
-from `mod.toml` and `mod.lock`, the same files CI reads, so what you see is what gets published.
+The first line restores the template, exactly the version `jess.lock` pins, once. Before your first
+push has written that lock, run `jess workspace sync --publisher
+https://dreamweave-mp.github.io/DreamWeave-Mod-Template/` instead, and commit the `jess.lock` it
+writes if you like; CI writes the same one otherwise. The second
+renders your site into `public/`; serve that folder with any static file server at the address you
+gave and open it, and run the second line again after you save. The project page is built from
+`mod.toml` and `mod.lock`, the same files CI reads, so what you see is what gets published.
 Three things only exist once CI has built the site: the development build, the comment thread, and
 the checks on the network page.
 
@@ -135,4 +163,5 @@ The template opens straight onto `content/home` because most repositories hold o
 several, give each its own directory under `content/` with its own `index.md` and `mod.toml`, and
 delete `redirect_to = "home"` from `content/_index.md`. The front page becomes a paginated catalog,
 `paginate_by` projects at a time. Nothing else changes: every project keeps its own id, slug,
-releases and tags.
+releases and tags, and a repository may hold as many as it likes, mods, programs and
+[Jess packages](@/guide/packages.md#jess-packages) alike.

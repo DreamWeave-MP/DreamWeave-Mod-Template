@@ -1,0 +1,20 @@
+{
+  links = 28
+  pages = 6
+  problems = {
+    [1] = "broken.html: unbalanced HTML, </div> closes table"
+    [2] = "broken.html: unbalanced HTML, </section> closes div"
+    [3] = "index.html: unbalanced HTML, never closed: main, div"
+    [4] = "index.html: missing anchor other/index.html#none"
+    [5] = "mod/extra.html: missing target guide/"
+    [6] = "mod/extra.html: missing target 'quoted'.html"
+    [7] = "mod/guide/index.html: missing target ../clip.webm"
+    [8] = "mod/index.html: /site/other/ escapes the site's base path /site/deeper/"
+    [9] = "mod/index.html: missing target missing.html"
+    [10] = "mod/index.html: missing anchor guide/#nowhere"
+    [11] = "mod/index.html: ../../outside.html escapes the site's base path /site/deeper/"
+    [12] = "mod/index.html: /elsewhere/x.html escapes the site's base path /site/deeper/"
+    [13] = "other/index.html: unbalanced HTML, </div> closes nothing"
+    [14] = "other/index.html: missing target ../MOD/"
+  }
+}

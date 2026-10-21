@@ -1,0 +1,266 @@
+{
+  "schema_version": "3",
+  "document": "project",
+  "generator": "DreamWeave Mod Template 0.3.0",
+  "project": {
+    "id": "beta-id",
+    "name": "Beta",
+    "summary": "The second mod",
+    "type": "collection",
+    "status": "active",
+    "versioning": "decimal",
+    "game": "morrowind",
+    "license": "GPL-3.0",
+    "tags": [],
+    "maintainers": [
+      {
+        "name": "Ada",
+        "url": "https://ada.test"
+      },
+      {
+        "name": "Bob"
+      }
+    ],
+    "links": {
+      "discord": "https://chat.test/beta",
+      "documentation": "https://base.test/beta/",
+      "issues": "https://github.com/Owner/Fixture-Mods/issues",
+      "page": "https://base.test/beta/",
+      "source": "https://code.test/beta"
+    },
+    "integrations": {
+      "nexusmods": {
+        "game": "morrowind",
+        "mod_id": 4242
+      }
+    },
+    "media": [
+      {
+        "kind": "image",
+        "alt": "A shot",
+        "url": "https://base.test/beta/shot.png",
+        "thumbnail": "https://base.test/beta/thumb.png",
+        "caption": "The shot",
+        "category": "screens",
+        "featured": true
+      },
+      {
+        "kind": "video",
+        "alt": "",
+        "url": "https://video.test/beta"
+      }
+    ],
+    "credits": [
+      {
+        "name": "Cyd",
+        "role": "Models",
+        "url": "https://cyd.test"
+      },
+      {
+        "name": "Dee"
+      }
+    ]
+  },
+  "channels": {
+    "development": {
+      "version": "0.61-dev.1"
+    },
+    "nightly": {
+      "version": "0.7"
+    },
+    "stable": {
+      "version": "0.6"
+    }
+  },
+  "releases": [
+    {
+      "version": "0.61-dev.1",
+      "channel": "development",
+      "date": "2026-01-01",
+      "status": "available",
+      "source": {
+        "repository": "https://github.com/Owner/Fixture-Mods",
+        "release": "development",
+        "revision": "0123456789abcdef0123456789abcdef01234567"
+      },
+      "runtimes": {
+        "morrowind": "1.6",
+        "openmw": "0.50"
+      },
+      "platforms": [
+        {
+          "os": "windows",
+          "arch": "x86_64"
+        },
+        {
+          "os": "linux",
+          "arch": "aarch64"
+        }
+      ],
+      "provides": [
+        "beta-capability"
+      ],
+      "relationships": [
+        {
+          "kind": "requires",
+          "project": "alpha-id",
+          "version": ">=1.0",
+          "reason": "Shares scripts"
+        },
+        {
+          "kind": "recommends",
+          "name": "Some Other Mod",
+          "url": "https://other.test"
+        },
+        {
+          "kind": "conflicts",
+          "capability": "old-beta"
+        }
+      ],
+      "components": [
+        {
+          "id": "core",
+          "name": "Core",
+          "description": "The core files",
+          "path": "core",
+          "required": true,
+          "default": true,
+          "requires": [],
+          "conflicts": [],
+          "suggested_with": []
+        },
+        {
+          "id": "extras",
+          "name": "extras",
+          "path": "extras",
+          "required": false,
+          "default": true,
+          "group": "flavour",
+          "requires": [
+            "core"
+          ],
+          "conflicts": [
+            "other"
+          ],
+          "suggested_with": [
+            "core"
+          ]
+        }
+      ],
+      "groups": [
+        {
+          "id": "flavour",
+          "name": "Flavour",
+          "select": "one",
+          "description": "Pick one"
+        },
+        {
+          "id": "loose",
+          "name": "Loose",
+          "select": "many"
+        }
+      ],
+      "extensions": {
+        "custom": {
+          "flag": true
+        },
+        "openmw": {
+          "components": {
+            "core": {
+              "data_directories": [
+                "."
+              ],
+              "content_files": [
+                "Beta.esp"
+              ],
+              "groundcover_files": [
+                "BetaGrass.esp"
+              ],
+              "fallback_archives": [
+                "Beta.bsa"
+              ],
+              "fallback_entries": {
+                "Weather_Clear": "1"
+              },
+              "config": true,
+              "requires_content": [
+                "Tribunal.esm"
+              ]
+            },
+            "extras": {
+              "data_directories": [
+                "00 Data",
+                "."
+              ],
+              "content_files": [
+                "Extras.esp"
+              ],
+              "groundcover_files": [],
+              "fallback_archives": [],
+              "fallback_entries": {},
+              "config": false,
+              "requires_content": []
+            }
+          },
+          "requires_content": [
+            "Morrowind.esm"
+          ],
+          "settings": [
+            {
+              "category": "Shaders",
+              "key": "force shaders",
+              "value": "true"
+            }
+          ],
+          "lua_api": "71"
+        }
+      },
+      "critical_extensions": [
+        "openmw"
+      ],
+      "artifacts": [
+        {
+          "id": "flat",
+          "format": "flat",
+          "filename": "beta.zip",
+          "media_type": "application/zip",
+          "size": 1234,
+          "digests": {
+            "sha256": "feed"
+          },
+          "layout": {
+            "release_document": "dreamweave.release.json"
+          },
+          "sources": [
+            {
+              "url": "https://github.com/Owner/Fixture-Mods/releases/download/development/beta.zip",
+              "kind": "publisher"
+            },
+            {
+              "url": "https://mirror.test/beta",
+              "kind": "mirror"
+            }
+          ],
+          "signatures": []
+        }
+      ]
+    },
+    {
+      "channel": "stable",
+      "date": "2025-08-01",
+      "status": "available",
+      "version": "0.6"
+    },
+    {
+      "channel": "beta",
+      "date": "2025-09-09",
+      "status": "yanked",
+      "version": "0.51"
+    },
+    {
+      "channel": "nightly",
+      "status": "available",
+      "version": "0.7"
+    }
+  ]
+}

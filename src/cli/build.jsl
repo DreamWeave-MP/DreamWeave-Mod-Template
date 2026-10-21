@@ -1,0 +1,15 @@
+--!strict
+-- `jess package run --trusted <template> --target build -- [base url]`: package every development
+-- build into dist/ and write the site's protocol files into static/.
+local commands = require '@dreamweave/mod-template/commands'
+local common = require './common'
+
+local built = commands.build(common.root(), { baseUrl = common.baseUrl(arg[1]), buildNumber = common.buildNumber() })
+
+for _, path in built.builds do
+  print(`Built {path}`)
+end
+
+print(`{built.projects} project(s), {#built.builds} development build(s).`)
+
+return 0

@@ -1,0 +1,316 @@
+--!strict
+--!native
+-- What the suite and the bench share: where the fixtures are, trees copied and compared under a
+-- scratch folder, a git index written the way git writes one, one canonical description of any
+-- value a module returns, and a reader of the archives the package writes. Nothing here goes
+-- through the package's own modules, so a change to one of them cannot hide in its own check.
+local bytes = require '@dream/bytes'
+local fs = require '@dream/fs'
+
+--- The text of the file at `path`, raising the read's own message when there is none.
+local function readText(path: string): string
+  local text, problem = fs.readFileString(path)
+  if not text then error(problem, 0) end
+
+  return text
+end
+
+
+export type Tracked = { path: string, mode: number }
+
+export type Stored = {
+  path: string,
+  content: string,
+  size: number,
+  crc: number,
+  offset: number,
+  executable: boolean,
+}
+
+--- Where this file is, from its chunk name: the folder the suite and its fixtures are in.
+local function here(): string
+  local source = debug.info(1, 's')
+  local first = string.sub(source, 1, 1)
+  local path = if first == '@' or first == '=' then string.sub(source, 2) else source
+
+  return string.match(path, '^(.*)/[^/]*$') or '.'
+end
+
+local Fixtures = `{here()}/fixtures`
+
+-- The modes git and a zip give a regular file and an executable one: 0100644 and 0100755.
+local Regular, Executable = 33188, 33261
+
+local function fixture(name: string): string return `{Fixtures}/{name}` end
+
+local function read(path: string): string
+  local contents = (readText(path) or error(`the suite cannot read {path}`, 0))
+
+  return contents
+end
+
+local function write(path: string, contents: string)
+  local done, problem = fs.mkdir(assert(fs.parent(path), 'a file needs a folder'), { recursive = true })
+  if not done then error(problem, 0) end
+  local done, problem = fs.writeFile(path, contents, { atomic = true, createParents = true })
+  if not done then error(problem, 0) end
+end
+
+local function gather(folder: string, prefix: string, out: { string })
+  local listed, problem = fs.list(folder)
+  if not listed then error(problem, 0) end
+  local names = listed or {}
+  table.sort(names)
+
+  for _, name in names do
+    local path, relative = `{folder}/{name}`, prefix .. name
+
+    if fs.isDir(path) then
+      gather(path, `{relative}/`, out)
+    elseif fs.isFile(path) then
+      table.insert(out, relative)
+    end
+  end
+end
+
+--- The relative path of every file below `root`, each folder's names in byte order.
+local function files(root: string): { string }
+  local out: { string } = {}
+  gather(root, '', out)
+
+  return out
+end
+
+--- Writes `contents` (relative path to bytes) below `root`.
+local function tree(root: string, contents: { [string]: string }): string
+  local done, problem = fs.mkdir(root, { recursive = true })
+  if not done then error(problem, 0) end
+
+  for name, text in contents do
+    write(`{root}/{name}`, text)
+  end
+
+  return root
+end
+
+local function copy(from: string, to: string): string
+  local done, problem = fs.mkdir(to, { recursive = true })
+  if not done then error(problem, 0) end
+
+  for _, relative in files(from) do
+    write(`{to}/{relative}`, read(`{from}/{relative}`))
+  end
+
+  return to
+end
+
+--- An empty folder `name` below `root`: whatever an earlier run left there is removed first.
+local function emptied(root: string, name: string): string
+  local folder = `{root}/{name}`
+  if fs.exists(folder) then
+    local done, problem = fs.remove(folder, { recursive = true })
+    if not done then error(problem, 0) end
+  end
+
+  local done, problem = fs.mkdir(folder, { recursive = true })
+  if not done then error(problem, 0) end
+
+  return folder
+end
+
+--- Raises unless `text` is the pinned file `name`, saying where the two part.
+--- Whether this run rewrites the pinned files with what the package produced: a maintainer sets
+--- DREAMWEAVE_UPDATE_PINS=1 after a deliberate change to the output, then reads the diff.
+local function updatingPins(): boolean
+  if not jess.granted 'process.environment' then return false end
+
+  return (require '@dream/process' :: { env: (string) -> string? }).env 'DREAMWEAVE_UPDATE_PINS' == '1'
+end
+
+local function samePinned(text: string, name: string)
+  if updatingPins() then
+    write(fixture(`expected/{name}`), text)
+    return
+  end
+
+  local expected = read(fixture(`expected/{name}`))
+  if text == expected then return end
+
+  local offset = 1
+  while string.byte(text, offset) == string.byte(expected, offset) do
+    offset += 1
+  end
+
+  local from = math.max(1, offset - 60)
+  error(
+    `{name} differs at byte {offset} ({#text} bytes against {#expected}): got ...{string.sub(text, from, offset + 60)}... where the pinned file has ...{string.sub(expected, from, offset + 60)}...`,
+    0
+  )
+end
+
+--- A version 2 or 3 git index naming `entries` in the order given. Every field git keeps but the
+--- reader does not use (times, device, owner, size, object name) is zero. A path of 4,095 bytes
+--- or more stores the flag's whole name length and is found by its terminator, as git does it.
+local function indexBytes(entries: { Tracked }, version: number?): string
+  local header = buffer.create(12)
+  buffer.writestring(header, 0, 'DIRC')
+  bytes.writeu32be(header, 4, version or 2)
+  bytes.writeu32be(header, 8, #entries)
+
+  local parts = { buffer.tostring(header) }
+
+  for _, entry in entries do
+    local row = buffer.create((62 + #entry.path + 8) // 8 * 8)
+    bytes.writeu32be(row, 24, entry.mode)
+    bytes.writeu16be(row, 60, math.min(#entry.path, 0x0fff))
+    buffer.writestring(row, 62, entry.path)
+    table.insert(parts, buffer.tostring(row))
+  end
+
+  return table.concat(parts)
+end
+
+--- Makes `root` look like a checkout: a head on a branch, and an index tracking every file
+--- below `content`, the Lua scripts as executables.
+local function track(root: string)
+  local tracked: { Tracked } = {}
+
+  for _, relative in files(`{root}/content`) do
+    local executable = string.sub(relative, -4) == '.lua'
+    table.insert(tracked, { path = `content/{relative}`, mode = if executable then Executable else Regular })
+  end
+
+  write(`{root}/.git/HEAD`, 'ref: refs/heads/main\n')
+  write(`{root}/.git/refs/heads/main`, '0123456789abcdef0123456789abcdef01234567\n')
+  write(`{root}/.git/index`, indexBytes(tracked))
+end
+
+--- The fixture repository copied to `root` and tracked: the build writes into its source tree.
+local function repository(root: string): string
+  copy(fixture 'repo', root)
+  track(root)
+
+  return root
+end
+
+local function quoted(text: string): string
+  local escaped = string.gsub(text, '[%c"\\]', function(character: string): string
+    return string.format('\\x%02x', string.byte(character))
+  end)
+
+  return `"{escaped}"`
+end
+
+local function keyOrder(left: unknown, right: unknown): boolean
+  if type(left) == type(right) then return (left :: string) < (right :: string) end
+
+  return type(left) == 'number'
+end
+
+local function describeInto(value: unknown, indent: string, out: { string })
+  if type(value) == 'string' then
+    table.insert(out, quoted(value))
+    return
+  end
+
+  if type(value) ~= 'table' then
+    table.insert(out, if type(value) == 'userdata' then `<{tostring(value)}>` else tostring(value))
+    return
+  end
+
+  local keys: { unknown } = {}
+  for key in value :: { [unknown]: unknown } do
+    table.insert(keys, key)
+  end
+
+  if #keys == 0 then
+    table.insert(out, '{}')
+    return
+  end
+
+  table.sort(keys, keyOrder)
+  table.insert(out, '{\n')
+  local inner = `{indent}  `
+
+  for _, key in keys do
+    table.insert(out, if type(key) == 'string' then `{inner}{key} = ` else `{inner}[{key}] = `)
+    describeInto((value :: { [unknown]: unknown })[key], inner, out)
+    table.insert(out, '\n')
+  end
+
+  table.insert(out, `{indent}}`)
+end
+
+--- `value` as text: tables by sorted key, one entry per line, every string quoted byte for byte.
+local function describe(value: unknown): string
+  local out: { string } = {}
+  describeInto(value, '', out)
+  table.insert(out, '\n')
+
+  return table.concat(out)
+end
+
+--- The entries of a stored (uncompressed) zip, from its central directory, in its order. Raises
+--- when a local header disagrees with the directory, or bytes sit between or after the records.
+local function stored(data: string): { Stored }
+  local raw = buffer.fromstring(data)
+  local finish = #data - 22
+  assert(finish >= 0 and buffer.readu32(raw, finish) == 0x06054b50, 'no end record')
+
+  local count, size, start =
+    buffer.readu16(raw, finish + 10), buffer.readu32(raw, finish + 12), buffer.readu32(raw, finish + 16)
+  assert(buffer.readu16(raw, finish + 8) == count and start + size == finish, 'the directory is misplaced')
+
+  local out: { Stored } = {}
+  local at, expected = start, 0
+
+  for _ = 1, count do
+    assert(buffer.readu32(raw, at) == 0x02014b50, 'not a directory record')
+    local crc, length, nameLength = buffer.readu32(raw, at + 16), buffer.readu32(raw, at + 24), buffer.readu16(raw, at + 28)
+    local offset, path = buffer.readu32(raw, at + 42), buffer.readstring(raw, at + 46, nameLength)
+    local header = string.sub(data, at + 1, at + 46)
+    local body = offset + 30 + nameLength
+
+    assert(offset == expected, `{path} does not start where the entry before it ends`)
+    assert(buffer.readu32(raw, offset) == 0x04034b50, `{path} has no local header`)
+    assert(string.sub(data, offset + 5, offset + 26) == string.sub(header, 7, 28), `{path}: the headers disagree`)
+    assert(buffer.readu32(raw, offset + 26) == nameLength, `{path}: the name lengths disagree`)
+    assert(buffer.readstring(raw, offset + 30, nameLength) == path, `{path}: the names disagree`)
+    assert(buffer.readu32(raw, at + 20) == length, `{path} is not stored`)
+
+    local content = buffer.readstring(raw, body, length)
+    assert(bytes.crc32(content) == crc, `{path}: the checksum is wrong`)
+    table.insert(out, {
+      path = path,
+      content = content,
+      size = length,
+      crc = crc,
+      offset = offset,
+      executable = bit32.rshift(buffer.readu32(raw, at + 38), 16) == Executable,
+    })
+
+    expected = body + length
+    at += 46 + nameLength
+  end
+
+  assert(expected == start and at == finish, 'bytes sit between the records')
+
+  return out
+end
+
+return table.freeze {
+  here = here,
+  fixture = fixture,
+  read = read,
+  write = write,
+  files = files,
+  tree = tree,
+  copy = copy,
+  emptied = emptied,
+  samePinned = samePinned,
+  indexBytes = indexBytes,
+  track = track,
+  repository = repository,
+  describe = describe,
+  stored = stored,
+}

@@ -1,0 +1,6 @@
+<!doctype html>
+<html><head><link rel="stylesheet" href="{{ get_url(path="site.css") }}"><link rel="alternate" href="https://elsewhere.test/feed" data-dw-online></head>
+<body><nav><a href="{{ config.base_url | safe }}">Home</a> <a href="#top">Top</a></nav><h3 id="top">{{ page.title }}</h3>
+<img src="{{ get_url(path="img/logo.png") }}" srcset="{{ get_url(path="img/logo.png") }} 1x, {{ get_url(path="img/logo@2x.png") }} 2x" alt="logo">
+{{ page.content | safe }}
+</body></html>

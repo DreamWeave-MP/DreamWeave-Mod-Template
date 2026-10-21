@@ -26,7 +26,7 @@ without a `mod.toml` is an error that names the page, and the same run writes yo
 | Zip with deflate, built by walking the file system | Stored, byte-reproducible zip from committed files, with rendered docs |
 | `<repo>-<tag>.modManifest` release asset, `schema_version: "1"` | `dreamweave.json` and `dreamweave/projects/<id>.json` on the site, `schema_version: "2"` |
 | Commit-log changelog | Release notes in `mod.toml`, one changelog for the page, the manifest and the GitHub release |
-| `./buildSite --build --changelog --tag …` | Nothing to run: CI validates, packages and records releases, and `zola serve` previews |
+| `./buildSite --build --changelog --tag …` | Nothing to run: CI validates, packages and records releases, and `jess workspace run --trusted dreamweave-site` previews |
 | terminimal theme, `accent_color`, `background_color` | The template's own layout, `palette` and `accent`, tokens in `sass/brand.sass` |
 | `giscus = { repo_id, category_id, … }` with pasted ids | `[extra.comments]`; the build looks the ids up for your own repository |
 | GoatCounter pointing at DreamWeave's account by default | Off until you set your own code |
@@ -37,10 +37,10 @@ The shortcodes existing pages call, `install_instructions`, `credits`, `usage_no
 
 ## Step by step
 
-**1. Bring in the template.** Copy V5's `templates/`, `sass/`, `static/js/`, `static/docs/`,
-`static/schemas/`, `static/img/`, `tools/` (with its tests), `buildSite`, `.gitignore` and
-`.github/workflows/build_site.yml` into your repository, and `content/network.md` if you want the
-network page. Delete `themes/terminimal`, V4's `sass/custom.sass`, `mods.sass` and `search.sass`,
+**1. Bring in the template.** Copy V5's `jess.toml`, `.gitignore`, `.github/workflows/build_site.yml`
+and `content/network.md` into your repository. Nothing under `templates/`, `sass/` or `static/` is
+copied: the presentation is the theme package `jess.lock` pins, laid under whatever your repository
+keeps there. Delete `themes/terminimal`, V4's `sass/custom.sass`, `mods.sass` and `search.sass`,
 its `static/js/` scripts, and the `changelog.md` V4 generated in each project directory. Merge
 `config.toml` by hand: keep your `base_url`, `title`, `github_username`, `github_project` and
 `ignored_content`; replace `accent_color` with `palette`; delete what the table above says is gone.
@@ -79,7 +79,7 @@ newest release.
 **5. Push again.** Expect CI to find real problems. Moving St4sh found a content file declared with the wrong case
 (`Baldurwind.omwaddon` against a committed `baldurwind.omwaddon`), content files that are gitignored
 build output and so were never in the V4 archives either, and docs linking to sibling pages as
-`page.md`, which Zola never resolves. The link check after the site build finds the last kind.
+`page.md`, which the generator never resolves. The link check after the site build finds the last kind.
 
 ## What happens to old releases
 

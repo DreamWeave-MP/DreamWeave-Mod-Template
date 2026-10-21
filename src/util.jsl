@@ -1,0 +1,147 @@
+--!strict
+--!native
+-- What the mod template's modules share: text trimmed, paths normalized and split, URLs joined,
+-- and files read, walked, written, copied and removed below folders made as they are needed.
+local fs = require '@dream/fs'
+local util = {}
+
+export type Entry = { path: string, relative: string }
+
+local Dot, Slash = 46, 47
+
+--- `value` as text without the whitespace at its ends. Nothing, and `false`, are empty text.
+function util.trim(value: unknown): string
+  return (string.gsub(string.gsub(tostring(value or ''), '^%s+', ''), '%s+$', ''))
+end
+
+--- `path` as text with forward slashes, without one leading `./`, and with every run of slashes
+--- made one, in that order. Each is looked for before it is replaced: most paths are normal
+--- already, and a search is cheaper than a substitution that finds nothing.
+function util.norm(path: unknown): string
+  local text = tostring(path or '')
+  if string.find(text, '\\', 1, true) then text = string.gsub(text, '\\', '/') end
+  if string.byte(text, 1) == Dot and string.byte(text, 2) == Slash then text = string.sub(text, 3) end
+  if string.find(text, '//', 1, true) then text = string.gsub(text, '/+', '/') end
+
+  return text
+end
+
+--- The folder of a normalized `path`; empty for a name alone.
+function util.dirname(path: unknown): string
+  return string.match(util.norm(path), '^(.*)/[^/]+$') or ''
+end
+
+--- The last name of a normalized `path`, or `path` as it was given when it ends in a slash or
+--- is empty. The name is found back from the end, at the last slash: a pattern for it tried from
+--- every byte of the path took a time that grew with the square of the name's length.
+function util.basename(path: string): string
+  local text = util.norm(path)
+  if text == '' or string.byte(text, -1) == Slash then return path end
+
+  return string.match(text, '^.*/(.*)$') or text
+end
+
+function util.startsWith(text: string, prefix: string): boolean
+  return string.sub(text, 1, #prefix) == prefix
+end
+
+function util.endsWith(text: string, suffix: string): boolean
+  return suffix == '' or string.sub(text, -#suffix) == suffix
+end
+
+function util.read(path: string): string
+  local contents = fs.readFileString(path)
+  if not contents then error(`cannot read {path}`, 0) end
+
+  return contents
+end
+
+function util.write(path: string, data: string)
+  local done, problem = fs.mkdir(fs.parent(path) :: string, { recursive = true })
+  if not done then error(problem, 0) end
+  local done, problem = fs.writeFile(path, data, { atomic = true, createParents = true })
+  if not done then error(problem, 0) end
+end
+
+--- Every file below `root`, each folder's names in byte order and a folder's files where its
+--- name sorts. Nothing for a root that is not a folder.
+function util.walk(root: string): { Entry }
+  local out: { Entry } = {}
+
+  local function visit(folder: string, prefix: string)
+    local names, problem = fs.list(folder)
+    if not names then error(problem, 0) end
+
+    table.sort(names)
+
+    for _, name in ipairs(names) do
+      local path = fs.join(folder, name)
+      local relative = if prefix == '' then name else `{prefix}/{name}`
+
+      -- One look at the disk says which of the two a name is, or that it is neither.
+      local found = fs.stat(path)
+
+      if found and found.isDir then
+        visit(path, relative)
+      elseif found and found.isFile then
+        table.insert(out, { path = path, relative = util.norm(relative) })
+      end
+    end
+  end
+
+  if fs.isDir(root) then visit(root, '') end
+
+  return out
+end
+
+function util.copyTree(source: string, destination: string)
+  for _, entry in util.walk(source) do
+    util.write(fs.join(destination, entry.relative), util.read(entry.path))
+  end
+end
+
+--- A copy of `source` up to its first gap.
+function util.arrayCopy<Value>(source: { Value }?): { Value }
+  local out = {}
+  for index, value in ipairs(source or {}) do
+    out[index] = value
+  end
+
+  return out
+end
+
+function util.sortedKeys<Key, Value>(source: { [Key]: Value }?): { Key }
+  local keys = {}
+  for key in pairs(source or {}) do
+    table.insert(keys, key)
+  end
+
+  table.sort(keys)
+
+  return keys
+end
+
+--- `path` below `base`, with one slash between them. An absolute URL is its own answer.
+function util.joinUrl(base: unknown, path: unknown): string
+  local root, rest = tostring(base or ''), tostring(path or '')
+  if string.match(rest, '^https?://') then return rest end
+
+  return string.gsub(root, '/+$', '') .. '/' .. string.gsub(rest, '^/+', '')
+end
+
+--- Removes the file `path`, or the folder `path` with everything in it; nothing there is fine.
+--- Raises when what is there can't be removed.
+function util.removeTree(path: string)
+  if not fs.exists(path) then return end
+
+  local done, problem = fs.remove(path, { recursive = true })
+  if not done then error(problem, 0) end
+end
+
+function util.dateText(value: unknown): string
+  if type(value) == 'string' then return value end
+
+  return tostring(value or '')
+end
+
+return util

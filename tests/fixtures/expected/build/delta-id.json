@@ -1,0 +1,25 @@
+{
+  "schema_version": "3",
+  "document": "project",
+  "generator": "DreamWeave Mod Template 0.3.0",
+  "project": {
+    "id": "delta-id",
+    "name": "Delta",
+    "type": "mod",
+    "status": "active",
+    "versioning": "numeric",
+    "game": "morrowind",
+    "tags": [],
+    "maintainers": [],
+    "links": {
+      "issues": "https://github.com/Owner/Fixture-Mods/issues",
+      "page": "https://mods.test/stash/delta/",
+      "source": "https://github.com/Owner/Fixture-Mods"
+    },
+    "integrations": {},
+    "media": [],
+    "credits": []
+  },
+  "channels": {},
+  "releases": []
+}
