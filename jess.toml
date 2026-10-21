@@ -10,7 +10,7 @@ tests = ["tests/run.jsl"]
 [dependencies]
 "org.dreamweave.site" = "=0.1.1"
 "org.dreamweave.theme" = "=0.2.0"
-"org.dreamweave.magick" = "=0.1.2"
+"org.dreamweave.magick" = "0.1.2"
 "org.dreamweave.vfs" = "2"
 
 [modules]
