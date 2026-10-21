@@ -1,0 +1,54 @@
+{
+  "schema_version": "3",
+  "document": "lock",
+  "project": "74143198-50bf-434b-938e-816699a5d0a4",
+  "note": "Written by CI when a release tag is pushed: what each published release's archive contains. Do not edit.",
+  "releases": [
+    {
+      "version": "0.3.0",
+      "locked_from": "e161e24e055ee44a7deff0be6184a95bb9feef2a",
+      "artifacts": [
+        {
+          "id": "jpk",
+          "format": "jpk",
+          "filename": "org.dreamweave.mod-template-0.3.0.jpk",
+          "media_type": "application/vnd.jess.jpk",
+          "size": 180365,
+          "digests": {
+            "sha256": "5540eb01a8fd7f6746d4f118f8c129088540f05b275b860c8d99c2ac6b07361e"
+          },
+          "jess": {
+            "package": "org.dreamweave.mod-template",
+            "jess_api": "1",
+            "content_digest": "88cf661aa324ed1b3e634a73720e7cf7097d65a065433a99d24774512e04eb85",
+            "dependencies": {
+              "org.dreamweave.magick": "=0.1.2",
+              "org.dreamweave.site": "=0.1.1",
+              "org.dreamweave.theme": "=0.2.0",
+              "org.dreamweave.vfs": "2"
+            }
+          }
+        }
+      ],
+      "runtimes": {},
+      "platforms": [],
+      "provides": [],
+      "relationships": [],
+      "components": [
+        {
+          "id": "main",
+          "name": "DreamWeave Mod Template",
+          "path": ".",
+          "required": true,
+          "default": true,
+          "requires": [],
+          "conflicts": [],
+          "suggested_with": []
+        }
+      ],
+      "groups": [],
+      "extensions": {},
+      "critical_extensions": []
+    }
+  ]
+}
