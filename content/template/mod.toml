@@ -18,6 +18,11 @@ format = "jpk"
 jess = "org.dreamweave.mod-template"
 
 [[releases]]
+version = "0.3.2"
+date = 2026-10-21
+summary = "Magick is taken from 0.1.2 within 0.1 rather than exactly 0.1.2, so a site can build with Magick's newer releases."
+
+[[releases]]
 version = "0.3.1"
 date = 2026-10-21
 summary = "A development build is named by the last number bumped under every versioning scheme: a decimal project's 1.0.0 is followed by 1.0.1-dev.N, a Jess version, never 1.0.01-dev.N."
