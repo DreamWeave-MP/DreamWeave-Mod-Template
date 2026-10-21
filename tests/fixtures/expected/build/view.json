@@ -448,6 +448,10 @@
               {
                 "url": "https://github.com/Owner/Fixture-Mods/releases/download/development/beta.zip",
                 "kind": "publisher"
+              },
+              {
+                "url": "https://mirror.test/beta",
+                "kind": "mirror"
               }
             ],
             "signatures": []

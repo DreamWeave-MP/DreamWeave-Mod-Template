@@ -15,7 +15,7 @@
       "status": "active",
       "page": "https://base.test/beta/",
       "manifest": "https://base.test/dreamweave/projects/beta-id.json",
-      "manifest_sha256": "cb7b7f4746ff076bf6692d0a99a0d828c5c2ddaf880b17ccd4e4baeee0537566",
+      "manifest_sha256": "06ea1d81ce95afb2c95c55b9a914d6e9a7208ad2ece4cf0dc10e9b0dd254efe2",
       "updated": "2026-01-01",
       "channels": {
         "development": "0.61-dev.1",

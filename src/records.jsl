@@ -460,12 +460,9 @@ function records.developmentRelease(
       }
     )
 
-    document.sources = json.array {
-      object({ 'url', 'kind' }, {
-        url = repositoryUrl .. '/releases/download/' .. developmentRelease .. '/' .. artifact.filename,
-        kind = 'publisher',
-      }),
-    }
+    -- The same places a tagged release's bytes are served from: the publisher's release, and the
+    -- project's mirrors with the development release's name for the tag.
+    document.sources = json.array(records.artifactSources(project, repo.site, developmentRelease, document))
 
     document.signatures = json.array()
     table.insert(artifacts, document)
@@ -517,8 +514,9 @@ function records.artifactSources(project: model.Project, site: model.Site, relea
   local versionText = string.gsub(releaseName, `^{string.gsub(project.slug, '%W', '%%%0')}%-`, '')
 
   for _, given in ipairs(project.mirrors) do
+    -- A mirror is `{ url, name }`, or just the URL.
     local mirror: Document = if type(given) == 'table' then given :: Document else {}
-    local url = tostring(mirror.url or '')
+    local url = if type(given) == 'string' then given else tostring(mirror.url or '')
     url = string.gsub(url, '{slug}', project.slug)
     url = string.gsub(url, '{version}', versionText)
     url = string.gsub(url, '{tag}', releaseName)
