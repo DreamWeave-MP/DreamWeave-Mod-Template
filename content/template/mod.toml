@@ -18,6 +18,11 @@ format = "jpk"
 jess = "org.dreamweave.mod-template"
 
 [[releases]]
+version = "0.3.1"
+date = 2026-10-21
+summary = "A development build is named by the last number bumped under every versioning scheme: a decimal project's 1.0.0 is followed by 1.0.1-dev.N, a Jess version, never 1.0.01-dev.N."
+
+[[releases]]
 version = "0.3.0"
 date = 2026-10-19
 summary = "First release published as a DreamWeave project."

@@ -2,7 +2,7 @@ manifest_version = 1
 
 [package]
 id = "org.dreamweave.mod-template"
-version = "0.3.0"
+version = "0.3.1"
 jess_api = "1"
 include = ["src", "tests"]
 tests = ["tests/run.jsl"]
