@@ -4,9 +4,11 @@
 
 - The DreamWeave Mod Template: the build tool, a Jess package `org.dreamweave.mod-template` whose
   Package Source is this repository root (`jess.toml`, `src/`, `tests/`, `bench/`), and the
-  DreamWeave site it builds for itself: `content/home` is the package's own project page
-  (`format = "jpk"`, `jess = "org.dreamweave.mod-template"`), `content/candlelight` and
-  `content/simplified` are the example mods. The tool validates `content/<project>/mod.toml`,
+  DreamWeave site it builds for itself: `content/template` is the package's own project page
+  (`format = "jpk"`, `jess = "org.dreamweave.mod-template"`); `content/home` is Candlelight and
+  `content/simplified` Tallow, the example mods, at home because a copy of this repository is a
+  mod site: StroggForge's scaffold step strips the tool's source and `content/template` from a
+  copy on its first push. The tool validates `content/<project>/mod.toml`,
   packages byte-reproducible archives and JPKs, records releases, and writes the protocol documents
   (`static/dreamweave.json`, `static/dreamweave/projects/<id>.json`) and what only CI knows
   (`static/dreamweave/view.json`). Rendering is `org.dreamweave.site` with the theme

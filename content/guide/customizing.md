@@ -61,7 +61,7 @@ font_override_titles_only = true  # only headings and titles
 [extra]
 logo_text = "Ashlands Lighting"
 menu_items = [
-    { name = "Candlelight", url = "@/candlelight/index.md" },
+    { name = "Candlelight", url = "@/home/index.md" },
     { name = "Guide", url = "@/guide/_index.md" },
     { name = "Tags", url = "tags/" },
     { name = "Discord", url = "https://discord.gg/…" },

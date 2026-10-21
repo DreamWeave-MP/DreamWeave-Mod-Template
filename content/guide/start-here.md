@@ -52,16 +52,19 @@ Analytics are off, and stay off until you set up your own GoatCounter code.
 
 ## 4. Make the project yours
 
-The template ships three projects. `content/home` is the template itself: the page of its build
-tool, a Jess package whose source is this repository's `src/`. `content/candlelight` is Candlelight,
-the complete example mod, and `content/simplified` is Tallow, the minimal one. Turn `content/home`
-into your mod, and delete the rest once you no longer need to crib from it.
+The template ships two example projects. `content/home` is Candlelight, the complete example.
+`content/simplified` is Tallow, the minimal one. Turn `content/home` into your mod, and delete
+Tallow once you no longer need to crib from it.
 
-**Drop the build tool.** Your site uses the template; it doesn't carry its source. Delete `src/`,
-`tests/`, `bench/`, `BENCHMARKS.md` and `jess.toml`, empty `content/home`, and make
-`jess-workspace.toml` say so:
+**The copy finishes itself.** This repository is also the template's own build tool: `src/`,
+`tests/`, `bench/`, `jess.toml` and the tool's page at `content/template` are the tool, not your
+site. On your first push, CI removes them, writes a `jess-workspace.toml` that names the template as
+your site's tool, and commits the result; a second commit pins the exact version in `jess.lock`.
+Run `git pull` before your next push. Nothing you changed is ever removed: if you edited those files
+before pushing, CI stops and tells you to make the change by hand instead.
 
 ```toml
+# jess-workspace.toml, as CI writes it
 manifest_version = 1
 
 [workspace]
@@ -71,10 +74,9 @@ members = []
 "org.dreamweave.mod-template" = "0.3"
 ```
 
-That names the template version that builds your site. `jess.lock` pins it exactly, with the theme
-and the generator it uses: CI writes and commits it on your first push, so you need nothing
-installed to start. Every template, stylesheet and script comes from those packages; your
-repository holds your mod and your `config.toml`, and updating the version here updates the whole
+That names the template version that builds your site, and `jess.lock` pins it exactly, with the
+theme and the generator it uses. Every template, stylesheet and script comes from those packages;
+your repository holds your mod and your `config.toml`, and moving the version here updates the whole
 site.
 
 **Replace the id.** Every project has a permanent identity that no other project may share: a

@@ -24,5 +24,5 @@ once per occurrence, in the order they were registered.
 
 {% callout(kind="note", title="This page is an example") %}
 Tallow is the template's minimal example. Its whole `mod.toml` is an id, a slug, a runtime, one
-content file and one release. [Candlelight](@/candlelight/index.md) depends on it.
+content file and one release. [Candlelight](@/home/index.md) depends on it.
 {% end %}

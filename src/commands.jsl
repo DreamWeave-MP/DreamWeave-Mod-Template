@@ -9,7 +9,7 @@ local sitecheck = require './sitecheck'
 
 local commands = {}
 
-export type Checked = { ok: boolean, projects: number, errors: { string, shadowed: { string } }, notes: { string } }
+export type Checked = { ok: boolean, projects: number, errors: { string }, notes: { string }, shadowed: { string } }
 
 --- Validates every project without writing anything.
 function commands.check(root: string): Checked

@@ -9,6 +9,7 @@
 -- and nobody else's.
 local archive = require '@dreamweave/mod-template/archive'
 local build = require '@dreamweave/mod-template'
+local commands = require '@dreamweave/mod-template/commands'
 local bytes = require '@dream/bytes'
 local fs = require '@dream/fs'
 local gitIndex = require '@dreamweave/mod-template/git-index'
@@ -1423,6 +1424,25 @@ suite.describe('release and record', function()
     })
     expect(build.shadowed(root)).toEqual { 'sass/_tokens.sass', 'static/img/glider.svg', 'templates/mod/landing.html' }
     expect(build.shadowed(support.emptied(scratch, 'shadowed-none'))).toEqual {}
+  end)
+
+  suite.it('answers check as the command does: whether the repository is valid, and what shadows the theme', function()
+    local root = support.repository(support.emptied(scratch, 'commands-check'))
+    local checked = commands.check(root)
+    expect(checked.ok).toBe(true)
+    expect(checked.projects).toBe(6)
+    expect(checked.errors).toEqual {}
+    -- The fixture carries templates of its own, each one replacing the theme's of that name.
+    local own = { 'templates/404.html', 'templates/index.html', 'templates/mod/changelog.html', 'templates/page.html', 'templates/section.html', 'templates/taxonomy_list.html', 'templates/taxonomy_single.html' }
+    expect(checked.shadowed).toEqual(own)
+    support.write(`{root}/templates/mod/rail.html`, '<aside/>\n')
+    table.insert(own, 4, 'templates/mod/rail.html')
+    expect(commands.check(root).shadowed).toEqual(own)
+    support.write(`{root}/content/dup/mod.toml`, 'id = "alpha-id"\nslug = "dup"\n')
+    support.write(`{root}/content/dup/index.md`, '+++\ntitle = "Dup"\n+++\n')
+    local invalid = commands.check(root)
+    expect(invalid.ok).toBe(false)
+    expect(invalid.errors).toEqual { 'content/dup: duplicate id alpha-id' }
   end)
 
   suite.it('finds each Jess package among the workspace members its project names', function()

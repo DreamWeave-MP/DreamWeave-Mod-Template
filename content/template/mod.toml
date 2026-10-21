@@ -1,0 +1,23 @@
+# The DreamWeave Mod Template as a DreamWeave project: a Jess package, the build tool itself. `jess`
+# names the Package Source it publishes, this repository root's own jess.toml, and each release tag
+# `template-<version>` is one version of the package, packed by the template from that tag; every
+# push to the default branch packs a development build under the dev-build release. A site made
+# from this template loses this page on its first push: CI's scaffold step removes it with the
+# tool's source, since the copy is a site and not the tool.
+id = "74143198-50bf-434b-938e-816699a5d0a4"
+slug = "template"
+type = "tool"
+status = "active"
+
+[[maintainers]]
+name = "DreamWeave"
+url = "https://github.com/DreamWeave-MP"
+
+[package]
+format = "jpk"
+jess = "org.dreamweave.mod-template"
+
+[[releases]]
+version = "0.3.0"
+date = 2026-10-19
+summary = "First release published as a DreamWeave project."

@@ -13,7 +13,7 @@ compatibility data. Content files, component paths and media files are checked a
 actually in the directory.
 
 Only `id`, `slug`, and each release's `version` and `date` are required. Candlelight's
-[mod.toml](https://github.com/DreamWeave-MP/DreamWeave-Mod-Template/blob/main/content/candlelight/mod.toml)
+[mod.toml](https://github.com/DreamWeave-MP/DreamWeave-Mod-Template/blob/main/content/home/mod.toml)
 uses every key once, with comments.
 
 ## Identity

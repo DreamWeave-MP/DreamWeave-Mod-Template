@@ -14,16 +14,15 @@ read without scraping it.
    **Settings → Pages → Source** to **GitHub Actions**.
 2. In `config.toml`, set `github_username` and `github_project` to your repository. For comments,
    enable Discussions on it and install the [giscus app](https://github.com/apps/giscus).
-3. Drop the template's own source: delete `src/`, `tests/`, `bench/`, `BENCHMARKS.md` and
-   `jess.toml`, and make `jess-workspace.toml` list no members and name
-   `"org.dreamweave.mod-template" = "0.3"` under `[dev-dependencies]`, as its comment shows.
-4. Empty `content/home` (the template's own page) and put your mod there, laid out like
-   `content/candlelight`. Give `content/home/mod.toml` a fresh random UUID as its `id` (`uuidgen`
-   makes one; so does CI's error if you forget) and a `slug` like `my_mod`: it names your archive
-   and your release tags. In `content/home/index.md`, `title` is the mod's name, `description` its
-   summary, the body its page.
-5. Commit and push. The workflow pins the template in `jess.lock` with a commit of its own on the
-   first push, validates everything, and publishes the page and a development build. To preview
+3. Give `content/home/mod.toml` a fresh random UUID as its `id` (`uuidgen` makes one; so does CI's
+   error if you forget). Set `slug` to a short name like `my_mod`: it names your archive and your
+   release tags.
+4. Replace Candlelight's files in `content/home` with your mod, and rewrite `content/home/index.md`:
+   `title` is the mod's name, `description` its summary, the body its page.
+5. Commit and push. On the first push the workflow finishes the copy: it removes the template's own
+   source (`src/`, `tests/`, `bench/`, `jess.toml`, `content/template`), names the template as your
+   site's tool in `jess-workspace.toml`, pins it in `jess.lock`, and commits both; `git pull` before
+   your next push. Then it validates everything and publishes the page and a development build. To preview
    first, [install jess](https://github.com/DreamWeave-MP/jess/releases), then
    `jess workspace sync --publisher https://dreamweave-mp.github.io/DreamWeave-Mod-Template/`
    once (`sync --locked` once the lock exists) and
@@ -109,7 +108,7 @@ is the root package and it builds its own site with its working tree; its tests 
 | `sass/brand.sass` | Your branding; the template never touches it |
 | `templates/`, `sass/`, `static/` | Files laid over the theme package's: a template of the same name replaces the theme's. The template ships none but `sass/brand.sass`'s home |
 | `jess-workspace.toml`, `jess.lock` | Which template version builds the site, pinned with its theme and generator. Here, the workspace of the build tool itself |
-| `jess.toml`, `src/`, `tests/`, `bench/` | The build tool, `org.dreamweave.mod-template`: a Jess package whose project page is `content/home`. A site made from the template deletes these |
+| `jess.toml`, `src/`, `tests/`, `bench/` | The build tool, `org.dreamweave.mod-template`: a Jess package whose project page is `content/template`. CI removes these from a copy on its first push |
 | `static/schemas/` | JSON Schemas for everything the site publishes |
 
 ## Documentation

@@ -1,26 +1,40 @@
 +++
-title = "DreamWeave Mod Template"
-description = "The DreamWeave Mod Template's build tool: validates, builds, releases and records a DreamWeave site's projects, through jess."
-date = 2026-10-19
+title = "Candlelight"
+description = "Lights that know what time it is. Candles gutter, lanterns dim in storms, and every flame in Vvardenfell follows the hour."
+date = 2026-09-14
 
 [taxonomies]
-tags = ["Jess", "Luau"]
+tags = ["Lighting", "Lua", "OpenMW"]
 
 [extra]
-sections = ["overview", "releases", "credits"]
+# Which landing-page sections to show, in order. Omit to show everything that has data.
+# overview, media, install, compatibility, components, releases, credits
+sections = ["overview", "media", "install", "compatibility", "components", "releases", "credits"]
 +++
 
-The DreamWeave Mod Template's build tool: validates, builds, releases and records a DreamWeave site's projects, through jess.
+Vanilla lights are painted on. They burn the same at noon and midnight, in sunshine and in an
+ash storm, and a candle in a drafty Balmora hallway is exactly as steady as the sun.
+
+Candlelight gives every light a schedule and a temper. Street lanterns come on at dusk. Exposed
+flames dim and flicker when the weather turns, and recover when it clears. Interiors stay warm.
+Magic lights ignore all of it, because they are magic.
 
 <!-- more -->
 
-A [Jess](https://github.com/DreamWeave-MP/jess) package, `org.dreamweave.mod-template`. Add it to a `jess.toml` and
-`jess workspace sync` pins it from this site:
+{% features() %}
+- **Time of day.** Every vanilla light follows a curve from dusk to dawn instead of a constant.
+- **Weather.** Rain, storms and ash dim exposed flames; interiors are unaffected.
+- **No save bloat.** Nothing is written to saves. Uninstalling is deleting the files.
+- **Scheduled by [Tallow](@/simplified/index.md).** The same library other mods can use.
+{% end %}
 
-```toml
-[dependencies]
-"org.dreamweave.mod-template" = "0.3"
-```
+## How it works
 
-Every release below is the package's own archive, with its content digest beside the archive's
-SHA-256; `jess.lock` pins the first and checks both.
+Candlelight reads light records when their cell loads and asks Tallow to wake it at the next
+interesting hour. Between wake-ups it does nothing, which is the cheapest thing a script can do.
+
+{% callout(kind="note", title="This page is an example") %}
+Candlelight is the DreamWeave Mod Template's complete example project. Every section on this
+page is generated from `content/home/mod.toml`. The [guide](@/guide/_index.md) explains how to
+make your own.
+{% end %}
