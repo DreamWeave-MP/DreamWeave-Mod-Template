@@ -296,8 +296,9 @@ suite.describe('version', function()
     expect(following('0.0.0', 1)).toBe '0.0.1-dev.1'
     expect(following('9', 2)).toBe '10-dev.2'
     expect(following('1.2.3-rc.1', 4)).toBe '1.2.3-rc.1.dev.4'
-    expect(following('0', 1, version.DECIMAL)).toBe '0.001-dev.1'
-    expect(following('0.5', 3, version.DECIMAL)).toBe '0.51-dev.3'
+    expect(following('0', 1, version.DECIMAL)).toBe '1-dev.1'
+    expect(following('0.5', 3, version.DECIMAL)).toBe '0.6-dev.3'
+    expect(following('1.0.0', 6, version.DECIMAL)).toBe '1.0.1-dev.6'
     expect(following('0.5-pre', 3, version.DECIMAL)).toBe '0.5-pre.dev.3'
     expect(version.nextDevelopment(version.parseOrError('2', version.DECIMAL), 9).scheme).toBe 'decimal'
   end)
@@ -591,7 +592,7 @@ suite.describe('model', function()
     expect(repo.build_number).toBe(12)
     -- Alpha's lock records 1.1.0, so its development builds count on from there.
     expect(model.developmentVersion(repo, repo.projects[1]).text).toBe '1.1.1-dev.12'
-    expect(model.developmentVersion(repo, repo.projects[3]).text).toBe '0.001-dev.12'
+    expect(model.developmentVersion(repo, repo.projects[3]).text).toBe '1-dev.12'
     expect(model.developmentVersion(repo, repo.projects[3]).scheme).toBe 'decimal'
   end)
 

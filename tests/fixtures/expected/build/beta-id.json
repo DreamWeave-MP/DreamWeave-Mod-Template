@@ -63,12 +63,12 @@
   },
   "channels": {
     "development": {
-      "version": "0.001-dev.1"
+      "version": "1-dev.1"
     }
   },
   "releases": [
     {
-      "version": "0.001-dev.1",
+      "version": "1-dev.1",
       "channel": "development",
       "date": "2026-01-01",
       "status": "available",

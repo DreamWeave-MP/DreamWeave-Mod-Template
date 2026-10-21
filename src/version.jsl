@@ -160,7 +160,11 @@ function version.compare(left: Version, right: Version): number
   return comparePrerelease(left.prerelease, right.prerelease)
 end
 
---- The version development build `build` of what follows `parsed` goes by.
+--- The version development build `build` of what follows `parsed` goes by: the last number
+--- bumped, the build after a `-dev.` identifier. A development build is a Jess version, the label
+--- `jess` reads and an index checks, whatever scheme the project's history compares under: a
+--- decimal project's `1.0.0` is followed by `1.0.1-dev.6`, never by a `1.0.01` with a leading zero
+--- that no version grammar past the project's own accepts.
 function version.nextDevelopment(parsed: Version, build: number): Version
   local release = table.concat(parsed.release, '.')
 
@@ -175,18 +179,10 @@ function version.nextDevelopment(parsed: Version, build: number): Version
     return version.parseOrError(text, parsed.scheme)
   end
 
-  if parsed.scheme == version.NUMERIC then
-    local numbers = util.arrayCopy(parsed.release)
-    numbers[#numbers] = tostring((tonumber(numbers[#numbers]) :: number) + 1)
+  local numbers = util.arrayCopy(parsed.release)
+  numbers[#numbers] = tostring((tonumber(numbers[#numbers]) :: number) + 1)
 
-    return version.parseOrError(table.concat(numbers, '.') .. '-dev.' .. tostring(build), parsed.scheme)
-  end
-
-  if #parsed.release == 1 then
-    return version.parseOrError(release .. '.001-dev.' .. tostring(build), parsed.scheme)
-  end
-
-  return version.parseOrError(release .. '1-dev.' .. tostring(build), parsed.scheme)
+  return version.parseOrError(table.concat(numbers, '.') .. '-dev.' .. tostring(build), parsed.scheme)
 end
 
 return version

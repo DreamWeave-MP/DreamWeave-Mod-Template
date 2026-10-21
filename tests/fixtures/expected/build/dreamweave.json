@@ -46,7 +46,7 @@
       "manifest_sha256": "<beta-id.json sha256>",
       "updated": "2026-01-01",
       "channels": {
-        "development": "0.001-dev.1"
+        "development": "1-dev.1"
       }
     },
     {

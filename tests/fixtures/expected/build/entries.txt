@@ -19,7 +19,7 @@ beta: {"release_document":"dreamweave.release.json","documentation":"beta-Docume
   extras/Stray.ESP <- <root>/content/beta/extras/Stray.ESP false
   beta-dwmod.toml <- <root>/content/beta/mod.toml false
   shot.png <- <root>/content/beta/shot.png false
-  dreamweave.release.json <- 2768 bytes false
+  dreamweave.release.json <- 2764 bytes false
   beta-Documentation/index.html <- /staged/index.html false
   beta-Documentation/_site/site.css <- /staged/_site/site.css false
 delta: {"release_document":"dreamweave.release.json"}
