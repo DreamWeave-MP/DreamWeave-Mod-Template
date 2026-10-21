@@ -9,6 +9,13 @@ for _, note in checked.notes do
   print(`note: {note}`)
 end
 
+-- A site's own copy of a theme file renders in the theme's place and stays as it is when the
+-- template moves: worth knowing on every push, and the list of what a site migrating from an
+-- older template still carries.
+for _, path in checked.shadowed do
+  print(`note: {path} replaces the theme's file of that name and will not follow template updates`)
+end
+
 if not checked.ok then
   common.report(checked.errors)
   print(`{#checked.errors} problem(s).`)

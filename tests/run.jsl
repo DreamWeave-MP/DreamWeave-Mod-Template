@@ -1410,6 +1410,21 @@ suite.describe('release and record', function()
     }
   end)
 
+  suite.it('names the site files that replace the theme\'s, and leaves the branding hook alone', function()
+    local root = smallRepository('shadowed', {
+      ['content/a/mod.toml'] = 'id = "a"\nslug = "a"\n',
+      ['content/a/index.md'] = '+++\ntitle = "A"\n+++\n',
+      ['templates/mod/landing.html'] = '<p>mine</p>\n',
+      ['templates/mine/only.html'] = '<p>only mine</p>\n',
+      ['sass/brand.sass'] = '// branding\n',
+      ['sass/_tokens.sass'] = '$x: 1\n',
+      ['static/img/glider.svg'] = '<svg/>\n',
+      ['static/mine.css'] = '',
+    })
+    expect(build.shadowed(root)).toEqual { 'sass/_tokens.sass', 'static/img/glider.svg', 'templates/mod/landing.html' }
+    expect(build.shadowed(support.emptied(scratch, 'shadowed-none'))).toEqual {}
+  end)
+
   suite.it('finds each Jess package among the workspace members its project names', function()
     local manifest = function(id: string, version: string, extra: string): string
       return `manifest_version = 1\n[package]\nid = "{id}"\nversion = "{version}"\njess_api = "1"\ninclude = ["src"]\n{extra}`

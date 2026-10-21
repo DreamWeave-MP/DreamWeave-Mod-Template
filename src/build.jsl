@@ -508,6 +508,38 @@ function build.site(root: string, public: string, options: Options?): { [string]
 end
 
 
+--- The folders a site may lay its own files over the theme's in.
+local Overlays = { 'templates', 'sass', 'static' }
+
+--- The site's own branding hook: the theme ships it so the stylesheet has something to load, and a
+--- site is meant to replace it.
+local Branding = 'sass/brand.sass'
+
+--- Every file of the site at `root` that replaces a theme file of the same path: the site's copy
+--- is what renders, and it stays as it is when the template moves. Relative paths, sorted.
+function build.shadowed(root: string): { string }
+  local themed: { [string]: boolean } = {}
+
+  for _, found in themes() do
+    for _, path in found.files do
+      themed[path] = true
+    end
+  end
+
+  local shadowed: { string } = {}
+
+  for _, folder in Overlays do
+    for _, entry in util.walk(fs.join(root, folder)) do
+      local path = `{folder}/{entry.relative}`
+      if themed[path] and path ~= Branding then table.insert(shadowed, path) end
+    end
+  end
+
+  table.sort(shadowed)
+
+  return shadowed
+end
+
 --- A Jess package's archive: the project's Package Source, packed by jess into `dist` at
 --- `released`, which revises the manifest's version when it is another, as a development build's
 --- is. The artifact says what jess said of it: the package, its API, its content digest and the
