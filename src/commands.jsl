@@ -25,7 +25,8 @@ end
 
 export type BuildOptions = { baseUrl: string?, buildNumber: number?, dist: string?, workspace: string?, date: string? }
 
-export type Built = { projects: number, archives: { string }, errors: { string } }
+--- `builds` is every development build written into dist: the archives, and the JPKs jess packed.
+export type Built = { projects: number, builds: { string }, errors: { string } }
 
 --- Packages every development build and writes the site's protocol files.
 function commands.build(root: string, options: BuildOptions?): Built
@@ -37,15 +38,18 @@ function commands.build(root: string, options: BuildOptions?): Built
     workspace = given.workspace,
     date = given.date,
   })
-  local archives = {}
+  local dist = given.dist or fs.join(root, 'dist')
+  local builds = {}
 
-  for id, written in result.archives do
-    table.insert(archives, written.path)
+  for _, artifacts in result.artifacts do
+    for _, artifact in artifacts do
+      table.insert(builds, fs.join(dist, artifact.filename))
+    end
   end
 
-  table.sort(archives)
+  table.sort(builds)
 
-  return { projects = result.projects, archives = archives, errors = result.errors }
+  return { projects = result.projects, builds = builds, errors = result.errors }
 end
 
 export type Rendered = { public: string, pages: number }
