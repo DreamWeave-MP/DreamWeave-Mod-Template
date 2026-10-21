@@ -95,6 +95,52 @@
       "groups": [],
       "extensions": {},
       "critical_extensions": []
+    },
+    {
+      "version": "0.3.2",
+      "locked_from": "274cebd995e10ef1adabdde695c56c30f7dbe748",
+      "artifacts": [
+        {
+          "id": "jpk",
+          "format": "jpk",
+          "filename": "org.dreamweave.mod-template-0.3.2.jpk",
+          "media_type": "application/vnd.jess.jpk",
+          "size": 180485,
+          "digests": {
+            "sha256": "aec719c3535d92a41c507c47822d8c18146f34aefbe9ee929568d783bd5ce7cf"
+          },
+          "jess": {
+            "package": "org.dreamweave.mod-template",
+            "jess_api": "1",
+            "content_digest": "717fb9c43365b6fec4d1fa637906aecafc4687b96b64c999f2ffcf26306436ad",
+            "dependencies": {
+              "org.dreamweave.magick": "0.1.2",
+              "org.dreamweave.site": "=0.1.1",
+              "org.dreamweave.theme": "=0.2.0",
+              "org.dreamweave.vfs": "2"
+            }
+          }
+        }
+      ],
+      "runtimes": {},
+      "platforms": [],
+      "provides": [],
+      "relationships": [],
+      "components": [
+        {
+          "id": "main",
+          "name": "DreamWeave Mod Template",
+          "path": ".",
+          "required": true,
+          "default": true,
+          "requires": [],
+          "conflicts": [],
+          "suggested_with": []
+        }
+      ],
+      "groups": [],
+      "extensions": {},
+      "critical_extensions": []
     }
   ]
 }
