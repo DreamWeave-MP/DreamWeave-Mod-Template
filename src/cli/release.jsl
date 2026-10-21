@@ -1,0 +1,24 @@
+--!strict
+-- `jess package run --trusted <template> --target release -- <tag> [base url]`: with the tag
+-- checked out, build that release into dist/ with its record for mod.lock.
+local commands = require '@dreamweave/mod-template/commands'
+local common = require './common'
+
+local tag = arg[1]
+if not tag or tag == '' then error('release: name the tag to build, <slug>-<version>', 0) end
+
+local released = commands.release(common.root(), tag, { baseUrl = common.baseUrl(arg[2]) })
+
+if not released.record then
+  print(`{tag} is a crate release: StroggForge publishes it to crates.io, and record-crates records it from there.`)
+
+  return 0
+end
+
+for _, filename in released.artifacts do
+  print(`Built {tag}: {filename}`)
+end
+
+print(`Recorded {released.project} {released.version} in {released.record}.`)
+
+return 0

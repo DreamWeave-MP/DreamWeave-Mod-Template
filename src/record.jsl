@@ -1,0 +1,315 @@
+--!strict
+-- Recording releases other services already published, into `mod.lock` on the default branch:
+-- the crate versions crates.io has of a `crate` project, and the tagged releases GitHub has of a
+-- `binary` project, built and published by StroggForge's Rust workflow. Neither service changes a
+-- published file, so this runs on any push and catches up versions published before the
+-- repository was a site. Every download is hashed and held to the digest the service states;
+-- a mismatch stops the run with nothing recorded.
+--
+-- Fetching is handed in, so the suite runs this against canned responses and nothing here ever
+-- opens a connection on its own.
+local bytes = require '@dream/bytes'
+local gitIndex = require './git_index'
+local jessJson = require '@jess/json'
+local json = require '@dreamweave/site/json'
+local model = require './model'
+local records = require './records'
+
+type Document = { [string]: unknown }
+
+--- A response: any status, with its body. A failure to get one is a message instead.
+export type Fetched = { status: number, body: buffer }
+export type Fetch = (url: string, headers: { [string]: string }?) -> (Fetched?, string?)
+
+export type Options = {
+  fetch: Fetch,
+  --- The crates.io sparse index; `https://index.crates.io` unless given.
+  cratesIndex: string?,
+  --- Where crates.io serves `.crate` files; `https://static.crates.io/crates` unless given.
+  cratesDownload: string?,
+  --- GitHub's API; `https://api.github.com` unless given.
+  githubApi: string?,
+  --- Sent with API requests only: a release asset redirects to storage that refuses it.
+  githubToken: string?,
+}
+
+--- What a run recorded: the locks it changed, and what it had to say, line by line.
+export type Recorded = { locks: { string }, notes: { string } }
+
+local DesktopSystems = { 'windows', 'macos', 'linux' }
+local ZipMediaType, CrateMediaType = 'application/zip', 'application/gzip'
+
+local record = {}
+
+--- The crate's file in the crates.io sparse index: 1/a, 2/ab, 3/a/abc, ab/cd/abcd…
+function record.cratesIndexPath(crate: string): string
+  local name = string.lower(crate)
+
+  if #name <= 2 then return `{#name}/{name}` end
+
+  if #name == 3 then return `3/{string.sub(name, 1, 1)}/{name}` end
+
+  return `{string.sub(name, 1, 2)}/{string.sub(name, 3, 4)}/{name}`
+end
+
+--- `text` percent-encoded for a URL path segment: unreserved characters stay.
+local function encoded(text: string): string
+  return (string.gsub(text, '[^%w%-%._~]', function(character: string): string
+    return string.format('%%%02X', string.byte(character))
+  end))
+end
+
+local function trimmedUrl(given: string?, default: string): string
+  return (string.gsub(given or default, '/+$', ''))
+end
+
+--- `url`'s body when it answers 200, or nil and why not.
+local function fetched(options: Options, url: string, headers: { [string]: string }?): (buffer?, string?, number?)
+  local response, problem = options.fetch(url, headers)
+
+  if not response then return nil, problem or 'no response', nil end
+
+  local answer = response :: Fetched
+
+  if answer.status ~= 200 then return nil, `HTTP {answer.status}`, answer.status end
+
+  return answer.body, nil, 200
+end
+
+--- A locked release of `project` for `declared`, built from `artifacts` and the tag's commit.
+local function locked(root: string, project: model.Project, declared: model.Release, artifacts: { Document }, semantics: Document): model.Locked
+  return {
+    version = declared.version,
+    parsed = declared.parsed,
+    locked_from = gitIndex.tagRevision(root, tostring(model.releaseTag(project, declared.version))) or '',
+    signing_identity = nil,
+    artifacts = artifacts :: { model.Table },
+    semantics = semantics :: model.Table,
+  }
+end
+
+--- Records every declared version of the repository's crate that crates.io has and `mod.lock`
+--- does not, from the `.crate` crates.io serves, checked against the checksum its index lists.
+function record.crates(root: string, options: Options): Recorded
+  local repo = model.load(root)
+  if #repo.errors > 0 then error(table.concat(repo.errors, '\n'), 0) end
+
+  local notes: { string } = {}
+  local project: model.Project?
+
+  for _, candidate in repo.projects do
+    if candidate.package_format == 'crate' then project = candidate end
+  end
+
+  if not project then return { locks = {}, notes = { 'No project is a crate; nothing to record from crates.io.' } } end
+
+  local crate = project :: model.Project
+  local name = tostring(crate.package_crate)
+  local recorded: { [string]: boolean } = {}
+
+  for _, release in repo.locks[crate.id] or {} do
+    recorded[release.version] = true
+  end
+
+  local missing = [for declared in crate.releases if not recorded[declared.version] => declared]
+
+  if #missing == 0 then
+    return { locks = {}, notes = { `{name}: every declared version is recorded` } }
+  end
+
+  local indexUrl = `{trimmedUrl(options.cratesIndex, 'https://index.crates.io')}/{record.cratesIndexPath(name)}`
+  local index, problem = fetched(options, indexUrl)
+
+  if not index then
+    table.insert(notes, `warning: could not read the crates.io index for {name} ({problem}); nothing recorded this time`)
+
+    return { locks = {}, notes = notes }
+  end
+
+  local checksums: { [string]: string } = {}
+
+  for line in string.gmatch(buffer.tostring(index :: buffer), '[^\n]+') do
+    if string.find(line, '^%s*$') then continue end
+
+    local entry = jessJson.decode(line)
+
+    if type(entry) == 'table' then
+      local fields = entry :: Document
+
+      if type(fields.vers) == 'string' and type(fields.cksum) == 'string' then
+        checksums[fields.vers :: string] = fields.cksum :: string
+      end
+    end
+  end
+
+  local downloadUrl = trimmedUrl(options.cratesDownload, 'https://static.crates.io/crates')
+  local added: { model.Locked } = {}
+
+  for _, declared in missing do
+    local checksum = checksums[declared.version]
+
+    if not checksum then
+      table.insert(notes, `note: {name} {declared.version} is not on crates.io yet`)
+      continue
+    end
+
+    local filename = `{name}-{declared.version}.crate`
+    local data, downloadProblem = fetched(options, `{downloadUrl}/{name}/{filename}`)
+
+    if not data then error(`{name} {declared.version}: {filename} could not be downloaded from crates.io: {downloadProblem}`, 0) end
+
+    local archive = data :: buffer
+    local sha256 = bytes.sha256(archive)
+
+    if sha256 ~= checksum then
+      error(
+        `{name} {declared.version}: the downloaded {filename} has sha256 {sha256}, but the crates.io index says {checksum}. Nothing was recorded; run the job again, and report it to crates.io if it repeats.`,
+        0
+      )
+    end
+
+    local artifact = json.object({
+      id = 'crate',
+      format = 'crate',
+      filename = filename,
+      media_type = CrateMediaType,
+      size = buffer.len(archive),
+      digests = json.object({ sha256 = sha256 }, { 'sha256' }),
+    }, { 'id', 'format', 'filename', 'media_type', 'size', 'digests' })
+
+    table.insert(added, locked(root, crate, declared, { artifact }, records.releaseSemantics(crate)))
+    table.insert(notes, `Recorded {name} {declared.version}: {filename} {buffer.len(archive)} bytes sha256 {sha256}`)
+  end
+
+  if #added == 0 then return { locks = {}, notes = notes } end
+
+  local releases = table.clone(repo.locks[crate.id] or {})
+  table.move(added, 1, #added, #releases + 1, releases)
+
+  return { locks = { records.writeLock(crate, root, releases) }, notes = notes }
+end
+
+--- Records each tagged release of every `binary` project that `mod.lock` lacks, from the
+--- archives its GitHub release holds: the releases StroggForge published before the repository
+--- was a site. A release with no GitHub release, or none of the desktop archives `[[platforms]]`
+--- names, is left alone and said so.
+function record.githubReleases(root: string, options: Options): Recorded
+  local repo = model.load(root)
+  if #repo.errors > 0 then error(table.concat(repo.errors, '\n'), 0) end
+
+  local api = trimmedUrl(options.githubApi, 'https://api.github.com')
+  local notes: { string } = {}
+  local locks: { string } = {}
+
+  for _, project in repo.projects do
+    if project.package_format ~= 'binary' then continue end
+
+    local recorded: { [string]: boolean } = {}
+
+    for _, release in repo.locks[project.id] or {} do
+      recorded[release.version] = true
+    end
+
+    local added: { model.Locked } = {}
+
+    for _, declared in project.releases do
+      local tag = tostring(model.releaseTag(project, declared.version))
+
+      if recorded[declared.version] or not gitIndex.tagRevision(root, tag) then continue end
+
+      local headers: { [string]: string }? = if options.githubToken then { Authorization = `Bearer {options.githubToken}` } else nil
+      local body, problem, status = fetched(options, `{api}/repos/{repo.site.repository}/releases/tags/{encoded(tag)}`, headers)
+
+      if not body then
+        if status == 404 then
+          table.insert(notes, `note: {tag} has no GitHub release, so {project.name} {declared.version} stays unrecorded`)
+          continue
+        end
+
+        table.insert(notes, `warning: could not read GitHub's release {tag} ({problem}); nothing more recorded this time`)
+        break
+      end
+
+      local release = jessJson.decode(buffer.tostring(body :: buffer))
+
+      if type(release) ~= 'table' then error(`GitHub's release {tag} is not a JSON object`, 0) end
+
+      local fields = release :: Document
+
+      if fields.draft == true then continue end
+
+      local assets: { [string]: Document } = {}
+
+      for _, asset in (if type(fields.assets) == 'table' then fields.assets :: { unknown } else {}) do
+        if type(asset) == 'table' and type((asset :: Document).name) == 'string' then
+          assets[(asset :: Document).name :: string] = asset :: Document
+        end
+      end
+
+      local artifacts: { Document }, absent: { string }, desktop: { Document } = {}, {}, {}
+
+      for _, platform in project.platforms do
+        local filename = model.binaryArchive(project, platform)
+        local asset = assets[filename]
+
+        if not asset then
+          table.insert(absent, filename)
+          continue
+        end
+
+        local data, downloadProblem = fetched(options, tostring(asset.browser_download_url))
+
+        if not data then error(`{tag}: {filename} could not be downloaded from GitHub: {downloadProblem}`, 0) end
+
+        local archive = data :: buffer
+        local sha256 = bytes.sha256(archive)
+        local expected = string.gsub(tostring(asset.digest or ''), '^sha256:', '')
+
+        if expected ~= '' and expected ~= sha256 then
+          error(
+            `{tag}: the downloaded {filename} has sha256 {sha256}, but GitHub says {expected}. Nothing was recorded; run the job again, and report it to GitHub if it repeats.`,
+            0
+          )
+        end
+
+        local document = json.object({ os = platform.system, arch = platform.architecture }, { 'os', 'arch', 'variant' })
+        if platform.variant then document.variant = platform.variant end
+
+        table.insert(artifacts, json.object({
+          id = model.platformId(platform),
+          format = 'binary',
+          filename = filename,
+          media_type = ZipMediaType,
+          size = buffer.len(archive),
+          digests = json.object({ sha256 = sha256 }, { 'sha256' }),
+          platform = document,
+        }, { 'id', 'format', 'filename', 'media_type', 'size', 'digests', 'platform' }))
+
+        if not platform.variant and table.find(DesktopSystems, platform.system) then table.insert(desktop, document) end
+      end
+
+      if #desktop == 0 then
+        table.insert(notes, `note: {tag}'s GitHub release has none of {project.name}'s desktop archives, so it stays unrecorded`)
+        continue
+      end
+
+      local semantics = records.releaseSemantics(project)
+      semantics.platforms = json.array(desktop)
+      table.insert(added, locked(root, project, declared, artifacts, semantics))
+      table.insert(
+        notes,
+        `Recorded {project.name} {declared.version} from GitHub's release {tag}: {#artifacts} archive(s){if #absent > 0 then `; it has no {table.concat(absent, ', ')}` else ''}`
+      )
+    end
+
+    if #added > 0 then
+      local releases = table.clone(repo.locks[project.id] or {})
+      table.move(added, 1, #added, #releases + 1, releases)
+      table.insert(locks, records.writeLock(project, root, releases))
+    end
+  end
+
+  return { locks = locks, notes = notes }
+end
+
+return record

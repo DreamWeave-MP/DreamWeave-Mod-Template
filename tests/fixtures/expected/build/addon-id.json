@@ -1,0 +1,83 @@
+{
+  "schema_version": "3",
+  "document": "project",
+  "generator": "DreamWeave Mod Template 0.3.0",
+  "project": {
+    "id": "addon-id",
+    "name": "Alpha Addon",
+    "type": "patch",
+    "status": "archived",
+    "versioning": "numeric",
+    "game": "starwind",
+    "license": "MIT",
+    "tags": [],
+    "maintainers": [],
+    "links": {
+      "issues": "https://github.com/Owner/Fixture-Mods/issues",
+      "page": "https://mods.test/stash/alpha/addon/",
+      "source": "https://github.com/Owner/Fixture-Mods"
+    },
+    "integrations": {},
+    "media": [],
+    "credits": []
+  },
+  "channels": {
+    "development": {
+      "version": "0.0.1-dev.1"
+    }
+  },
+  "releases": [
+    {
+      "version": "0.0.1-dev.1",
+      "channel": "development",
+      "date": "2026-01-01",
+      "status": "available",
+      "source": {
+        "repository": "https://github.com/Owner/Fixture-Mods",
+        "release": "development",
+        "revision": "0123456789abcdef0123456789abcdef01234567"
+      },
+      "runtimes": {},
+      "platforms": [],
+      "provides": [],
+      "relationships": [],
+      "components": [
+        {
+          "id": "main",
+          "name": "Alpha Addon",
+          "path": ".",
+          "required": true,
+          "default": true,
+          "requires": [],
+          "conflicts": [],
+          "suggested_with": []
+        }
+      ],
+      "groups": [],
+      "extensions": {},
+      "critical_extensions": [],
+      "artifacts": [
+        {
+          "id": "flat",
+          "format": "flat",
+          "filename": "alpha-addon.zip",
+          "media_type": "application/zip",
+          "size": <addon-id size>,
+          "digests": {
+            "sha256": "<addon-id sha256>"
+          },
+          "layout": {
+            "release_document": "dreamweave.release.json"
+          },
+          "sources": [
+            {
+              "url": "https://github.com/Owner/Fixture-Mods/releases/download/development/alpha-addon.zip",
+              "kind": "publisher"
+            }
+          ],
+          "signatures": []
+        }
+      ]
+    }
+  ]
+}

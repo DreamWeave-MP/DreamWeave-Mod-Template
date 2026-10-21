@@ -1,0 +1,14 @@
+--!strict
+-- `jess package run --trusted <template> --target site -- [public] [base url]`: render the live
+-- site, the DreamWeave theme laid under this repository's own files. Run build first.
+local commands = require '@dreamweave/mod-template/commands'
+local common = require './common'
+local fs = require '@dream/fs'
+
+local root = common.root()
+local public = if arg[1] and arg[1] ~= '' then arg[1] else fs.join(root, 'public')
+local rendered = commands.site(root, public, common.baseUrl(arg[2]))
+
+print(`Rendered {rendered.pages} page(s) into {rendered.public}.`)
+
+return 0

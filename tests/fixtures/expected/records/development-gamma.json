@@ -1,0 +1,30 @@
+{
+  "version": "7",
+  "channel": "development",
+  "date": "2026-02-02",
+  "status": "available",
+  "source": {
+    "repository": "https://github.com/Owner/Fixture-Mods",
+    "release": "development"
+  },
+  "runtimes": {},
+  "platforms": [],
+  "provides": [],
+  "relationships": [],
+  "components": [
+    {
+      "id": "main",
+      "name": "Main",
+      "path": ".",
+      "required": true,
+      "default": true,
+      "requires": [],
+      "conflicts": [],
+      "suggested_with": []
+    }
+  ],
+  "groups": [],
+  "extensions": {},
+  "critical_extensions": [],
+  "artifacts": []
+}

@@ -1,0 +1,141 @@
+--!strict
+--!native
+-- The files git tracks, read from `.git/index` (versions 2 and 3) without git: each entry's path
+-- and mode. An archive holds what the repository tracks, not whatever is lying in the folder.
+local fs = require '@dream/fs'
+local util = require './util'
+
+export type Entry = { mode: number, executable: boolean }
+
+export type File = { path: string, relative: string, disk: string, executable: boolean }
+
+local gitIndex = {}
+
+-- An entry's name starts 62 bytes in, after its times, owner, object name and flags. The low
+-- twelve bits of the flags are the name's length, all set for a name too long to say, which is
+-- then found by its terminator.
+local NameAt, LongName = 62, 0x0fff
+
+-- The permission bits of an executable file, 0755.
+local ExecutableBits = 493
+
+local function u16be(raw: buffer, offset: number): number
+  return buffer.readu8(raw, offset) * 256 + buffer.readu8(raw, offset + 1)
+end
+
+local function u32be(raw: buffer, offset: number): number
+  return bit32.byteswap(buffer.readu32(raw, offset))
+end
+
+--- The entries of the index of the repository at `root` by normalized path, all of them or
+--- those whose path starts with `prefix`; or nothing and the reason, for no index or one of
+--- another format. Two entries that normalize to one path leave the later.
+local function scan(root: string, prefix: string?): ({ [string]: Entry }?, string?)
+  local raw = fs.readFile(fs.join(root, '.git/index'))
+  if not raw then return nil, 'missing .git/index' end
+  if buffer.readstring(raw, 0, 4) ~= 'DIRC' then return nil, 'unsupported git index' end
+
+  local version = u32be(raw, 4)
+  if version < 2 or version > 3 then return nil, `git index version {tostring(version)} is not supported` end
+
+  local count = u32be(raw, 8)
+  local at = 12
+  local out: { [string]: Entry } = {}
+
+  for _ = 1, count do
+    local mode = u32be(raw, at + 24)
+    local length = bit32.band(u16be(raw, at + 60), LongName)
+    local nameAt = at + NameAt
+    local name
+
+    if length < LongName then
+      name = buffer.readstring(raw, nameAt, length)
+    else
+      local finish = nameAt
+      while buffer.readu8(raw, finish) ~= 0 do
+        finish += 1
+      end
+
+      name = buffer.readstring(raw, nameAt, finish - nameAt)
+    end
+
+    local path = util.norm(name)
+    if not prefix or string.sub(path, 1, #prefix) == prefix then
+      out[path] = { mode = mode, executable = bit32.band(mode, 0x1ff) == ExecutableBits }
+    end
+
+    -- An entry is padded with one to eight NULs to a multiple of eight bytes.
+    at += (NameAt + #name + 8) // 8 * 8
+  end
+
+  return out, nil
+end
+
+--- Every path the index of the repository at `root` tracks, normalized, with its mode; or
+--- nothing and the reason.
+function gitIndex.read(root: string): ({ [string]: Entry }?, string?)
+  return scan(root, nil)
+end
+
+--- The tracked files below `directory` that are on disk, by their path relative to it. Only
+--- the entries below the folder are kept as the index is read, and the relative paths, which no
+--- two files share, are sorted as plain strings and name the files in turn.
+function gitIndex.filesUnder(root: string, directory: string): ({ File }?, string?)
+  local prefix = util.norm(directory) .. '/'
+  local tracked, problem = scan(root, prefix)
+  if not tracked then return nil, problem end
+
+  local relatives: { string } = {}
+  local files: { [string]: File } = {}
+
+  for path, entry in pairs(tracked) do
+    local disk = fs.join(root, path)
+    if not fs.isFile(disk) then continue end
+
+    local relative = string.sub(path, #prefix + 1)
+    table.insert(relatives, relative)
+    files[relative] = { path = path, relative = relative, disk = disk, executable = entry.executable }
+  end
+
+  table.sort(relatives)
+
+  return [for relative in relatives => files[relative]], nil
+end
+
+--- The commit a tag names, read from the repository's refs without git: the peeled line of
+--- `.git/packed-refs` for a packed tag (an annotated tag's `^` line names its commit), else the
+--- loose `.git/refs/tags/<tag>`. Nil when the tag isn't there. A loose annotated tag names its
+--- tag object, which nothing here can peel; CI's checkouts pack their refs, and a release is built
+--- from the checkout itself, so the revision is a check, not the source.
+function gitIndex.tagRevision(root: string, tag: string): string?
+  local packed = fs.readFileString(`{root}/.git/packed-refs`)
+
+  if packed then
+    local found: string?
+
+    for line in string.gmatch(packed, '[^\n]+') do
+      local peeled = string.match(line, '^%^(%x+)$')
+
+      -- The line after a found tag is its peeled commit, or the next ref; either ends the search.
+      if found then return peeled or found end
+
+      local revision, name = string.match(line, '^(%x+) refs/tags/(.+)$')
+
+      if revision and name == tag then found = revision end
+    end
+
+    if found then return found end
+  end
+
+  local loose = fs.readFileString(`{root}/.git/refs/tags/{tag}`)
+
+  if loose then
+    local revision = string.match(loose, '^%s*(%x+)')
+
+    if revision then return revision end
+  end
+
+  return nil
+end
+
+return gitIndex

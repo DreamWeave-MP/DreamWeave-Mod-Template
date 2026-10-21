@@ -1,0 +1,15 @@
+--!strict
+-- `jess package run --trusted <template> --target record -- [record]`: on the default branch,
+-- add the release `release` wrote (dist/release.json unless named) to its project's mod.lock.
+local commands = require '@dreamweave/mod-template/commands'
+local common = require './common'
+
+local recorded = commands.record(common.root(), if arg[1] and arg[1] ~= '' then arg[1] else nil)
+
+if recorded.changed then
+  print(`Recorded in {recorded.lock}`)
+else
+  print 'The release matches its record.'
+end
+
+return 0

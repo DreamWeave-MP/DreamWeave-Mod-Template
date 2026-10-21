@@ -1,0 +1,26 @@
+{
+  "schema_version": "3",
+  "document": "project",
+  "generator": "DreamWeave Mod Template 0.3.0",
+  "project": {
+    "id": "gamma-id",
+    "name": "",
+    "type": "mod",
+    "status": "active",
+    "versioning": "numeric",
+    "game": "morrowind",
+    "tags": [],
+    "maintainers": [],
+    "links": {
+      "crate": "https://crates.io/crates/gamma-rs",
+      "issues": "https://github.com/Owner/Fixture-Mods/issues",
+      "page": "https://mods.test/stash/gamma/",
+      "source": "https://github.com/Owner/Fixture-Mods"
+    },
+    "integrations": {},
+    "media": [],
+    "credits": []
+  },
+  "channels": {},
+  "releases": []
+}

@@ -1,0 +1,24 @@
+<!doctype html>
+<html>
+<head>
+<!-- a comment with <a href="ghost.html"> inside -->
+<link rel="stylesheet" href="https://docs.test/site/css/site.css">
+<link rel="alternate" href="https://docs.test/site/feed.xml" data-dw-online>
+<style>body { background: url("/site/img/bg.png"); }</style>
+</head>
+<body>
+<nav><a href="https://docs.test/site/">Home</a> <a href="/site/other/">Other</a> <a href="../">Up</a></nav>
+<h1 id="top">Mod</h1>
+<p><a href="guide/">Guide</a> <a href="guide/#install">Install</a> <a href="guide/index.html?x=1#usage">Usage</a> <a href="#top">Top</a> <a href='extra.html'>Single quoted</a></p>
+<p><a href="mailto:me@docs.test">Mail</a> <a href="javascript:void(0)">Script</a> <a href="tel:123">Tel</a> <a href="data:text/plain,hi">Data</a> <a href="https://elsewhere.test/page">Elsewhere</a> <a href="//docs.test/site/mod/file.txt">Protocol relative</a></p>
+<p><a href="missing.html">Missing</a> <a href="guide/#nowhere">Bad anchor</a> <a href="../../outside.html">Escapes</a> <a href="/elsewhere/x.html">Off base</a> <a href="HTTPS://docs.test/site/mod/">Shouted scheme</a></p>
+<img src="https://docs.test/site/img/logo.png" srcset="https://docs.test/site/img/logo.png 1x, /site/img/a%20b.png 2x, , https://elsewhere.test/x.png 3x" alt="A &amp; B">
+<img SRC=file.txt ID=shout data-empty= title = 'spaced out' hidden>
+<video poster="/site/img/bg.png" src="file.txt"></video>
+<a href="guide/?a=1&amp;b=2#usage">Entity</a> <a href="extra.html#fr%61g">Encoded anchor</a> <a href="">Empty</a>
+<script src="https://docs.test/site/mod/app.js"></script>
+<div><section><p>An unclosed paragraph is fine</section></div>
+<a href="extra.html"
+   class="wrapped">Wrapped tag</a>
+</body>
+</html>

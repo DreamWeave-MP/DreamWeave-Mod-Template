@@ -1,0 +1,5 @@
+<!doctype html>
+<html><head><link rel="stylesheet" href="{{ get_url(path="site.css") }}"></head>
+<body><h1>{{ section.title }}</h1>{{ section.content | safe }}
+<ul>{% for page in section.pages %}<li><a href="{{ page.permalink | safe }}">{{ page.title }}</a></li>{% endfor %}</ul>
+</body></html>

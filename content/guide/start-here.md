@@ -52,9 +52,27 @@ Analytics are off, and stay off until you set up your own GoatCounter code.
 
 ## 4. Make the project yours
 
-The template ships two example projects. `content/home` is Candlelight, the complete example.
-`content/simplified` is Tallow, the minimal one. Turn `content/home` into your mod, and delete
-Tallow once you no longer need to crib from it.
+The template ships three projects. `content/home` is the template itself: the page of its build
+tool, a Jess package whose source is this repository's `src/`. `content/candlelight` is Candlelight,
+the complete example mod, and `content/simplified` is Tallow, the minimal one. Turn `content/home`
+into your mod, and delete the rest once you no longer need to crib from it.
+
+**Drop the build tool.** Your site uses the template; it doesn't carry its source. Delete `src/`,
+`tests/`, `bench/`, `BENCHMARKS.md` and `jess.toml`, empty `content/home`, and make
+`jess-workspace.toml` say so:
+
+```toml
+manifest_version = 1
+
+[workspace]
+members = []
+
+[dev-dependencies]
+"org.dreamweave.mod-template" = "0.3"
+```
+
+That names the template version that builds your site; `jess.lock`, written by the first
+`jess workspace sync`, pins it exactly, with the theme and the generator it uses.
 
 **Replace the id.** Every project has a permanent identity that no other project may share: a
 random UUID, like `4d0c9f6e-2b1a-4c8e-9f3a-7e5d1b2c6a90`. Anything that makes them will do:
@@ -68,9 +86,9 @@ underscores. The slug becomes your archive's name (`my_mod.zip`) and your releas
 **Rewrite the page.** In `content/home/index.md`, `title` is your mod's display name and
 `description` is its one-line summary. The body is the overview: what the mod does and why.
 
-**Replace the files.** Delete Candlelight's `00 Core`, `10 Tamriel Rebuilt`, `20 Flames 2K`,
-`21 Flames 4K`, `docs` and `media`, and put your mod in `content/home`. For a mod that is one data
-directory, your `scripts/`, `textures/` and content files go straight into `content/home`.
+**Add the files.** Put your mod in `content/home`, laid out the way Candlelight's `00 Core`,
+`10 Tamriel Rebuilt`, `20 Flames 2K`, `21 Flames 4K`, `docs` and `media` are. For a mod that is one
+data directory, your `scripts/`, `textures/` and content files go straight into `content/home`.
 
 Then cut `mod.toml` down to what is true:
 
@@ -100,7 +118,8 @@ jess workspace sync --locked
 jess workspace run --trusted dreamweave-site -- public http://127.0.0.1:8000/
 ```
 
-The first line restores the template, exactly the version `jess.lock` pins, once. The second
+The first line restores the template, exactly the version `jess.lock` pins, once; until the lock
+exists, run `jess workspace sync` without `--locked` and commit the `jess.lock` it writes. The second
 renders your site into `public/`; serve that folder with any static file server at the address you
 gave and open it, and run the second line again after you save. The project page is built from
 `mod.toml` and `mod.lock`, the same files CI reads, so what you see is what gets published.
@@ -137,4 +156,5 @@ The template opens straight onto `content/home` because most repositories hold o
 several, give each its own directory under `content/` with its own `index.md` and `mod.toml`, and
 delete `redirect_to = "home"` from `content/_index.md`. The front page becomes a paginated catalog,
 `paginate_by` projects at a time. Nothing else changes: every project keeps its own id, slug,
-releases and tags.
+releases and tags, and a repository may hold as many as it likes, mods, programs and
+[Jess packages](@/guide/packages.md#jess-packages) alike.

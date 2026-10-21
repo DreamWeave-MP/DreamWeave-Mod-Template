@@ -1,0 +1,19 @@
+--!strict
+-- `jess workspace run --trusted dreamweave-record-releases`: on the default branch, record a
+-- program's tagged releases from their GitHub releases in mod.lock.
+local commands = require '@dreamweave/mod-template/commands'
+local common = require './common'
+
+local recorded = commands.recordReleases(common.root(), {
+  fetch = common.fetch,
+  githubApi = common.environment 'DREAMWEAVE_GITHUB_API',
+  githubToken = common.environment 'GITHUB_TOKEN',
+})
+
+common.report(recorded.notes)
+
+for _, lock in recorded.locks do
+  print(`Recorded in {lock}`)
+end
+
+return 0

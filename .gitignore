@@ -10,3 +10,6 @@
 
 # The packages jess.lock pins, restored by `jess workspace sync`
 /.jess/
+
+# A JPK packed by hand while developing the build tool
+*.jpk

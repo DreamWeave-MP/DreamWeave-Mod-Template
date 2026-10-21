@@ -1,0 +1,10 @@
+id = "delta-id"
+slug = "delta"
+
+[package]
+format = "binary"
+development = false
+
+[[releases]]
+version = "2.0.0"
+date = 2025-05-05

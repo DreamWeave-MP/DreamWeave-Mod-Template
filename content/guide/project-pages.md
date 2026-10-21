@@ -117,7 +117,7 @@ drawing a second one.
 
 ## Documentation
 
-Put a docs section inside the project directory, the way Candlelight does in `content/home/docs/`:
+Put a docs section inside the project directory, the way Candlelight does in `content/candlelight/docs/`:
 
 ```toml
 +++
@@ -129,13 +129,13 @@ page_template = "docs/page.html"
 [extra]
 docs_root = true
 docs_project_name = "My Mod"
-docs_project_path = "@/home/index.md"
+docs_project_path = "@/candlelight/index.md"
 +++
 ```
 
 Child pages and subsections inherit the docs layout: a recursive sidebar, breadcrumbs, a table of
 contents, search scoped to the docs, and copy buttons on code. Link the docs from `mod.toml` with
-`[links] documentation = "@/home/docs/_index.md"` and they get a header button. They also ship
+`[links] documentation = "@/candlelight/docs/_index.md"` and they get a header button. They also ship
 inside the archive, rendered, under `<slug>-Documentation/`. Set `kind = "guide"` or `kind = "api"` in a
 page's `[extra]` to label it.
 

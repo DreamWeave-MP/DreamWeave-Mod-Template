@@ -1,0 +1,9 @@
+_site/css/more.css <- <staged>/_site/css/more.css false
+_site/css/site.css <- <staged>/_site/css/site.css false
+_site/img/a b.png <- <staged>/_site/img/a b.png false
+_site/img/bg.png <- <staged>/_site/img/bg.png false
+_site/img/logo.png <- <staged>/_site/img/logo.png false
+extra.html <- <staged>/extra.html false
+file.txt <- <staged>/file.txt false
+guide/index.html <- <staged>/guide/index.html false
+index.html <- <staged>/index.html false

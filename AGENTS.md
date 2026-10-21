@@ -2,13 +2,21 @@
 
 ## Repository shape
 
-- The DreamWeave Mod Template: a DreamWeave site built through jess. The build tool is the Jess
-  package `org.dreamweave.mod-template` (source: `~/GitHub/rust-reimplementations/jess/jpk/dreamweave-mod-template`),
-  which validates `content/<project>/mod.toml`, packages byte-reproducible archives, records
-  releases, and writes the protocol documents (`static/dreamweave.json`,
-  `static/dreamweave/projects/<id>.json`) and what only CI knows (`static/dreamweave/view.json`).
-  Rendering is `org.dreamweave.site` with the theme `org.dreamweave.theme` (siblings under `jpk/`);
-  `jess.lock` pins all three. This repository holds no Python, no Zola and no copy of the theme.
+- The DreamWeave Mod Template: the build tool, a Jess package `org.dreamweave.mod-template` whose
+  Package Source is this repository root (`jess.toml`, `src/`, `tests/`, `bench/`), and the
+  DreamWeave site it builds for itself: `content/home` is the package's own project page
+  (`format = "jpk"`, `jess = "org.dreamweave.mod-template"`), `content/candlelight` and
+  `content/simplified` are the example mods. The tool validates `content/<project>/mod.toml`,
+  packages byte-reproducible archives and JPKs, records releases, and writes the protocol documents
+  (`static/dreamweave.json`, `static/dreamweave/projects/<id>.json`) and what only CI knows
+  (`static/dreamweave/view.json`). Rendering is `org.dreamweave.site` with the theme
+  `org.dreamweave.theme` (`~/GitHub/rust-reimplementations/jess/jpk/dreamweave-site`, `-theme`);
+  `jess.lock` pins both. `jess-workspace.toml` lists the root as its one member; a site made from
+  the template lists none and names the template in `[dev-dependencies]`. No Python, no Zola.
+- A `format = "jpk"` project names its Package Source by package id (`jess = "<id>"`), one of the
+  jess workspace's members; a repository publishes as many Jess packages as it has projects for.
+  The template packs them itself through `@jess/package`: at the tag's version for a release, and
+  past the newest release as `-dev.<build>` on every push. There is no external pack step.
 - Authors' tools are an editor, git and jess. `jess workspace run --trusted dreamweave-site -- public <url>`
   must render every page: the theme's templates build the project model from `mod.toml` and
   `mod.lock` themselves (`templates/macros/project.html` in the theme), and `view.json` only adds CI facts.
@@ -29,12 +37,12 @@
 ## Invariants that are easy to break
 
 - Archives must stay byte-reproducible: stored entries, sorted, 1980-01-01, permissions from git,
-  bytes written by `archive.py`, not `zipfile`. Anything that makes the offline documentation render
+  bytes written by `src/archive.jsl`, not a zip library. Anything that makes the offline documentation render
   depend on `mod.lock`, git state or the clock breaks re-running a tag's job; offline mode reads only
   the committed tree.
 - `release` reads the tag's committed blobs; `check` and `build` read the working tree; `record`
   runs on a checkout of the default branch.
-- The Tera model (`templates/macros/project.html`) and `model.py` apply the same defaults; the tests
+- The Tera model (`templates/macros/project.html`) and `src/model.jsl` apply the same defaults; the tests
   compare the page with the manifest. mod.lock lists records in version order, which is how the
   templates find channel heads without comparing versions.
 - `schema_version` "2" core fields are frozen. New data goes in extensions or waits for "3".
@@ -64,8 +72,10 @@ actionlint                                 # workflow, including embedded shellc
 stylua --check $(git ls-files 'content/*.lua')
 ```
 
-The build tool's own tests live with its source: `jess package test jpk/dreamweave-mod-template --package-path jpk`
-in the jess checkout. The protocol schemas in `static/schemas/` are validated there and vendored by AsHyAmS.
+The build tool's tests: `jess workspace test` here, or `jess package test . --package-path ~/GitHub/rust-reimplementations/jess/jpk`
+before the lock exists. Pinned outputs under `tests/fixtures/expected` are rewritten with
+`DREAMWEAVE_UPDATE_PINS=1` after a deliberate change, and the diff read. The protocol schemas in
+`static/schemas/` are vendored by AsHyAmS.
 
 ## Style
 

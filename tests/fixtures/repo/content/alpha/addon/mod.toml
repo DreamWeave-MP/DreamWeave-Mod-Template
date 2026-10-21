@@ -1,0 +1,12 @@
+id = "addon-id"
+slug = "alpha-addon"
+type = "patch"
+status = "archived"
+game = "starwind"
+license = "MIT"
+
+[package]
+documentation = false
+
+[provenance]
+sigstore = true

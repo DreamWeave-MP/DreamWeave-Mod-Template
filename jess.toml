@@ -1,17 +1,97 @@
 manifest_version = 1
 
-# This site as a Jess package. Its content is its payload; what builds it is pinned in jess.lock:
-# the DreamWeave Mod Template (`org.dreamweave.mod-template`), and through it the theme and the
-# site generator, all restored from their publisher by `jess workspace sync --locked`. CI runs the
-# template's own command targets over this folder: `jess workspace run --trusted dreamweave-check`,
-# `dreamweave-build`, `dreamweave-site`, `dreamweave-links`, `dreamweave-release`, `dreamweave-record`.
-#
-# Give your own site its own id, in reverse-DNS form, when you start from this template.
 [package]
-id = "org.dreamweave.mod-template-site"
-version = "0.0.0"
+id = "org.dreamweave.mod-template"
+version = "0.3.0"
 jess_api = "1"
-include = ["content"]
+include = ["src", "tests"]
+tests = ["tests/run.jsl"]
 
 [dependencies]
-"org.dreamweave.mod-template" = "0.3"
+"org.dreamweave.site" = "=0.1.1"
+"org.dreamweave.theme" = "=0.2.0"
+"org.dreamweave.magick" = "=0.1.2"
+"org.dreamweave.vfs" = "0.1"
+
+[modules]
+"@dreamweave/mod-template/util" = "src/util.jsl"
+"@dreamweave/mod-template/version" = "src/version.jsl"
+"@dreamweave/mod-template/git-index" = "src/git_index.jsl"
+"@dreamweave/mod-template/archive" = "src/archive.jsl"
+"@dreamweave/mod-template/model" = "src/model.jsl"
+"@dreamweave/mod-template/records" = "src/records.jsl"
+"@dreamweave/mod-template/record" = "src/record.jsl"
+"@dreamweave/mod-template/offline" = "src/offline.jsl"
+"@dreamweave/mod-template/sitecheck" = "src/sitecheck.jsl"
+"@dreamweave/mod-template" = "src/build.jsl"
+"@dreamweave/mod-template/commands" = "src/commands.jsl"
+
+[[layer]]
+id = "dreamweave.mod-template"
+exports = [
+  "@dreamweave/mod-template/util",
+  "@dreamweave/mod-template/version",
+  "@dreamweave/mod-template/git-index",
+  "@dreamweave/mod-template/archive",
+  "@dreamweave/mod-template/model",
+  "@dreamweave/mod-template/records",
+  "@dreamweave/mod-template/record",
+  "@dreamweave/mod-template/offline",
+  "@dreamweave/mod-template/sitecheck",
+  "@dreamweave/mod-template",
+  "@dreamweave/mod-template/commands",
+]
+
+# The commands CI runs, each from the repository's root folder. They read the repository, write
+# dist/, static/dreamweave* and public/, and read the environment CI sets (DREAMWEAVE_BASE_URL,
+# DREAMWEAVE_SIGNING_IDENTITY, GITHUB_RUN_NUMBER). Nothing here reaches the network.
+
+[targets.check]
+kind = "command"
+command = "dreamweave-check"
+entry = "src/cli/check.jsl"
+capabilities = ["filesystem.read", "process.environment"]
+
+[targets.build]
+kind = "command"
+command = "dreamweave-build"
+entry = "src/cli/build.jsl"
+capabilities = ["filesystem.read", "filesystem.write", "process.environment"]
+
+[targets.site]
+kind = "command"
+command = "dreamweave-site"
+entry = "src/cli/site.jsl"
+capabilities = ["filesystem.read", "filesystem.write", "process.environment"]
+
+[targets.release]
+kind = "command"
+command = "dreamweave-release"
+entry = "src/cli/release.jsl"
+capabilities = ["filesystem.read", "filesystem.write", "process.environment"]
+
+[targets.record]
+kind = "command"
+command = "dreamweave-record"
+entry = "src/cli/record.jsl"
+capabilities = ["filesystem.read", "filesystem.write"]
+
+[targets.links]
+kind = "command"
+command = "dreamweave-links"
+entry = "src/cli/links.jsl"
+capabilities = ["filesystem.read", "process.environment"]
+
+# The two that reach the network, for what crates.io and GitHub already published. The token and
+# the service URLs come from the environment; nothing is sent anywhere but to them.
+[targets.record-crates]
+kind = "command"
+command = "dreamweave-record-crates"
+entry = "src/cli/record_crates.jsl"
+capabilities = ["filesystem.read", "filesystem.write", "process.environment", "network.dns.resolve", "network.tcp.connect"]
+
+[targets.record-releases]
+kind = "command"
+command = "dreamweave-record-releases"
+entry = "src/cli/record_releases.jsl"
+capabilities = ["filesystem.read", "filesystem.write", "process.environment", "network.dns.resolve", "network.tcp.connect"]

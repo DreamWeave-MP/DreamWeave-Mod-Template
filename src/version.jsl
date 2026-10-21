@@ -1,0 +1,192 @@
+--!strict
+--!native
+-- The versions a project's releases carry, in the two schemes `mod.toml` may name. A numeric
+-- version is up to six whole numbers; a decimal one is a whole number and up to five fractions,
+-- so `0.5` is `0.50` and sorts above `0.45`. Either may end in a dotted prerelease and in build
+-- metadata after a `+`, which is kept in the text and never compared.
+local util = require './util'
+
+export type Identifier = { numeric: boolean, text: string }
+
+export type Version = {
+  text: string,
+  scheme: string,
+  release: { string },
+  prerelease: { Identifier },
+}
+
+local version = { NUMERIC = 'numeric', DECIMAL = 'decimal', MAXIMUM_RELEASE_NUMBERS = 6 }
+
+local Zero = 48
+
+local function digits(text: string): boolean
+  return text ~= '' and not string.find(text, '[^0-9]')
+end
+
+local function compareText(left: string, right: string): number
+  if left < right then return -1 end
+  if left > right then return 1 end
+
+  return 0
+end
+
+--- `text` without the zeros it starts with. Only text that starts with one, or what is not text
+--- and is `gsub`'s to convert or refuse, goes through the substitution.
+local function unpadded(text: string): string
+  if type(text) == 'string' and string.byte(text, 1) ~= Zero then return text end
+
+  return (string.gsub(text, '^0+', ''))
+end
+
+--- `text` without the zeros it ends in, on the same terms.
+local function untrailed(text: string): string
+  if type(text) == 'string' and string.byte(text, -1) ~= Zero then return text end
+
+  return (string.gsub(text, '0+$', ''))
+end
+
+--- Orders two runs of digits as the whole numbers they spell, however long.
+local function compareWhole(left: string, right: string): number
+  -- The same digits are the same number, which is what most of two neighbouring versions is.
+  if left == right and type(left) == 'string' then return 0 end
+
+  local first, second = unpadded(left), unpadded(right)
+  if first == '' then first = '0' end
+  if second == '' then second = '0' end
+  if #first ~= #second then return if #first < #second then -1 else 1 end
+
+  return compareText(first, second)
+end
+
+--- `text` as a version of `scheme` (numeric when none is named), or nothing and the reason.
+function version.parse(text: unknown, scheme: string?): (Version?, string?)
+  local named = scheme or version.NUMERIC
+  if type(text) ~= 'string' then return nil, 'version must be a string' end
+
+  local core = if string.find(text, '+', 1, true) then string.match(text, '^([^+]+)') or text else text
+  local releaseText, prereleaseText = core, nil
+  local dash = string.find(core, '-', 1, true)
+
+  if dash then
+    releaseText = string.sub(core, 1, dash - 1)
+    prereleaseText = string.sub(core, dash + 1)
+  end
+
+  local release = string.split(releaseText, '.')
+  if #release < 1 or #release > version.MAXIMUM_RELEASE_NUMBERS then
+    return nil, 'invalid release number count'
+  end
+
+  for index, number in ipairs(release) do
+    if not digits(number) then return nil, 'release numbers must be digits' end
+
+    local whole = index == 1 or named == version.NUMERIC
+    if whole and #number > 1 and string.byte(number, 1) == Zero then return nil, 'leading zero' end
+  end
+
+  local prerelease: { Identifier } = {}
+  if not prereleaseText then
+    return { text = text, scheme = named, release = release, prerelease = prerelease }, nil
+  end
+
+  for _, part in ipairs(string.split(prereleaseText, '.')) do
+    if part == '' or string.find(part, '[^0-9A-Za-z-]') then return nil, 'invalid prerelease' end
+
+    table.insert(prerelease, { numeric = digits(part), text = part })
+  end
+
+  return { text = text, scheme = named, release = release, prerelease = prerelease }, nil
+end
+
+function version.parseOrError(text: unknown, scheme: string?): Version
+  local parsed, problem = version.parse(text, scheme)
+  if not parsed then error(`{problem}: {tostring(text)}`, 0) end
+
+  return parsed
+end
+
+--- A version with no prerelease is above one with any; identifiers compare in turn, a number
+--- below a word, and the longer list wins a tie.
+local function comparePrerelease(left: { Identifier }, right: { Identifier }): number
+  if #left == 0 then return if #right == 0 then 0 else 1 end
+  if #right == 0 then return -1 end
+
+  for index = 1, math.min(#left, #right) do
+    local first, second = left[index], right[index]
+    local order
+
+    if first.numeric and second.numeric then
+      order = compareWhole(first.text, second.text)
+    elseif first.numeric then
+      order = -1
+    elseif second.numeric then
+      order = 1
+    else
+      order = compareText(first.text, second.text)
+    end
+
+    if order ~= 0 then return order end
+  end
+
+  if #left == #right then return 0 end
+
+  return if #left < #right then -1 else 1
+end
+
+--- -1, 0 or 1 as `left` is below, level with or above `right`. Versions of two schemes have no
+--- order, and comparing them is an error.
+function version.compare(left: Version, right: Version): number
+  if left.scheme ~= right.scheme then error('version scheme mismatch', 0) end
+
+  local order = 0
+  if left.scheme == version.NUMERIC then
+    for index = 1, version.MAXIMUM_RELEASE_NUMBERS do
+      order = compareWhole(left.release[index] or '0', right.release[index] or '0')
+      if order ~= 0 then break end
+    end
+  else
+    order = compareWhole(left.release[1], right.release[1])
+
+    if order == 0 then
+      for index = 2, version.MAXIMUM_RELEASE_NUMBERS do
+        order = compareText(untrailed(left.release[index] or ''), untrailed(right.release[index] or ''))
+        if order ~= 0 then break end
+      end
+    end
+  end
+
+  if order ~= 0 then return order end
+
+  return comparePrerelease(left.prerelease, right.prerelease)
+end
+
+--- The version development build `build` of what follows `parsed` goes by.
+function version.nextDevelopment(parsed: Version, build: number): Version
+  local release = table.concat(parsed.release, '.')
+
+  if #parsed.prerelease > 0 then
+    local identifiers = {}
+    for _, identifier in ipairs(parsed.prerelease) do
+      table.insert(identifiers, identifier.text)
+    end
+
+    local text = release .. '-' .. table.concat(identifiers, '.') .. '.dev.' .. tostring(build)
+
+    return version.parseOrError(text, parsed.scheme)
+  end
+
+  if parsed.scheme == version.NUMERIC then
+    local numbers = util.arrayCopy(parsed.release)
+    numbers[#numbers] = tostring((tonumber(numbers[#numbers]) :: number) + 1)
+
+    return version.parseOrError(table.concat(numbers, '.') .. '-dev.' .. tostring(build), parsed.scheme)
+  end
+
+  if #parsed.release == 1 then
+    return version.parseOrError(release .. '.001-dev.' .. tostring(build), parsed.scheme)
+  end
+
+  return version.parseOrError(release .. '1-dev.' .. tostring(build), parsed.scheme)
+end
+
+return version

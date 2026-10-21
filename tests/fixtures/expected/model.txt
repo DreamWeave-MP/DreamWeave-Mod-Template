@@ -1,0 +1,1025 @@
+{
+  build_number = 1
+  errors = {}
+  head = "0123456789abcdef0123456789abcdef01234567"
+  locks = {
+    addon-id = {}
+    alpha-id = {
+      [1] = {
+        artifacts = {
+          [1] = {
+            digests = {
+              sha256 = "1111111111111111111111111111111111111111111111111111111111111111"
+            }
+            filename = "alpha.zip"
+            format = "flat"
+            id = "flat"
+            layout = {
+              documentation = "Documentation/index.html"
+              release_document = "dreamweave.release.json"
+            }
+            media_type = "application/zip"
+            size = 4321
+          }
+        }
+        locked_from = "89abcdef89abcdef89abcdef89abcdef89abcdef"
+        parsed = {
+          prerelease = {}
+          release = {
+            [1] = "1"
+            [2] = "1"
+            [3] = "0"
+          }
+          scheme = "numeric"
+          text = "1.1.0"
+        }
+        semantics = {
+          components = {
+            [1] = {
+              conflicts = {}
+              default = true
+              id = "alpha"
+              name = "Alpha"
+              path = "."
+              required = true
+              requires = {}
+              suggested_with = {}
+            }
+          }
+          critical_extensions = {
+            [1] = "openmw"
+          }
+          extensions = {
+            openmw = {
+              components = {
+                alpha = {
+                  config = false
+                  content_files = {
+                    [1] = "Alpha.esp"
+                  }
+                  data_directories = {
+                    [1] = "."
+                  }
+                  fallback_archives = {}
+                  fallback_entries = {}
+                  groundcover_files = {}
+                  requires_content = {}
+                }
+              }
+              lua_api = ">=70"
+              requires_content = {}
+              settings = {}
+            }
+          }
+          groups = {}
+          platforms = {}
+          provides = {}
+          relationships = {}
+          runtimes = {
+            openmw = ">=0.49"
+          }
+        }
+        version = "1.1.0"
+      }
+    }
+    beta-id = {}
+    delta-id = {}
+    gamma-id = {}
+    zeta-id = {}
+  }
+  notes = {}
+  projects = {
+    [1] = {
+      components = {
+        [1] = {
+          conflicts = {}
+          default = true
+          id = "main"
+          name = "Alpha"
+          openmw = {
+            config = false
+            content_files = {
+              [1] = "Alpha.esp"
+            }
+            data_directories = {
+              [1] = "."
+            }
+            fallback_archives = {}
+            fallback_entries = {}
+            groundcover_files = {}
+            requires_content = {}
+          }
+          path = "."
+          required = true
+          requires = {}
+          suggested_with = {}
+        }
+      }
+      credits = {}
+      directory = "content/alpha"
+      extensions = {}
+      game = "morrowind"
+      groups = {}
+      id = "alpha-id"
+      install = {}
+      links = {}
+      maintainers = {}
+      media = {}
+      mirrors = {}
+      name = "Alpha"
+      openmw = {
+        lua_api = 70
+        requires_content = {}
+        settings = {}
+      }
+      package_development = true
+      package_documentation = true
+      package_format = "flat"
+      package_include = {}
+      page_path = "alpha/"
+      platforms = {}
+      provides = {}
+      raw = {
+        id = "alpha-id"
+        openmw = {
+          content_files = {
+            [1] = "Alpha.esp"
+          }
+          lua_api = 70
+        }
+        releases = {
+          [1] = {
+            date = "2025-01-02"
+            version = "1.0.0"
+          }
+          [2] = {
+            date = "2025-02-03"
+            tag = "v1.1.0"
+            version = "1.1.0"
+          }
+          [3] = {
+            date = "2025-03-04"
+          }
+        }
+        runtimes = {
+          openmw = ">=0.49"
+        }
+        slug = "alpha"
+      }
+      relationships = {}
+      releases = {
+        [1] = {
+          channel = "stable"
+          date = "2025-01-02"
+          notes = {}
+          parsed = {
+            prerelease = {}
+            release = {
+              [1] = "1"
+              [2] = "0"
+              [3] = "0"
+            }
+            scheme = "numeric"
+            text = "1.0.0"
+          }
+          version = "1.0.0"
+        }
+        [2] = {
+          channel = "stable"
+          date = "2025-02-03"
+          notes = {}
+          parsed = {
+            prerelease = {}
+            release = {
+              [1] = "1"
+              [2] = "1"
+              [3] = "0"
+            }
+            scheme = "numeric"
+            text = "1.1.0"
+          }
+          tag = "v1.1.0"
+          version = "1.1.0"
+        }
+      }
+      runtimes = {
+        openmw = ">=0.49"
+      }
+      sigstore = false
+      slug = "alpha"
+      status = "active"
+      summary = "The first mod"
+      tags = {
+        [1] = "gameplay"
+        [2] = "lua"
+      }
+      type = "mod"
+      versioning = "numeric"
+    }
+    [2] = {
+      components = {
+        [1] = {
+          conflicts = {}
+          default = true
+          id = "main"
+          name = "Alpha Addon"
+          openmw = {
+            config = false
+            content_files = {}
+            data_directories = {
+              [1] = "."
+            }
+            fallback_archives = {}
+            fallback_entries = {}
+            groundcover_files = {}
+            requires_content = {}
+          }
+          path = "."
+          required = true
+          requires = {}
+          suggested_with = {}
+        }
+      }
+      credits = {}
+      directory = "content/alpha/addon"
+      extensions = {}
+      game = "starwind"
+      groups = {}
+      id = "addon-id"
+      install = {}
+      license = "MIT"
+      links = {}
+      maintainers = {}
+      media = {}
+      mirrors = {}
+      name = "Alpha Addon"
+      openmw = {
+        requires_content = {}
+        settings = {}
+      }
+      package_development = true
+      package_documentation = false
+      package_format = "flat"
+      package_include = {}
+      page_path = "alpha/addon/"
+      platforms = {}
+      provides = {}
+      raw = {
+        game = "starwind"
+        id = "addon-id"
+        license = "MIT"
+        package = {
+          documentation = false
+        }
+        provenance = {
+          sigstore = true
+        }
+        slug = "alpha-addon"
+        status = "archived"
+        type = "patch"
+      }
+      relationships = {}
+      releases = {}
+      runtimes = {}
+      sigstore = true
+      slug = "alpha-addon"
+      status = "archived"
+      tags = {}
+      type = "patch"
+      versioning = "numeric"
+    }
+    [3] = {
+      components = {
+        [1] = {
+          conflicts = {}
+          default = true
+          description = "The core files"
+          id = "core"
+          name = "Core"
+          openmw = {
+            config = true
+            content_files = {
+              [1] = "Beta.esp"
+            }
+            data_directories = {
+              [1] = "."
+            }
+            fallback_archives = {
+              [1] = "Beta.bsa"
+            }
+            fallback_entries = {
+              Weather_Clear = "1"
+            }
+            groundcover_files = {
+              [1] = "BetaGrass.esp"
+            }
+            requires_content = {
+              [1] = "Tribunal.esm"
+            }
+          }
+          path = "core"
+          required = true
+          requires = {}
+          suggested_with = {}
+        }
+        [2] = {
+          conflicts = {
+            [1] = "other"
+          }
+          default = true
+          group = "flavour"
+          id = "extras"
+          name = "extras"
+          openmw = {
+            config = false
+            content_files = {
+              [1] = "Extras.esp"
+            }
+            data_directories = {
+              [1] = "00 Data"
+              [2] = "."
+            }
+            fallback_archives = {}
+            fallback_entries = {}
+            groundcover_files = {}
+            requires_content = {}
+          }
+          path = "extras"
+          required = false
+          requires = {
+            [1] = "core"
+          }
+          suggested_with = {
+            [1] = "core"
+          }
+        }
+      }
+      credits = {
+        [1] = {
+          name = "Cyd"
+          role = "Models"
+          url = "https://cyd.test"
+        }
+        [2] = {
+          name = "Dee"
+        }
+      }
+      directory = "content/beta"
+      extensions = {
+        custom = {
+          flag = true
+        }
+      }
+      game = "morrowind"
+      groups = {
+        [1] = {
+          description = "Pick one"
+          id = "flavour"
+          name = "Flavour"
+          select = "one"
+        }
+        [2] = {
+          id = "loose"
+          name = "Loose"
+          selection = "many"
+        }
+      }
+      id = "beta-id"
+      install = {}
+      license = "GPL-3.0"
+      links = {
+        discord = "https://chat.test/beta"
+        documentation = "@/beta/index.md"
+        source = "https://code.test/beta"
+      }
+      maintainers = {
+        [1] = {
+          name = "Ada"
+          url = "https://ada.test"
+        }
+        [2] = {
+          name = "Bob"
+        }
+      }
+      media = {
+        [1] = {
+          alt = "A shot"
+          caption = "The shot"
+          category = "screens"
+          featured = true
+          file = "shot.png"
+          kind = "image"
+          thumbnail = "thumb.png"
+        }
+        [2] = {
+          alt = ""
+          featured = false
+          kind = "video"
+          url = "https://video.test/beta"
+        }
+      }
+      mirrors = {
+        [1] = "https://mirror.test/beta"
+      }
+      name = "Beta"
+      nexusmods_file_group_id = "77"
+      nexusmods_mod_id = 4242
+      openmw = {
+        lua_api = 71
+        requires_content = {
+          [1] = "Morrowind.esm"
+        }
+        settings = {
+          [1] = {
+            category = "Shaders"
+            key = "force shaders"
+            value = true
+          }
+        }
+      }
+      package_development = true
+      package_documentation = true
+      package_format = "flat"
+      package_include = {}
+      page_path = "beta/"
+      platforms = {
+        [1] = {
+          architecture = "x86_64"
+          system = "windows"
+        }
+        [2] = {
+          architecture = "aarch64"
+          system = "linux"
+        }
+        [3] = {
+          architecture = "x86_64"
+          system = "macos"
+          variant = "universal"
+        }
+        [4] = {
+          architecture = "x86_64"
+          system = "haiku"
+        }
+      }
+      provides = {
+        [1] = "beta-capability"
+      }
+      raw = {
+        components = {
+          [1] = {
+            description = "The core files"
+            id = "core"
+            name = "Core"
+            openmw = {
+              config = true
+              content_files = {
+                [1] = "Beta.esp"
+              }
+              fallback_archives = {
+                [1] = "Beta.bsa"
+              }
+              fallback_entries = {
+                Weather_Clear = "1"
+              }
+              groundcover_files = {
+                [1] = "BetaGrass.esp"
+              }
+              requires_content = {
+                [1] = "Tribunal.esm"
+              }
+            }
+            path = "core"
+            required = true
+          }
+          [2] = {
+            conflicts = {
+              [1] = "other"
+            }
+            default = true
+            group = "flavour"
+            id = "extras"
+            openmw = {
+              content_files = {
+                [1] = "Extras.esp"
+              }
+              data_directories = {
+                [1] = "00 Data"
+                [2] = "."
+              }
+            }
+            path = "extras"
+            requires = {
+              [1] = "core"
+            }
+            suggested_with = {
+              [1] = "core"
+            }
+          }
+        }
+        conflicts = {
+          [1] = {
+            capability = "old-beta"
+          }
+        }
+        credits = {
+          [1] = {
+            name = "Cyd"
+            role = "Models"
+            url = "https://cyd.test"
+          }
+          [2] = {
+            name = "Dee"
+          }
+        }
+        extensions = {
+          custom = {
+            flag = true
+          }
+        }
+        groups = {
+          [1] = {
+            description = "Pick one"
+            id = "flavour"
+            name = "Flavour"
+            select = "one"
+          }
+          [2] = {
+            id = "loose"
+            name = "Loose"
+            selection = "many"
+          }
+        }
+        id = "beta-id"
+        license = "GPL-3.0"
+        links = {
+          discord = "https://chat.test/beta"
+          documentation = "@/beta/index.md"
+          source = "https://code.test/beta"
+        }
+        maintainers = {
+          [1] = {
+            name = "Ada"
+            url = "https://ada.test"
+          }
+          [2] = {
+            name = "Bob"
+          }
+        }
+        media = {
+          [1] = {
+            alt = "A shot"
+            caption = "The shot"
+            category = "screens"
+            featured = true
+            file = "shot.png"
+            thumbnail = "thumb.png"
+          }
+          [2] = {
+            video = "https://video.test/beta"
+          }
+        }
+        mirrors = {
+          [1] = "https://mirror.test/beta"
+        }
+        nexusmods = {
+          file_group_id = "77"
+          mod_id = 4242
+        }
+        openmw = {
+          lua_api = 71
+          requires_content = {
+            [1] = "Morrowind.esm"
+          }
+          settings = {
+            [1] = {
+              category = "Shaders"
+              key = "force shaders"
+              value = true
+            }
+          }
+        }
+        platforms = {
+          [1] = {
+            os = "windows"
+          }
+          [2] = {
+            arch = "aarch64"
+            os = "linux"
+          }
+          [3] = {
+            os = "macos"
+            variant = "universal"
+          }
+          [4] = {
+            os = "haiku"
+          }
+        }
+        provides = {
+          [1] = "beta-capability"
+        }
+        recommends = {
+          [1] = {
+            name = "Some Other Mod"
+            url = "https://other.test"
+          }
+        }
+        releases = {
+          [1] = {
+            date = "2025-07-10"
+            version = "0.5"
+          }
+          [2] = {
+            channel = "beta"
+            date = "2025-07-11"
+            deprecated = "use 0.6"
+            replacement = "0.6"
+            summary = "Fixes"
+            version = "0.51"
+            yanked = true
+          }
+          [3] = {
+            date = "2025-08-01"
+            version = "0.6"
+          }
+        }
+        requires = {
+          [1] = {
+            id = "alpha-id"
+            reason = "Shares scripts"
+            version = ">=1.0"
+          }
+        }
+        runtimes = {
+          morrowind = 1.6
+          openmw = "0.50"
+        }
+        slug = "beta"
+        type = "collection"
+        versioning = "decimal"
+      }
+      relationships = {
+        [1] = {
+          kind = "requires"
+          project_id = "alpha-id"
+          reason = "Shares scripts"
+          version = ">=1.0"
+        }
+        [2] = {
+          kind = "recommends"
+          name = "Some Other Mod"
+          url = "https://other.test"
+        }
+        [3] = {
+          capability = "old-beta"
+          kind = "conflicts"
+        }
+      }
+      releases = {
+        [1] = {
+          channel = "stable"
+          date = "2025-07-10"
+          notes = {}
+          parsed = {
+            prerelease = {}
+            release = {
+              [1] = "0"
+              [2] = "5"
+            }
+            scheme = "decimal"
+            text = "0.5"
+          }
+          version = "0.5"
+        }
+        [2] = {
+          channel = "beta"
+          date = "2025-07-11"
+          deprecated = "use 0.6"
+          notes = {
+            summary = "Fixes"
+          }
+          parsed = {
+            prerelease = {}
+            release = {
+              [1] = "0"
+              [2] = "51"
+            }
+            scheme = "decimal"
+            text = "0.51"
+          }
+          replacement = "0.6"
+          version = "0.51"
+          yanked = true
+        }
+        [3] = {
+          channel = "stable"
+          date = "2025-08-01"
+          notes = {}
+          parsed = {
+            prerelease = {}
+            release = {
+              [1] = "0"
+              [2] = "6"
+            }
+            scheme = "decimal"
+            text = "0.6"
+          }
+          version = "0.6"
+        }
+      }
+      runtimes = {
+        morrowind = 1.6
+        openmw = "0.50"
+      }
+      sigstore = false
+      slug = "beta"
+      status = "active"
+      summary = "The second mod"
+      tags = {}
+      type = "collection"
+      versioning = "decimal"
+    }
+    [4] = {
+      components = {
+        [1] = {
+          conflicts = {}
+          default = true
+          id = "main"
+          name = "Delta"
+          openmw = {
+            config = false
+            content_files = {}
+            data_directories = {
+              [1] = "."
+            }
+            fallback_archives = {}
+            fallback_entries = {}
+            groundcover_files = {}
+            requires_content = {}
+          }
+          path = "."
+          required = true
+          requires = {}
+          suggested_with = {}
+        }
+      }
+      credits = {}
+      directory = "content/delta"
+      extensions = {}
+      game = "morrowind"
+      groups = {}
+      id = "delta-id"
+      install = {}
+      links = {}
+      maintainers = {}
+      media = {}
+      mirrors = {}
+      name = "Delta"
+      openmw = {
+        requires_content = {}
+        settings = {}
+      }
+      package_development = false
+      package_documentation = false
+      package_format = "binary"
+      package_include = {}
+      page_path = "delta/"
+      platforms = {}
+      provides = {}
+      raw = {
+        id = "delta-id"
+        package = {
+          development = false
+          format = "binary"
+        }
+        releases = {
+          [1] = {
+            date = "2025-05-05"
+            version = "2.0.0"
+          }
+        }
+        slug = "delta"
+      }
+      relationships = {}
+      releases = {
+        [1] = {
+          channel = "stable"
+          date = "2025-05-05"
+          notes = {}
+          parsed = {
+            prerelease = {}
+            release = {
+              [1] = "2"
+              [2] = "0"
+              [3] = "0"
+            }
+            scheme = "numeric"
+            text = "2.0.0"
+          }
+          version = "2.0.0"
+        }
+      }
+      runtimes = {}
+      sigstore = false
+      slug = "delta"
+      status = "active"
+      tags = {}
+      type = "mod"
+      versioning = "numeric"
+    }
+    [5] = {
+      components = {
+        [1] = {
+          conflicts = {}
+          default = true
+          id = "main"
+          name = "Main"
+          openmw = {
+            config = false
+            content_files = {}
+            data_directories = {
+              [1] = "."
+            }
+            fallback_archives = {}
+            fallback_entries = {}
+            groundcover_files = {}
+            requires_content = {}
+          }
+          path = "."
+          required = true
+          requires = {}
+          suggested_with = {}
+        }
+      }
+      credits = {}
+      directory = "content/gamma"
+      extensions = {}
+      game = "morrowind"
+      groups = {}
+      id = "gamma-id"
+      install = {}
+      links = {}
+      maintainers = {}
+      media = {}
+      mirrors = {}
+      name = ""
+      openmw = {
+        requires_content = {}
+        settings = {}
+      }
+      package_binary = "gamma"
+      package_crate = "gamma-rs"
+      package_development = false
+      package_documentation = false
+      package_format = "crate"
+      package_include = {
+        [1] = "src"
+        [2] = "Cargo.toml"
+      }
+      page_path = "gamma/"
+      platforms = {}
+      provides = {}
+      raw = {
+        id = "gamma-id"
+        package = {
+          binary = "gamma"
+          crate = "gamma-rs"
+          format = "crate"
+          include = {
+            [1] = "src"
+            [2] = "Cargo.toml"
+          }
+        }
+        slug = "gamma"
+      }
+      relationships = {}
+      releases = {}
+      runtimes = {}
+      sigstore = false
+      slug = "gamma"
+      status = "active"
+      tags = {}
+      type = "mod"
+      versioning = "numeric"
+    }
+    [6] = {
+      components = {
+        [1] = {
+          conflicts = {}
+          default = true
+          id = "main"
+          name = "Zeta"
+          openmw = {
+            config = false
+            content_files = {}
+            data_directories = {
+              [1] = "."
+            }
+            fallback_archives = {}
+            fallback_entries = {}
+            groundcover_files = {}
+            requires_content = {}
+          }
+          path = "."
+          required = true
+          requires = {}
+          suggested_with = {}
+        }
+      }
+      credits = {}
+      directory = "content/zeta"
+      extensions = {}
+      game = "morrowind"
+      groups = {}
+      id = "zeta-id"
+      install = {}
+      links = {}
+      maintainers = {}
+      media = {}
+      mirrors = {}
+      name = "Zeta"
+      openmw = {
+        requires_content = {}
+        settings = {}
+      }
+      package_development = true
+      package_documentation = false
+      package_format = "jpk"
+      package_include = {}
+      package_jess = {
+        dependencies = {
+          org.fixture.words = "1.2"
+        }
+        id = "org.fixture.zeta"
+        jess_api = "1"
+        source = "."
+        version = "0.1.0"
+      }
+      package_jess_name = "org.fixture.zeta"
+      page_path = "zeta/"
+      platforms = {}
+      provides = {}
+      raw = {
+        id = "zeta-id"
+        package = {
+          format = "jpk"
+          jess = "org.fixture.zeta"
+        }
+        releases = {
+          [1] = {
+            date = "2025-06-06"
+            summary = "First package."
+            version = "0.1.0"
+          }
+        }
+        slug = "zeta"
+        type = "library"
+      }
+      relationships = {}
+      releases = {
+        [1] = {
+          channel = "stable"
+          date = "2025-06-06"
+          notes = {
+            summary = "First package."
+          }
+          parsed = {
+            prerelease = {}
+            release = {
+              [1] = "0"
+              [2] = "1"
+              [3] = "0"
+            }
+            scheme = "numeric"
+            text = "0.1.0"
+          }
+          version = "0.1.0"
+        }
+      }
+      runtimes = {}
+      sigstore = false
+      slug = "zeta"
+      status = "active"
+      tags = {}
+      type = "library"
+      versioning = "numeric"
+    }
+  }
+  root = "<root>"
+  site = {
+    base_url = "https://mods.test/stash"
+    development_release = "development"
+    extra = {
+      comments = {
+        category = "Mods"
+        reactions = true
+      }
+      github_project = "Fixture-Mods"
+      github_username = "Owner"
+    }
+    repository = "Owner/Fixture-Mods"
+    repository_name = "Fixture-Mods"
+    repository_owner = "Owner"
+    repository_url = "https://github.com/Owner/Fixture-Mods"
+    title = "Fixture Mods"
+  }
+}

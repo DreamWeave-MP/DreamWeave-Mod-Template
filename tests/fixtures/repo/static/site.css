@@ -1,0 +1,4 @@
+body { background: url("img/bg.png"); }
+h1 { background: url('img/logo.png'); }
+h2 { background: url(img/logo@2x.png); }
+h3 { background: url(https://elsewhere.test/far.png); }

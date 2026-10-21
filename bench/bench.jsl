@@ -1,0 +1,528 @@
+--!strict
+--!native
+-- The mod template, timed from Luau through what it exports: versions parsed and ordered, a git
+-- index read and listed, archives assembled in memory and streamed from disk, a built site
+-- checked and crawled for offline documentation, a repository loaded and described, and the
+-- whole build of one. Run by `jess run --capability filesystem.read --capability
+-- filesystem.write --package . --package-path .. bench/bench.jsl <scratch folder> [filter]`, on
+-- a release build. Everything it reads is generated below the scratch folder from one seed, so
+-- two runs time the same work.
+--
+-- Prints one line per workload: its name, a tab, and the seconds one call takes. What a workload
+-- returned is described outside its time, must be the same for its first, second and last call,
+-- and is printed on a line that starts with `#`, so two runs can be told to have done the same
+-- work.
+local archive = require '@dreamweave/mod-template/archive'
+local build = require '@dreamweave/mod-template'
+local bytes = require '@dream/bytes'
+local fs = require '@dream/fs'
+local gitIndex = require '@dreamweave/mod-template/git-index'
+local model = require '@dreamweave/mod-template/model'
+local offline = require '@dreamweave/mod-template/offline'
+local records = require '@dreamweave/mod-template/records'
+local siteJson = require '@dreamweave/site/json'
+local sitecheck = require '@dreamweave/mod-template/sitecheck'
+local support = require '../tests/support'
+local util = require '@dreamweave/mod-template/util'
+local version = require '@dreamweave/mod-template/version'
+
+-- A build without the verified toolchain runs Luau slower than a release does, so a number from
+-- one says nothing about what ships.
+if not jess.bench.verified then
+  error('mod template bench: this jess was built without the verified toolchain: measure on a release build', 0)
+end
+
+local scratch: string, filter: string? = ...
+local only = if filter and filter ~= '' then filter else nil
+
+assert(scratch and scratch ~= '', 'mod template bench: a scratch folder to generate into is required')
+
+export type Row = { name: string, seconds: number, digest: string }
+
+local Base = 'https://bench.test/mods'
+local Words = string.split(
+  'the mod adds a new quest line to the island with voiced dialogue and several hand placed dungeons for every level of player who wants more to do after the main story ends',
+  ' '
+)
+
+local rows: { Row } = {}
+
+--- A xorshift32 generator: `random(bound)` is in `0..bound-1`.
+local function generator(seed: number): (bound: number) -> number
+  local state = seed
+
+  return function(bound: number): number
+    state = bit32.bxor(state, bit32.lshift(state, 13))
+    state = bit32.bxor(state, bit32.rshift(state, 17))
+    state = bit32.bxor(state, bit32.lshift(state, 5))
+
+    return state % bound
+  end
+end
+
+local function median(samples: { number }): number
+  table.sort(samples)
+  return samples[(#samples + 1) // 2]
+end
+
+--- The digest of a list of strings, each framed by its length so no two lists share one.
+local function digest(parts: { string }): string
+  local framed = table.create(#parts * 2)
+  for _, part in parts do
+    table.insert(framed, `{#part}:`)
+    table.insert(framed, part)
+  end
+
+  return string.sub(bytes.sha256(table.concat(framed)), 1, 16)
+end
+
+--- The digest of every file below `folder`: its relative path and its bytes.
+local function treeDigest(folder: string): string
+  local parts = {}
+  for _, relative in support.files(folder) do
+    table.insert(parts, relative)
+    table.insert(parts, support.read(`{folder}/{relative}`))
+  end
+
+  return digest(parts)
+end
+
+local function sentence(random: (bound: number) -> number, count: number): string
+  return table.concat([for _ in range(1, count) => Words[random(#Words) + 1]], ' ')
+end
+
+--- Seconds per call of `body`: warmed up, then the median of seven batches of a size that takes
+--- about a tenth of a second, with a full collection between them. `describe` is given what the
+--- first, the second and the last call returned, outside the time, and must say the same of each.
+local function measure<Result>(name: string, body: () -> Result, describe: (result: Result) -> string)
+  if only and not string.find(name, only, 1, true) then return end
+
+  jess.bench.collect()
+  local first = describe(body())
+  local start = os.clock()
+  local checked = body()
+  local once = math.max(os.clock() - start, 1e-7)
+  local iterations = math.max(1, math.floor(0.1 / once))
+  local samples = {}
+
+  for batch = 1, 7 do
+    jess.bench.collect()
+    start = os.clock()
+    for _ = 1, iterations do
+      body()
+    end
+
+    samples[batch] = (os.clock() - start) / iterations
+  end
+
+  local second, last = describe(checked), describe(body())
+  if second ~= first or last ~= first then
+    error(`mod template bench: {name} returned {second} and {last} after {first}`, 0)
+  end
+
+  table.insert(rows, { name = name, seconds = median(samples), digest = first })
+end
+
+local function wanted(prefix: string): boolean
+  return not only or string.find(prefix, only, 1, true) ~= nil or string.find(only, prefix, 1, true) ~= nil
+end
+
+-- Versions ------------------------------------------------------------------------------------------
+
+if wanted 'version' then
+  local random = generator(0x51ed270b)
+  local numeric: { string }, decimal: { string } = {}, {}
+
+  for index = 1, 2048 do
+    local release = `{random(4)}.{random(30)}.{random(200)}`
+    local stage = random(8)
+    numeric[index] = if stage == 0
+      then `{release}-rc.{random(12)}`
+      elseif stage == 1 then `{release}-dev.{random(400)}+build.{index}`
+      else release
+
+    decimal[index] = if stage == 0 then `{random(3)}.{random(100)}-dev.{random(50)}` else `{random(3)}.{random(1000)}`
+  end
+
+  measure('version: parse 4,096 release strings', function(): { string }
+    local out = table.create(4096) :: { string }
+    for index, text in numeric do
+      out[index] = assert(version.parse(text)).text
+      out[2048 + index] = assert(version.parse(decimal[index], version.DECIMAL)).text
+    end
+
+    return out
+  end, digest)
+
+  local parsedNumeric = [for text in numeric => version.parseOrError(text)]
+  local parsedDecimal = [for text in decimal => version.parseOrError(text, version.DECIMAL)]
+
+  -- Ties are versions that compare equal and are spelled differently (`0.5` and `0.50`), which a
+  -- sort may leave in any order: the text settles them, so every run sorts one way.
+  local function before(left: version.Version, right: version.Version): boolean
+    local order = version.compare(left, right)
+    if order ~= 0 then return order < 0 end
+
+    return left.text < right.text
+  end
+
+  measure('version: sort 2,048 numeric and 2,048 decimal versions', function(): { string }
+    local first, second = table.clone(parsedNumeric), table.clone(parsedDecimal)
+    table.sort(first, before)
+    table.sort(second, before)
+
+    return { first[1].text, first[1024].text, first[2048].text, second[1].text, second[1024].text, second[2048].text }
+  end, digest)
+
+  measure('version: the next development version of 2,048', function(): { string }
+    return [for index, parsed in enumerate(parsedNumeric) => version.nextDevelopment(parsed, index).text]
+  end, digest)
+end
+
+-- A git index ---------------------------------------------------------------------------------------
+
+if wanted 'git index' then
+  local random = generator(0x0badc0de)
+  local root = support.emptied(scratch, 'index')
+  local tracked: { support.Tracked } = {}
+  local extensions = { 'esp', 'lua', 'dds', 'nif', 'md', 'omwscripts', 'toml', 'png' }
+
+  for project = 1, 16 do
+    for file = 1, 256 do
+      local extension = extensions[random(#extensions) + 1]
+      local folder = if file % 4 == 0 then '' else `{Words[random(#Words) + 1]}/{Words[random(#Words) + 1]}/`
+      local path = `content/project-{project}/{folder}file-{file}.{extension}`
+      table.insert(tracked, { path = path, mode = if extension == 'lua' then 33261 else 33188 })
+
+      if project == 7 then support.write(`{root}/{path}`, extension) end
+    end
+  end
+
+  table.sort(tracked, function(left: support.Tracked, right: support.Tracked): boolean return left.path < right.path end)
+  support.write(`{root}/.git/index`, support.indexBytes(tracked))
+
+  measure('git index: read 4,096 entries', function() return assert(gitIndex.read(root)) end, function(index: { [string]: gitIndex.Entry }): string
+    local executable = #[for path in util.sortedKeys(index) if index[path].executable => path]
+
+    return `{digest(util.sortedKeys(index))}, {executable} executable`
+  end)
+
+  measure(
+    'git index: list one project of 16, 256 files on disk',
+    function() return assert(gitIndex.filesUnder(root, 'content/project-7')) end,
+    function(files: { gitIndex.File }): string
+      return digest([for file in files => `{file.path}|{file.relative}|{file.disk == `{root}/{file.path}`}|{file.executable}`])
+    end
+  )
+end
+
+-- Archives ------------------------------------------------------------------------------------------
+
+if wanted 'archive' then
+  local random = generator(0x7a1b2c3d)
+  local root = support.emptied(scratch, 'archive')
+  local inline: { archive.Entry }, streamed: { archive.Entry } = {}, {}
+
+  -- The order a build hands entries over in: the payload by path, the renamed manifest and the
+  -- release document where they fall, then the documentation by path.
+  for index = 1, 1536 do
+    local path = string.format('%s/%s/file-%04d.lua', Words[index % #Words + 1], Words[index % 7 + 1], index)
+    table.insert(inline, { path = path, content = sentence(random, 8 + random(200)), executable = index % 16 == 0 })
+  end
+
+  table.sort(inline, function(left: archive.Entry, right: archive.Entry): boolean return left.path < right.path end)
+  table.insert(inline, { path = 'bench-dwmod.toml', content = sentence(random, 300), executable = false })
+  table.insert(inline, { path = 'dreamweave.release.json', content = sentence(random, 600), executable = false })
+
+  for index = 1, 510 do
+    local path = string.format('bench-Documentation/docs/page-%03d/index.html', index)
+    table.insert(inline, { path = path, content = sentence(random, 400 + random(400)), executable = false })
+  end
+
+  for index = 1, 192 do
+    local path = string.format('data/%s/file-%03d.bin', Words[index % #Words + 1], index)
+    support.write(`{root}/in/{path}`, string.rep(sentence(random, 64), 1 + random(120)))
+    table.insert(streamed, { path = path, source = `{root}/in/{path}`, executable = index % 16 == 0 })
+  end
+
+  support.write(`{root}/in/large.bsa`, string.rep(sentence(random, 256), 3000))
+  table.insert(streamed, { path = 'large.bsa', source = `{root}/in/large.bsa`, executable = false })
+
+  --- What a write said it wrote, once the file it left is read back: every entry stored whole
+  --- and in order, in an archive of the size and digest reported.
+  local function written(result): string
+    local data = support.read(result.path)
+    assert(#support.stored(data) == result.entries, 'mod template bench: the archive does not hold its entries')
+    assert(#data == result.size and bytes.sha256(data) == result.sha256, 'mod template bench: the archive is not what was reported')
+
+    return `{result.entries} entries, {result.size} bytes, {result.sha256}`
+  end
+
+  measure(
+    'archive: 2,048 entries held in memory, as bytes',
+    function(): string return archive.bytes(table.clone(inline)) end,
+    function(data: string): string return `{#support.stored(data)} entries, {#data} bytes, {bytes.sha256(data)}` end
+  )
+
+  measure(
+    'archive: 2,048 entries held in memory, written',
+    function() return archive.write(`{root}/inline.zip`, table.clone(inline)) end,
+    written
+  )
+
+  measure(
+    'archive: 193 files streamed from disk, written',
+    function() return archive.write(`{root}/streamed.zip`, table.clone(streamed)) end,
+    written
+  )
+end
+
+-- A built site: checked, and crawled for a project's offline documentation -----------------------------
+
+--- One page of the generated site: a head, a navigation bar to every section, and `sections`
+--- headed blocks of prose, links, images, lists and code. `depth` is how far below the site
+--- root the page's folder is, and `siblings` how many pages its section holds.
+local function page(random: (bound: number) -> number, title: string, depth: number, siblings: number): string
+  local up = string.rep('../', depth)
+  local out = {
+    '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n',
+    '<meta name="viewport" content="width=device-width, initial-scale=1">\n',
+    `<title>{title}</title>\n<link rel="stylesheet" href="{Base}/css/site.css">\n`,
+    `<link rel="alternate" type="application/json" href="{Base}/dreamweave.json" data-dw-online>\n`,
+    `<script src="{Base}/js/app.js" defer></script>\n</head>\n<body class="page">\n<!-- {title} -->\n<header><nav><ul>\n`,
+    `<li><a href="{Base}/">Home</a></li>\n`,
+  }
+
+  for index = 1, 12 do
+    table.insert(out, `<li><a href="{Base}/mod/docs/page-{index}/">Docs {index}</a></li>\n`)
+    table.insert(out, `<li><a href="/mods/guides/page-{index}/">Guide {index}</a></li>\n`)
+  end
+
+  table.insert(out, `</ul></nav></header>\n<main>\n<article>\n<h1 id="top">{title}</h1>\n`)
+
+  for section = 1, 36 do
+    local other, anchor, shot = random(siblings) + 1, random(36) + 1, random(16) + 1
+
+    table.insert(out, `<h2 id="section-{section}">{sentence(random, 4)}</h2>\n`)
+    table.insert(out, `<p>{sentence(random, 30)} <a href="../page-{other}/#section-{anchor}">{sentence(random, 3)}</a> `)
+    table.insert(out, `{sentence(random, 12)} <code>&lt;tag attr=&quot;{section}&quot;&gt;</code> <a href="#section-{anchor}">here</a> `)
+    table.insert(out, `<em>{sentence(random, 6)}</em> <a href="{up}guides/page-{random(12) + 1}/index.html">{sentence(random, 2)}</a>.</p>\n`)
+    table.insert(out, `<figure><img src="{Base}/img/shot-{shot}.png" srcset="{Base}/img/shot-{shot}.png 1x, {up}img/shot-{shot}@2x.png 2x" `)
+    table.insert(out, `alt="Shot {shot} &amp; more" loading="lazy" width=640 height=360><figcaption>{sentence(random, 8)}</figcaption></figure>\n`)
+    table.insert(out, `<div class="note"><p>{sentence(random, 20)}</p><ul><li>{sentence(random, 5)}</li><li>{sentence(random, 5)}</li></ul></div>\n`)
+
+    if section % 9 == 0 then
+      table.insert(out, `<p><a href="../page-{other}/#absent-{section}">a dead anchor</a> <a href="absent-{section}.html">a dead link</a> `)
+      table.insert(out, `<a href="https://elsewhere.test/{section}">elsewhere</a> <a href="mailto:author@bench.test">mail</a></p>\n`)
+    end
+  end
+
+  table.insert(out, `</article>\n</main>\n<footer><p style="background: url({Base}/img/bg.png)">{sentence(random, 10)}</p></footer>\n</body>\n</html>\n`)
+
+  return table.concat(out)
+end
+
+if wanted 'site' or wanted 'offline' or wanted 'util' then
+  local random = generator(0x13579bdf)
+  local public = support.emptied(scratch, 'public')
+  local pages: { string } = {}
+
+  local function add(relative: string, contents: string)
+    support.write(`{public}/{relative}`, contents)
+    if string.sub(relative, -5) == '.html' then table.insert(pages, relative) end
+  end
+
+  add('index.html', page(random, 'Home', 0, 12))
+  add('mod/index.html', `<!doctype html>\n<html><body><h1 id="top">Mod</h1><a href="docs/page-1/">Docs</a> <a href="{Base}/css/site.css">Style</a></body></html>\n`)
+
+  for index = 1, 32 do
+    add(`mod/docs/page-{index}/index.html`, page(random, `Docs {index}`, 3, 32))
+  end
+
+  for index = 1, 12 do
+    add(`guides/page-{index}/index.html`, page(random, `Guide {index}`, 2, 12))
+  end
+
+  add('css/site.css', string.rep('body { background: url("../img/bg.png"); }\nh1 { background: url(\'../img/shot-1.png\'); }\nh2 { margin: 0; padding: 0 }\n', 200))
+  add('js/app.js', string.rep('console.log("bench");\n', 400))
+  add('img/bg.png', string.rep('bg', 2000))
+  add('dreamweave.json', '{}')
+
+  for index = 1, 16 do
+    add(`img/shot-{index}.png`, string.rep(`shot {index}`, 1500))
+    add(`img/shot-{index}@2x.png`, string.rep(`shot {index} doubled`, 3000))
+  end
+
+  measure('site check: 46 pages of a built site', function() return sitecheck.check(public, `{Base}/`) end, function(result): string
+    return `{result.pages} pages, {result.links} links, {#result.problems} problems, {digest(result.problems)}`
+  end)
+
+  local sources = [for relative in pages => support.read(`{public}/{relative}`)]
+
+  measure('offline: rewrite 46 pages held in memory', function(): { string }
+    local crawler = offline.DocumentationCrawler.new(public, Base, 'mod/')
+
+    return [for index, relative in enumerate(pages) => crawler:rewriteHtml(sources[index], relative)]
+  end, digest)
+
+  local staged = `{scratch}/staged`
+
+  measure(
+    'offline: crawl a project of 33 pages into a folder',
+    function() return offline.crawlTo(public, Base, 'mod/', staged) end,
+    function(entries: { offline.Entry }): string
+      return `{#entries} entries, {digest([for entry in entries => `{entry.path}|{entry.source == `{staged}/{entry.path}`}`])}, tree {treeDigest(staged)}`
+    end
+  )
+
+  measure('util: walk the 85 files of a built site', function() return util.walk(public) end, function(entries: { util.Entry }): string
+    return digest([for entry in entries => `{entry.relative}|{entry.path == `{public}/{entry.relative}`}`])
+  end)
+end
+
+-- A repository: loaded, described, and built ---------------------------------------------------------
+
+--- The manifest of generated project `index`: components, relationships, media and releases
+--- the way a large mod declares them.
+local function manifest(random: (bound: number) -> number, index: number): string
+  local decimal = index % 3 == 0
+  local out = {
+    `id = "bench-{index}-id"\nslug = "bench-{index}"\nlicense = "MIT"\nprovides = ["capability-{index}"]\n`,
+    if decimal then 'versioning = "decimal"\n' else '',
+    `\n[links]\ndocumentation = "@/bench-{index}/docs/_index.md"\nsource = "https://code.test/bench-{index}"\n`,
+    '\n[runtimes]\nopenmw = ">=0.49"\n\n[openmw]\nlua_api = 70\nrequires_content = ["Morrowind.esm"]\n',
+    `\n[nexusmods]\nmod_id = {50000 + index}\n\n[[maintainers]]\nname = "Maintainer {index}"\nurl = "https://people.test/{index}"\n`,
+  }
+
+  for credit = 1, 4 do
+    table.insert(out, `\n[[credits]]\nname = "{sentence(random, 2)}"\nrole = "Role {credit}"\n`)
+  end
+
+  for other = 1, 3 do
+    table.insert(out, `\n[[requires]]\nid = "bench-{(index + other) % 24 + 1}-id"\nversion = ">=1.0"\nreason = "{sentence(random, 5)}"\n`)
+  end
+
+  for shot = 1, 4 do
+    table.insert(out, `\n[[media]]\nfile = "shot-{shot}.png"\nalt = "{sentence(random, 4)}"\ncaption = "{sentence(random, 6)}"\n`)
+  end
+
+  table.insert(out, '\n[[groups]]\nid = "extras"\nname = "Extras"\nselect = "any"\n')
+
+  for component = 1, 4 do
+    table.insert(out, `\n[[components]]\nid = "part-{component}"\nname = "Part {component}"\npath = "part-{component}"\n`)
+    table.insert(out, if component == 1 then 'required = true\n' else 'group = "extras"\nrequires = ["part-1"]\n')
+    table.insert(out, `\n[components.openmw]\ncontent_files = ["Part{component}.esp"]\ndata_directories = ["."]\n`)
+  end
+
+  for release = 1, 12 do
+    local text = if decimal then `0.{release + 10}` else `1.{release}.{release % 3}`
+    table.insert(out, `\n[[releases]]\nversion = "{text}"\ndate = 2025-{string.format('%02d', release)}-15\n`)
+  end
+
+  return table.concat(out)
+end
+
+if wanted 'model' or wanted 'records' or wanted 'build' then
+  local random = generator(0x2468ace1)
+  local root = support.emptied(scratch, 'repo')
+  support.copy(support.fixture 'repo/templates', `{root}/templates`)
+  support.copy(support.fixture 'repo/static', `{root}/static`)
+  support.write(`{root}/config.toml`, `base_url = "{Base}"\ntitle = "Bench Mods"\n\n[extra]\ngithub_username = "Owner"\ngithub_project = "bench-mods"\n\n[extra.comments]\ncategory = "Mods"\n`)
+  support.write(`{root}/content/_index.md`, '+++\ntitle = "Mods"\n+++\n\nEvery mod.\n')
+
+  for index = 1, 24 do
+    local folder = `{root}/content/bench-{index}`
+    support.write(`{folder}/mod.toml`, manifest(random, index))
+    support.write(`{folder}/index.md`, `+++\ntitle = "Bench {index}"\ndescription = "{sentence(random, 8)}"\n+++\n\n{sentence(random, 80)} [docs](@/bench-{index}/docs/_index.md).\n`)
+    support.write(`{folder}/docs/_index.md`, `+++\ntitle = "Docs {index}"\n+++\n\n{sentence(random, 60)} [install](@/bench-{index}/docs/install.md).\n`)
+    support.write(`{folder}/docs/install.md`, `+++\ntitle = "Install {index}"\n+++\n\n## Install\n\n{sentence(random, 120)}\n`)
+
+    for component = 1, 4 do
+      support.write(`{folder}/part-{component}/Part{component}.esp`, sentence(random, 200))
+
+      for script = 1, 6 do
+        support.write(`{folder}/part-{component}/scripts/bench/script-{script}.lua`, sentence(random, 150))
+      end
+    end
+
+    for shot = 1, 4 do
+      support.write(`{folder}/shot-{shot}.png`, sentence(random, 40))
+    end
+  end
+
+  support.track(root)
+
+  local function slugs(repo: model.Repository): string
+    return digest([for project in repo.projects => `{project.slug}|{project.name}|{#project.releases}|{#project.components}|{#project.relationships}|{#project.media}`])
+  end
+
+  measure('model: load a repository of 24 projects', function() return model.load(root, { head = 'bench' }) end, function(repo: model.Repository): string
+    return `{#repo.projects} projects, {#repo.errors} errors, {slugs(repo)}`
+  end)
+
+  local repo = model.load(root, { head = 'bench' })
+  local artifact: records.Artifact = {
+    id = 'flat',
+    format = 'flat',
+    filename = 'bench.zip',
+    media_type = 'application/zip',
+    size = 4096,
+    digests = { sha256 = string.rep('ab', 32) },
+    layout = siteJson.object({ release_document = 'dreamweave.release.json' }, { 'release_document', 'documentation' }),
+  }
+
+  measure('records: the release document, manifest and index entry of 24 projects', function(): { string }
+    local out: { string } = {}
+    local entries = siteJson.array() :: { records.Document }
+
+    for _, project in repo.projects do
+      local development = model.developmentVersion(repo, project)
+      local releases = siteJson.array { records.developmentRelease(project, repo, artifact, development, '2026-01-01') }
+      local text = siteJson.encode(records.projectManifest(project, repo.site, Base, releases), true)
+      table.insert(out, records.payloadReleaseDocument(project, development))
+      table.insert(out, text)
+      table.insert(entries, records.indexEntry(project, Base, text, releases))
+    end
+
+    table.insert(out, siteJson.encode(records.siteIndex(repo.site, Base, entries), true))
+
+    return out
+  end, digest)
+
+  measure('build: list the archive entries of 24 projects', function(): { string }
+    local out: { string } = {}
+
+    for _, project in repo.projects do
+      for _, entry in build.archiveEntries(repo, project, '1.0.0', {}) do
+        table.insert(out, entry.path)
+      end
+    end
+
+    return out
+  end, digest)
+
+  local work, dist = `{scratch}/work`, `{scratch}/dist`
+
+  -- A workspace that still holds an earlier build's site is refused (`util.removeTree` cannot
+  -- remove a folder), so each build starts from none.
+  measure('build: a repository of 24 projects, site and archives', function()
+    if fs.exists(work) then
+      local succeeded, problem = fs.remove(work, { recursive = true })
+      if not succeeded then error(problem, 0) end
+    end
+
+    return build.build(root, { workspace = work, dist = dist, date = '2026-01-01', head = 'bench' })
+  end, function(result: build.Result): string
+    local archives = [for project in result.repository.projects => result.archives[project.id].sha256]
+
+    return `{result.projects} projects, archives {digest(archives)}, manifests {treeDigest(`{root}/static/dreamweave`)}`
+  end)
+end
+
+for _, row in rows do
+  print(`{row.name}\t{string.format('%.9f', row.seconds)}`)
+end
+
+for _, row in rows do
+  print(`# {row.name}: {row.digest}`)
+end

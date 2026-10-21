@@ -1,0 +1,21 @@
+--!strict
+-- `jess package run --trusted <template> --target check`: validate every project, writing nothing.
+local commands = require '@dreamweave/mod-template/commands'
+local common = require './common'
+
+local checked = commands.check(common.root())
+
+for _, note in checked.notes do
+  print(`note: {note}`)
+end
+
+if not checked.ok then
+  common.report(checked.errors)
+  print(`{#checked.errors} problem(s).`)
+
+  return 1
+end
+
+print(`OK: {checked.projects} project(s).`)
+
+return 0

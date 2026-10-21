@@ -1,0 +1,23 @@
+--!strict
+-- `jess package run --trusted <template> --target links -- [public] [base url]`: check the
+-- built site's local links, assets and anchors.
+local commands = require '@dreamweave/mod-template/commands'
+local common = require './common'
+local fs = require '@dream/fs'
+local model = require '@dreamweave/mod-template/model'
+
+local root = common.root()
+local public = if arg[1] and arg[1] ~= '' then arg[1] else fs.join(root, 'public')
+local baseUrl = common.baseUrl(arg[2]) or model.load(root).site.base_url
+local links = commands.links(public, baseUrl)
+
+if #links.problems > 0 then
+  common.report(links.problems)
+  print(`{#links.problems} broken local link(s).`)
+
+  return 1
+end
+
+print(`Checked {links.checked} local links, assets and anchors.`)
+
+return 0

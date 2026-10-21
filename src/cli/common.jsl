@@ -1,0 +1,60 @@
+--!strict
+-- What every command entry shares: the repository it runs in (the current folder), the base URL
+-- CI hands over, and one way of printing a list of problems.
+local fs = require '@dream/fs'
+local process = require '@dream/process'
+
+local common = {}
+
+--- The repository: the current folder, which is where CI and a maintainer run these from.
+function common.root(): string
+  local cwd, problem = fs.cwd()
+  if not cwd then error(`the current folder could not be read: {problem}`, 0) end
+
+  return cwd :: string
+end
+
+--- The site's URL for this build: the first argument, the environment's, or nil for config.toml's.
+function common.baseUrl(given: string?): string?
+  if given and given ~= '' then return given end
+
+  if jess.granted 'process.environment' then return process.env 'DREAMWEAVE_BASE_URL' end
+
+  return nil
+end
+
+--- The run number CI gives a development build, or nil for the first.
+function common.buildNumber(): number?
+  if not jess.granted 'process.environment' then return nil end
+
+  return tonumber(process.env 'GITHUB_RUN_NUMBER' or '')
+end
+
+--- An environment variable, when the runtime may read them.
+function common.environment(name: string): string?
+  if not jess.granted 'process.environment' then return nil end
+
+  local value = process.env(name)
+
+  return if value and value ~= '' then value else nil
+end
+
+--- Fetches over `@jess/http` for the record commands: any response as is, a failure as a message.
+function common.fetch(url: string, headers: { [string]: string }?): ({ status: number, body: buffer }?, string?)
+  local http = require '@jess/http'
+  local response, message, kind = http.get(url, { headers = headers, maxBytes = 1024 * 1024 * 1024, timeoutMs = 120000 })
+
+  if not response then return nil, `{kind}: {message}` end
+
+  local answer = response :: { status: number, body: buffer }
+
+  return { status = answer.status, body = answer.body }, nil
+end
+
+function common.report(lines: { string })
+  for _, line in lines do
+    print(line)
+  end
+end
+
+return common

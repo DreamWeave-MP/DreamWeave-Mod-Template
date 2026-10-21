@@ -1,0 +1,14 @@
+# Zeta: a Jess package. `jess` names the Package Source it publishes, here the repository root's own
+# jess.toml, the one member of its jess workspace.
+id = "zeta-id"
+slug = "zeta"
+type = "library"
+
+[package]
+format = "jpk"
+jess = "org.fixture.zeta"
+
+[[releases]]
+version = "0.1.0"
+date = 2025-06-06
+summary = "First package."

@@ -1,0 +1,900 @@
+--!strict
+-- The documents a mod repository publishes about itself: what a release means to a client (the
+-- runtimes it needs, its components, how they install), the document an archive carries, each
+-- project's manifest, and the site's index of them all. Every object is written with its keys in
+-- the order named here, and a field a project does not give is left out, not written empty.
+local bytes = require '@dream/bytes'
+local fs = require '@dream/fs'
+local json = require '@dreamweave/site/json'
+local model = require './model'
+local util = require './util'
+local version = require './version'
+
+-- A JSON object in the making: marked as one, with the order its keys are written in.
+export type Document = { [string]: unknown }
+
+export type Artifact = {
+  id: unknown,
+  format: unknown,
+  filename: string,
+  media_type: unknown,
+  size: unknown,
+  digests: { sha256: unknown },
+  layout: unknown,
+  --- For a jpk artifact: the package inside, its API, its content digest and its dependencies.
+  jess: Document?,
+}
+
+local records = { SCHEMA_VERSION = '3', GENERATOR = 'DreamWeave Mod Template 0.3.0' }
+
+-- What a release document says of a release, in the order it says it.
+local Semantics = {
+  'runtimes',
+  'platforms',
+  'provides',
+  'relationships',
+  'components',
+  'groups',
+  'extensions',
+  'critical_extensions',
+}
+
+@native
+local function listed<Value>(value: { Value }?): { Value } return json.arrayCopy(value or {}) end
+
+--- `fields` marked as an object whose keys are written in `order`, then the rest by name.
+local function object(order: { string }?, fields: Document?): Document
+  return json.object(fields or {}, order)
+end
+
+local function platformDocument(platform: model.Platform): Document
+  local {system, architecture, variant} = platform
+  local document = object({ 'os', 'arch', 'variant' }, { os = system, arch = architecture })
+  if variant then document.variant = variant end
+
+  return document
+end
+
+local function relationshipDocument(relationship: model.Relationship): Document
+  local document = object(
+    { 'kind', 'project', 'capability', 'name', 'version', 'url', 'reason' },
+    { kind = relationship.kind }
+  )
+
+  if relationship.project_id then document.project = relationship.project_id end
+  if relationship.capability then document.capability = relationship.capability end
+  if relationship.name then document.name = relationship.name end
+  if relationship.version then document.version = tostring(relationship.version) end
+  if relationship.url then document.url = relationship.url end
+  if relationship.reason then document.reason = relationship.reason end
+
+  return document
+end
+
+--- What a release of `project` means to whatever installs it. The same for every release: a
+--- manifest describes the project as it is now.
+function records.releaseSemantics(project: model.Project): Document
+  local runtimes = object()
+  for _, runtime in ipairs(util.sortedKeys(project.runtimes)) do
+    runtimes[runtime] = tostring(project.runtimes[runtime])
+  end
+
+  -- Only the three systems a client knows how to match, and none that names a variant of one.
+  local platforms = json.array()
+  for _, platform in ipairs(project.platforms or {}) do
+    local {system, variant} = platform
+    if variant or (system ~= 'windows' and system ~= 'macos' and system ~= 'linux') then continue end
+
+    table.insert(platforms, platformDocument(platform))
+  end
+
+  local relationships = json.array()
+  for _, relationship in ipairs(project.relationships or {}) do
+    table.insert(relationships, relationshipDocument(relationship))
+  end
+
+  local components = json.array()
+
+  for _, component in ipairs(project.components or {}) do
+    local document = object(
+      { 'id', 'name', 'description', 'path', 'required', 'default', 'group', 'requires', 'conflicts', 'suggested_with' },
+      {
+        id = component.id,
+        name = component.name,
+        path = component.path,
+        required = component.required == true,
+        default = component.default == true,
+        requires = listed(component.requires),
+        conflicts = listed(component.conflicts),
+        suggested_with = listed(component.suggested_with),
+      }
+    )
+
+    if component.description then document.description = component.description end
+    if component.group then document.group = component.group end
+
+    table.insert(components, document)
+  end
+
+  local groups = json.array()
+
+  for _, group in ipairs(project.groups or {}) do
+    local document = object(
+      { 'id', 'name', 'select', 'description' },
+      { id = group.id, name = group.name, select = group.select or group.selection or 'any' }
+    )
+
+    if group.description then document.description = group.description end
+
+    table.insert(groups, document)
+  end
+
+  local extensions = object()
+
+  -- A runtime given as `false` is still given: only a project that does not name OpenMW at all
+  -- goes without the extension.
+  if project.runtimes.openmw ~= nil then
+    local installs = object()
+
+    for _, component in ipairs(project.components or {}) do
+      local installed = component.openmw or (({} :: unknown) :: model.OpenmwComponent)
+
+      installs[component.id] = object(
+        {
+          'data_directories',
+          'content_files',
+          'groundcover_files',
+          'fallback_archives',
+          'fallback_entries',
+          'config',
+          'requires_content',
+        },
+        {
+          data_directories = listed(installed.data_directories),
+          content_files = listed(installed.content_files),
+          groundcover_files = listed(installed.groundcover_files),
+          fallback_archives = listed(installed.fallback_archives),
+          fallback_entries = object(nil, installed.fallback_entries or {}),
+          config = installed.config == true,
+          requires_content = listed(installed.requires_content),
+        }
+      )
+    end
+
+    local declared = project.openmw
+    local settings = json.array()
+
+    for _, setting in ipairs(declared.settings or {}) do
+      table.insert(
+        settings,
+        object(
+          { 'category', 'key', 'value' },
+          { category = setting.category, key = setting.key, value = tostring(setting.value) }
+        )
+      )
+    end
+
+    local openmw = object(
+      { 'components', 'requires_content', 'settings', 'lua_api' },
+      { components = installs, requires_content = listed(declared.requires_content), settings = settings }
+    )
+
+    if declared.lua_api then openmw.lua_api = tostring(project.openmw.lua_api) end
+
+    extensions.openmw = openmw
+  end
+
+  for name, extension in pairs(project.extensions or {}) do
+    extensions[name] = extension
+  end
+
+  return object(Semantics, {
+    runtimes = runtimes,
+    platforms = platforms,
+    provides = listed(project.provides),
+    relationships = relationships,
+    components = components,
+    groups = groups,
+    extensions = extensions,
+    critical_extensions = if project.runtimes.openmw ~= nil then json.array { 'openmw' } else json.array(),
+  })
+end
+
+--- The text of `dreamweave.release.json`, the document an archive of `released` carries.
+function records.payloadReleaseDocument(project: model.Project, released: unknown): string
+  local semantics = records.releaseSemantics(project)
+  local identity = object(
+    { 'id', 'name', 'slug', 'versioning' },
+    { id = project.id, name = project.name, slug = project.slug, versioning = project.versioning }
+  )
+
+  local document = object(
+    {
+      'schema_version',
+      'document',
+      'project',
+      'version',
+      'format',
+      'runtimes',
+      'platforms',
+      'provides',
+      'relationships',
+      'components',
+      'groups',
+      'extensions',
+      'critical_extensions',
+    },
+    {
+      schema_version = records.SCHEMA_VERSION,
+      document = 'release-payload',
+      project = identity,
+      version = if type(released) == 'table' then (released :: version.Version).text or tostring(released) else tostring(released),
+      format = project.package_format,
+    }
+  )
+
+  for _, key in Semantics do
+    document[key] = semantics[key]
+  end
+
+  return json.encode(document, true)
+end
+
+--- A project's links by name: its page, its source and its issues, then the ones its manifest
+--- gives. A manifest's `@/` documentation link is a content path, and becomes the page's URL.
+local function projectLinks(project: model.Project, site: model.Site, base: string): Document
+  local links: Document = {
+    page = base .. '/' .. project.page_path,
+    source = project.links.source or site.repository_url,
+    issues = project.links.issues or (site.repository_url .. '/issues'),
+  }
+
+  if project.package_crate then links.crate = 'https://crates.io/crates/' .. (project.package_crate :: string) end
+
+  for name, link in pairs(project.links or {}) do
+    if name == 'documentation' and string.sub(link :: string, 1, 2) == '@/' then
+      local page = string.gsub(string.sub(link :: string, 3), '_index%.md$', '')
+      page = string.gsub(page, 'index%.md$', '')
+      links[name] = base .. '/' .. page
+    elseif links[name] == nil then
+      links[name] = link
+    end
+  end
+
+  local document = object()
+  for _, name in ipairs(util.sortedKeys(links)) do
+    document[name] = links[name]
+  end
+
+  return document
+end
+
+local function mediaDocuments(project: model.Project, base: string): { Document }
+  local documents: { Document } = json.array({} :: { Document })
+
+  for _, media in ipairs(project.media or {}) do
+    local document = object(
+      { 'kind', 'alt', 'url', 'thumbnail', 'caption', 'category', 'featured' },
+      { kind = media.kind, alt = media.alt or '' }
+    )
+
+    if media.file then
+      document.url = base .. '/' .. project.page_path .. (media.file :: string)
+    elseif media.url then
+      document.url = media.url
+    end
+
+    if media.thumbnail then document.thumbnail = base .. '/' .. project.page_path .. (media.thumbnail :: string) end
+    if media.caption then document.caption = media.caption end
+    if media.category then document.category = media.category end
+    if media.featured then document.featured = true end
+
+    table.insert(documents, document)
+  end
+
+  return documents
+end
+
+--- The manifest of `project` on a site served from `base`, with the `releases` it has
+--- published: each channel names the last of them that is available.
+function records.projectManifest(
+  project: model.Project,
+  site: model.Site,
+  base: string,
+  releases: { Document }?
+): Document
+  local described = object(
+    {
+      'id',
+      'name',
+      'summary',
+      'type',
+      'status',
+      'versioning',
+      'game',
+      'license',
+      'tags',
+      'maintainers',
+      'links',
+      'integrations',
+      'media',
+      'credits',
+    },
+    {
+      id = project.id,
+      name = project.name,
+      type = project.type,
+      status = project.status,
+      versioning = project.versioning,
+      game = project.game,
+      tags = listed(project.tags),
+    }
+  )
+
+  if project.summary then described.summary = project.summary end
+  if project.license then described.license = project.license end
+
+  local maintainers = json.array()
+
+  for _, maintainer in ipairs(project.maintainers or {}) do
+    local document = object({ 'name', 'url' }, { name = maintainer.name })
+    if maintainer.url then document.url = maintainer.url end
+
+    table.insert(maintainers, document)
+  end
+
+  described.maintainers = maintainers
+  described.links = projectLinks(project, site, base)
+
+  local integrations = object()
+  -- A mod id of `false` is one a manifest wrote, and is passed on.
+  if project.nexusmods_mod_id ~= nil then
+    integrations.nexusmods = object({ 'game', 'mod_id' }, { game = project.game, mod_id = project.nexusmods_mod_id })
+  end
+
+  described.integrations = integrations
+  described.media = mediaDocuments(project, base)
+
+  local credits = json.array()
+
+  for _, credit in ipairs(project.credits or {}) do
+    local document = object({ 'name', 'role', 'url' }, { name = credit.name })
+    if credit.role then document.role = credit.role end
+    if credit.url then document.url = credit.url end
+
+    table.insert(credits, document)
+  end
+
+  described.credits = credits
+
+  -- Each channel's head is its highest available release under the project's scheme, whatever
+  -- order the releases were given in.
+  local channels = object()
+  local heads: { [string]: version.Version } = {}
+  for _, release in ipairs(releases or {}) do
+    if release.status ~= 'available' then continue end
+
+    local channel = release.channel :: string
+    local parsed = version.parse(release.version, project.versioning)
+    if not parsed then continue end
+
+    local current = heads[channel]
+    if not current or version.compare(parsed :: version.Version, current) > 0 then
+      heads[channel] = parsed :: version.Version
+      channels[channel] = object({ 'version' }, { version = release.version })
+    end
+  end
+
+  return object({ 'schema_version', 'document', 'generator', 'project', 'channels', 'releases' }, {
+    schema_version = records.SCHEMA_VERSION,
+    document = 'project',
+    generator = records.GENERATOR,
+    project = described,
+    channels = channels,
+    releases = releases or json.array(),
+  })
+end
+
+--- The release a development build of `project` is: `released` as built on `date` from the
+--- repository's head, with the archive it was packed into, when there is one.
+function records.developmentRelease(
+  project: model.Project,
+  repo: model.Repository,
+  artifact: Artifact?,
+  released: version.Version | string,
+  date: unknown
+): Document
+  local {repository_url: repositoryUrl, development_release: developmentRelease} = repo.site
+  local source = object(
+    { 'repository', 'release', 'revision' },
+    { repository = repositoryUrl, release = developmentRelease }
+  )
+
+  if repo.head ~= '' then source.revision = repo.head end
+
+  local release = object(
+    {
+      'version',
+      'channel',
+      'date',
+      'status',
+      'source',
+      'runtimes',
+      'platforms',
+      'provides',
+      'relationships',
+      'components',
+      'groups',
+      'extensions',
+      'critical_extensions',
+      'artifacts',
+    },
+    {
+      version = (released :: version.Version).text or tostring(released),
+      channel = 'development',
+      date = date,
+      status = 'available',
+      source = source,
+    }
+  )
+
+  local semantics = records.releaseSemantics(project)
+  for _, key in Semantics do
+    release[key] = semantics[key]
+  end
+
+  local artifacts = json.array()
+
+  if artifact then
+    local document = object(
+      { 'id', 'format', 'filename', 'media_type', 'size', 'digests', 'jess', 'layout', 'sources', 'signatures' },
+      {
+        id = artifact.id,
+        format = artifact.format,
+        filename = artifact.filename,
+        media_type = artifact.media_type,
+        size = artifact.size,
+        digests = object({ 'sha256' }, { sha256 = artifact.digests.sha256 }),
+        jess = artifact.jess,
+        layout = artifact.layout,
+      }
+    )
+
+    document.sources = json.array {
+      object({ 'url', 'kind' }, {
+        url = repositoryUrl .. '/releases/download/' .. developmentRelease .. '/' .. artifact.filename,
+        kind = 'publisher',
+      }),
+    }
+
+    document.signatures = json.array()
+    table.insert(artifacts, document)
+  end
+
+  release.artifacts = artifacts
+
+  return release
+end
+
+--- A release's notes as a document: only the fields the publisher wrote.
+function records.notesDocument(declared: model.Release?): Document
+  local document = object({ 'summary', 'highlights', 'added', 'changed', 'fixed', 'breaking', 'migration', 'known_issues', 'notes' })
+
+  if not declared then return document end
+
+  local notes = (declared :: model.Release).notes
+
+  for _, key in { 'summary', 'highlights', 'migration', 'notes' } do
+    local value = notes[key]
+    if type(value) == 'string' and value ~= '' then document[key] = value end
+  end
+
+  for _, key in { 'added', 'changed', 'fixed', 'breaking', 'known_issues' } do
+    local value = notes[key]
+    if type(value) == 'table' and #(value :: { unknown }) > 0 then document[key] = json.arrayCopy(value :: { unknown }) end
+  end
+
+  return document
+end
+
+local function hasKeys(document: Document): boolean
+  for _ in document do
+    return true
+  end
+
+  return false
+end
+
+--- Where an artifact of `project` downloads from: the publisher's GitHub release (or crates.io
+--- for a crate), then every mirror the project names, with the release's facts filled into its URL.
+function records.artifactSources(project: model.Project, site: model.Site, releaseName: string, artifact: Document): { Document }
+  local filename = tostring(artifact.filename)
+  local publisher = if artifact.format == 'crate'
+    then `https://static.crates.io/crates/{tostring(project.package_crate)}/{filename}`
+    else `{site.repository_url}/releases/download/{releaseName}/{filename}`
+  local sources: { Document } = json.array({ object({ 'url', 'kind', 'name' }, { url = publisher, kind = 'publisher' }) } :: { Document })
+  local digests: Document = if type(artifact.digests) == 'table' then artifact.digests :: Document else {}
+  local versionText = string.gsub(releaseName, `^{string.gsub(project.slug, '%W', '%%%0')}%-`, '')
+
+  for _, given in ipairs(project.mirrors) do
+    local mirror: Document = if type(given) == 'table' then given :: Document else {}
+    local url = tostring(mirror.url or '')
+    url = string.gsub(url, '{slug}', project.slug)
+    url = string.gsub(url, '{version}', versionText)
+    url = string.gsub(url, '{tag}', releaseName)
+    url = string.gsub(url, '{filename}', filename)
+    url = string.gsub(url, '{sha256}', tostring(digests.sha256 or ''))
+
+    local source = object({ 'url', 'kind', 'name' }, { url = url, kind = 'mirror' })
+    if type(mirror.name) == 'string' and mirror.name ~= '' then source.name = mirror.name end
+
+    table.insert(sources, source)
+  end
+
+  return sources
+end
+
+local SigstoreIssuer = 'https://token.actions.githubusercontent.com'
+local WorkflowPath = '.github/workflows/build_site.yml'
+
+--- The identity of releases the site's own workflow signed, before modGlobalBuild signed them.
+function records.workflowIdentity(site: model.Site, ref: string): string
+  return `{site.repository_url}/{WorkflowPath}@{ref}`
+end
+
+--- The certificate identity a run signs with: the one the environment names, else the site's
+--- own workflow at `ref`; `` for a project that is not signed.
+function records.signingIdentity(project: model.Project, site: model.Site, ref: string, declared: string?): string
+  if not project.sigstore then return '' end
+
+  return if declared and declared ~= '' then declared else records.workflowIdentity(site, ref)
+end
+
+function records.artifactSignatures(
+  project: model.Project,
+  site: model.Site,
+  release: model.Published,
+  releaseName: string,
+  artifact: Document,
+  ref: string
+): { Document }
+  if not project.sigstore or artifact.format == 'crate' then return json.array({} :: { Document }) end
+
+  return json.array {
+    object({ 'format', 'url', 'issuer', 'identity' }, {
+      format = 'sigstore-bundle',
+      url = `{site.repository_url}/releases/download/{releaseName}/{tostring(artifact.filename)}.sigstore.json`,
+      issuer = SigstoreIssuer,
+      identity = release.locked.signing_identity or records.workflowIdentity(site, ref),
+    }),
+  }
+end
+
+local ArtifactKeys = { 'id', 'format', 'filename', 'media_type', 'size', 'digests' }
+
+--- A value read from a lock as the writer marks it: arrays by shape, and an empty table by the
+--- name it sits under, so `platforms: []` stays a list and `runtimes: {}` an object.
+local ArrayNames: { [string]: boolean } = {
+  platforms = true,
+  provides = true,
+  relationships = true,
+  components = true,
+  groups = true,
+  critical_extensions = true,
+  artifacts = true,
+  requires = true,
+  conflicts = true,
+  suggested_with = true,
+  data_directories = true,
+  content_files = true,
+  groundcover_files = true,
+  fallback_archives = true,
+  requires_content = true,
+  settings = true,
+  sources = true,
+  signatures = true,
+  tags = true,
+}
+
+--- The key order each object a lock holds is written in, by the name it sits under: what the
+--- template wrote it with, so a lock read and written again keeps its bytes. Items of a list take
+--- the list's name. Keys not named sort after these.
+local KeyOrders: { [string]: { string } } = {
+  artifacts = { 'id', 'format', 'filename', 'media_type', 'size', 'digests', 'platform', 'jess', 'layout' },
+  digests = { 'sha256' },
+  jess = { 'package', 'jess_api', 'content_digest', 'dependencies' },
+  layout = { 'release_document', 'documentation', 'installer' },
+  platform = { 'os', 'arch', 'variant' },
+  platforms = { 'os', 'arch', 'variant' },
+  relationships = { 'kind', 'project', 'capability', 'name', 'version', 'url', 'reason' },
+  components = {
+    'id',
+    'name',
+    'description',
+    'path',
+    'required',
+    'default',
+    'group',
+    'requires',
+    'conflicts',
+    'suggested_with',
+    'data_directories',
+    'content_files',
+    'groundcover_files',
+    'fallback_archives',
+    'fallback_entries',
+    'config',
+    'requires_content',
+  },
+  groups = { 'id', 'name', 'select', 'description' },
+  openmw = { 'components', 'requires_content', 'settings', 'lua_api' },
+  settings = { 'category', 'key', 'value' },
+  extensions = { 'openmw' },
+  sources = { 'url', 'kind', 'name' },
+  signatures = { 'format', 'url', 'issuer', 'identity' },
+}
+
+--- `value` read from a lock, marked as the writer marks it: a list by its shape, an empty table by
+--- the name it sits under (`own`), and an object's keys in the order of its own name or, for a
+--- value under a key with no order of its own (a component's id under
+--- extensions.openmw.components, an item of a list), the name handed down (`inherited`).
+local function remarked(value: unknown, own: string?, inherited: string?): unknown
+  if type(value) ~= 'table' then return value end
+
+  local table_ = value :: { [unknown]: unknown }
+  local count, sequential = 0, true
+
+  for key in table_ do
+    count += 1
+    if type(key) ~= 'number' then sequential = false end
+  end
+
+  local orderName = if own and (KeyOrders[own :: string] or ArrayNames[own :: string]) then own else inherited
+
+  if (count > 0 and sequential) or (count == 0 and own ~= nil and ArrayNames[own :: string]) then
+    local out = json.array()
+    for index, item in ipairs(table_ :: { unknown }) do
+      out[index] = remarked(item, nil, orderName)
+    end
+
+    return out
+  end
+
+  local out = json.object({}, if orderName then KeyOrders[orderName :: string] else nil)
+  for key, item in table_ do
+    out[tostring(key)] = remarked(item, tostring(key), orderName)
+  end
+
+  return out
+end
+
+--- One recorded release as `mod.lock` writes it: version, where it was built from, who signed it,
+--- its archives, then what it meant.
+function records.lockDocument(locked: model.Locked): Document
+  local document = object(
+    { 'version', 'locked_from', 'signing_identity', 'artifacts', 'runtimes', 'platforms', 'provides', 'relationships', 'components', 'groups', 'extensions', 'critical_extensions' },
+    { version = locked.version, locked_from = locked.locked_from }
+  )
+
+  if locked.signing_identity then document.signing_identity = locked.signing_identity end
+
+  local artifacts = json.array()
+
+  for _, artifact in ipairs(locked.artifacts) do
+    local ordered = object({ 'id', 'format', 'filename', 'media_type', 'size', 'digests', 'platform', 'jess', 'layout' })
+    for key, item in artifact do
+      ordered[key] = remarked(item, key)
+    end
+
+    table.insert(artifacts, ordered)
+  end
+
+  document.artifacts = artifacts
+
+  for key, item in locked.semantics do
+    document[key] = remarked(item, key)
+  end
+
+  return document
+end
+
+--- Writes `project`'s `mod.lock` with `releases` in version order, and answers its path.
+function records.writeLock(project: model.Project, root: string, releases: { model.Locked }): string
+  local ordered = table.clone(releases)
+  table.sort(ordered, function(left: model.Locked, right: model.Locked): boolean
+    return version.compare(left.parsed, right.parsed) < 0
+  end)
+
+  local documents: { Document } = json.array({} :: { Document })
+
+  for _, locked in ordered do
+    table.insert(documents, records.lockDocument(locked))
+  end
+
+  local document = object({ 'schema_version', 'document', 'project', 'note', 'releases' }, {
+    schema_version = records.SCHEMA_VERSION,
+    document = 'lock',
+    project = project.id,
+    note = 'Written by CI when a release tag is pushed: what each published release\'s archive contains. Do not edit.',
+    releases = json.array(documents),
+  })
+  local path = fs.join(root, project.directory, 'mod.lock')
+  util.write(path, json.encode(document, true))
+
+  return path
+end
+
+--- The release document of a published release: its status from the declaration, its source,
+--- its notes, what the lock recorded it meant, and each archive with where it downloads from and
+--- how it was signed.
+function records.releaseDocument(
+  project: model.Project,
+  site: model.Site,
+  release: model.Published,
+  releaseName: string,
+  ref: string
+): Document
+  local declared = release.declared
+  local document = object(
+    {
+      'version',
+      'channel',
+      'date',
+      'status',
+      'yanked',
+      'deprecated',
+      'source',
+      'notes',
+      'runtimes',
+      'platforms',
+      'provides',
+      'relationships',
+      'components',
+      'groups',
+      'extensions',
+      'critical_extensions',
+      'artifacts',
+    },
+    { version = release.locked.version, channel = release.channel, status = 'available' }
+  )
+
+  if release.date then document.date = release.date end
+
+  if declared and declared.yanked then
+    document.status = 'yanked'
+    local notice = object({ 'reason', 'replacement' }, { reason = tostring(declared.yanked) })
+    if declared.replacement then notice.replacement = tostring(declared.replacement) end
+
+    document.yanked = notice
+  elseif declared and declared.deprecated then
+    document.status = 'deprecated'
+    local notice = object({ 'reason', 'replacement' }, { reason = tostring(declared.deprecated) })
+    if declared.replacement then notice.replacement = tostring(declared.replacement) end
+
+    document.deprecated = notice
+  end
+
+  local source = object({ 'repository', 'tag', 'release', 'revision' }, { repository = site.repository_url })
+
+  if release.channel == 'development' then
+    source.release = releaseName
+  else
+    source.tag = release.tag
+  end
+
+  if release.revision then source.revision = release.revision end
+
+  document.source = source
+
+  local notes = records.notesDocument(declared)
+  if hasKeys(notes) then document.notes = notes end
+
+  for key, item in release.locked.semantics do
+    document[key] = remarked(item, key)
+  end
+
+  local artifacts: { Document } = json.array({} :: { Document })
+
+  for _, artifact in ipairs(release.locked.artifacts) do
+    local entry = object({ 'id', 'format', 'filename', 'media_type', 'size', 'digests', 'platform', 'jess', 'layout', 'sources', 'signatures' })
+
+    for _, key in ArtifactKeys do
+      entry[key] = remarked(artifact[key], key)
+    end
+
+    if artifact.platform ~= nil then entry.platform = remarked(artifact.platform, 'platform') end
+    if artifact.jess ~= nil then entry.jess = remarked(artifact.jess, 'jess') end
+    if artifact.layout ~= nil then entry.layout = remarked(artifact.layout, 'layout') end
+
+    entry.sources = records.artifactSources(project, site, releaseName, artifact)
+    entry.signatures = records.artifactSignatures(project, site, release, releaseName, artifact, ref)
+    table.insert(artifacts, entry)
+  end
+
+  document.artifacts = artifacts
+
+  return document
+end
+
+--- What a published archive is: the artifact ids, sizes and digests, so two releases of one
+--- version can be told apart.
+function records.fingerprint(locked: model.Locked): string
+  local parts = {}
+
+  for _, artifact in ipairs(locked.artifacts) do
+    local digests: Document = if type(artifact.digests) == 'table' then artifact.digests :: Document else {}
+    table.insert(parts, `{tostring(artifact.id)}:{tostring(artifact.size)}:{tostring(digests.sha256)}`)
+  end
+
+  return table.concat(parts, ' ')
+end
+
+--- The site's index of `entries`, which are sorted by id where they stand.
+function records.siteIndex(site: model.Site, base: string, entries: { Document }): Document
+  table.sort(entries, function(left: Document, right: Document): boolean
+    return (left.id :: string) < (right.id :: string)
+  end)
+
+  return object({ 'schema_version', 'document', 'generator', 'site', 'projects' }, {
+    schema_version = records.SCHEMA_VERSION,
+    document = 'index',
+    generator = records.GENERATOR,
+    site = object({ 'name', 'url' }, { name = site.title, url = base .. '/' }),
+    projects = json.array(entries),
+  })
+end
+
+--- What the site's index says of `project`: where its manifest is, the digest of that
+--- manifest's text, the version each channel is on, and the date of its latest release.
+function records.indexEntry(
+  project: model.Project,
+  base: string,
+  manifestText: string,
+  releases: { Document }?
+): Document
+  local channels = object()
+  for _, release in ipairs(releases or {}) do
+    if release.status == 'available' then channels[release.channel :: string] = release.version end
+  end
+
+  local entry = object(
+    {
+      'id',
+      'name',
+      'summary',
+      'type',
+      'jess_package',
+      'status',
+      'page',
+      'manifest',
+      'manifest_sha256',
+      'updated',
+      'channels',
+    },
+    {
+      id = project.id,
+      name = project.name,
+      type = project.type,
+      status = project.status,
+      page = base .. '/' .. project.page_path,
+      manifest = base .. '/dreamweave/projects/' .. project.id .. '.json',
+      manifest_sha256 = bytes.sha256(manifestText),
+      channels = channels,
+    }
+  )
+
+  if project.summary then entry.summary = project.summary end
+  if project.package_jess then entry.jess_package = (project.package_jess :: model.JessPackage).id end
+
+  local updated: string?
+  for _, release in ipairs(releases or {}) do
+    local date = release.date :: string?
+    if date and (not updated or date > updated) then updated = date end
+  end
+
+  if updated then entry.updated = updated end
+
+  return entry
+end
+
+return records

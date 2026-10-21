@@ -1,6 +1,6 @@
 +++
 title = "Packages"
-description = "Flat, BAIN and FOMOD archives, programs built per platform, Rust libraries on crates.io, components, what ships, and why archives are not compressed."
+description = "Flat, BAIN and FOMOD archives, programs built per platform, Rust libraries on crates.io, Jess packages, components, what ships, and why archives are not compressed."
 weight = 40
 
 [extra]
@@ -21,6 +21,7 @@ a program instead: one zip per platform, built from source. [Programs](#programs
 | `fomod` | The `bain` tree plus a generated `fomod/` installer | MO2 and Vortex run the installer; Wrye Bash and hand installs still see the tree |
 | `binary` | A program for one platform, and the files it ships with | Nobody installs it: unzip and run. See [Programs](#programs) |
 | `crate` | No archive: a Rust library on crates.io | `cargo add`. See [Libraries](#libraries) |
+| `jpk` | A Jess package, packed by jess from its Package Source | `jess workspace sync`, from a `jess.toml` or `jess-workspace.toml` that names it. See [Jess packages](#jess-packages) |
 
 Most mods are `flat`. S3maphore, with a core and seventeen optional playlist packs, is `bain`.
 Choose `fomod` when players install through MO2 or Vortex and there are real choices to make: the
@@ -123,6 +124,38 @@ version on crates.io.
 
 A crate has no components, no `[openmw]` data, no development channel and no mirrors, and a
 repository has at most one, beside at most one program.
+
+## Jess packages
+
+A [Jess](https://github.com/DreamWeave-MP/jess) package is published as a project like any other:
+a page, a `mod.toml`, releases tagged `<slug>-<version>`. What differs is that its archive is a JPK
+jess packs from the package's source, not a zip the template writes.
+
+```toml
+[package]
+format = "jpk"
+jess = "org.example.words"
+```
+
+`jess` names the package the project publishes, the way a crate project names its crate: the id a
+`jess.toml` in this repository declares. The template finds that `jess.toml` among the repository's
+jess workspace members, the folders `jess-workspace.toml` lists, or the repository root itself when
+it holds a `jess.toml` and no workspace file. One project publishes one package, and a repository
+publishes as many packages as it has projects for: a single package at its root, a tool and the
+library it uses as two members, or a dozen under `jpk/`, each with its own page, tags and releases.
+Two projects naming one package is an error, as is a `jpk` project naming none.
+
+A release tag `<slug>-<version>` packs the member at that commit, and its `jess.toml` must say that
+version: the template refuses a tag whose package manifest disagrees, before anything is packed.
+Every push to the default branch packs a development build too, at the version past the newest
+release with a `-dev.<build>` pre-release, by revising the manifest's version line and nothing else;
+jess picks a pre-release only when a requirement names it exactly, so a development build is used
+by whoever asks for it and nobody else. The release's `jpk` artifact carries a `jess` block: the
+package id, its API, its content digest, the one `jess.lock` pins, and the dependencies its
+manifest declares. See [Jess packages](@/guide/protocol/artifacts.md#jess-packages) in the protocol.
+
+A JPK has no documentation inside: a package's docs are its page. It is not game data and not a
+program; nothing but jess installs it.
 
 ## Components
 

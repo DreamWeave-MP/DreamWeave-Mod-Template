@@ -1,0 +1,26 @@
+{
+  links = 25
+  pages = 2
+  problems = {
+    [1] = "index.html: missing target two.html"
+    [2] = "index.html: missing target THREE.html"
+    [3] = "index.html: missing target four.html"
+    [4] = "index.html: missing target six.html"
+    [5] = "index.html: missing target unclosed.html>"
+    [6] = "index.html: missing target seven.html"
+    [7] = "index.html: missing target eight.css"
+    [8] = "index.html: missing target nine.png"
+    [9] = "index.html: missing target ten.js"
+    [10] = "index.html: missing target eleven.webm"
+    [11] = "index.html: missing anchor one.html#&<>\x22''"
+    [12] = "index.html: missing anchor one.html#caf%C3%A9"
+    [13] = "index.html: missing target spaced.html"
+    [14] = "index.html: missing target thirteen.html"
+    [15] = "index.html: missing target x>"
+    [16] = "index.html: missing target fourteen.html"
+    [17] = "index.html: missing target fifteen.html"
+    [18] = "index.html: missing target fifteen.html/"
+    [19] = "index.html: missing target sixteen.html"
+    [20] = "index.html: missing anchor one.html#late"
+  }
+}

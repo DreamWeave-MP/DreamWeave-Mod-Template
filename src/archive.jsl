@@ -1,0 +1,344 @@
+--!strict
+--!native
+-- The zip a release ships as: every entry stored, not compressed, in path order, with no times
+-- and no extra fields, so the same files make the same bytes on every machine. An entry holds
+-- its content, or names a source file that is streamed in pieces and never held whole.
+local bytes = require '@dream/bytes'
+local fs = require '@dream/fs'
+local vfs = require '@vfs'
+
+export type Entry = { path: string, content: string?, source: string?, executable: boolean? }
+
+export type Written = { path: string, size: number, sha256: string, entries: number }
+
+type Row = {
+  path: string,
+  content: string?,
+  source: string?,
+  executable: boolean,
+  size: number,
+  crc: number,
+  offset: number,
+  header: string,
+}
+
+local archive = {}
+
+local Chunk = 256 * 1024
+local Scratch = buffer.create(Chunk)
+
+-- How much `write` holds of small pieces before it hands them to the file as one.
+local Batch = 64 * 1024
+
+-- A zip's records, by the signature each starts with.
+local LocalRecord, CentralRecord, EndRecord = 0x04034b50, 0x02014b50, 0x06054b50
+
+-- What every entry says of itself: the version that reads it, names in UTF-8, the date DOS
+-- counts from, and the mode of a regular file or of an executable one.
+local Version, Utf8Names, Epoch = 20, 0x0800, 33
+local Regular, Executable = 33188, 33261
+
+-- Who made an entry: Unix, which is what makes a reader honour its mode.
+local MadeOnUnix = bit32.bor(bit32.lshift(3, 8), Version)
+
+--- `value` as the number a 32-bit field is written from: an integer goes through its digits.
+local function plain(value: number): number
+  return if type(value :: unknown) == 'integer' then tonumber(tostring(value)) :: number else value
+end
+
+-- Each record is written into one buffer of its own size, field by field. The fields left
+-- alone are the zeros a stored entry with no time, no extra field and no comment has.
+
+local function localHeader(name: string, size: number, crc: number): string
+  local length = #name
+  local out = buffer.create(30 + length)
+  buffer.writeu32(out, 0, LocalRecord)
+  buffer.writeu16(out, 4, Version)
+  buffer.writeu16(out, 6, Utf8Names)
+  buffer.writeu16(out, 12, Epoch)
+  buffer.writeu32(out, 14, plain(crc))
+  buffer.writeu32(out, 18, plain(size))
+  buffer.writeu32(out, 22, plain(size))
+  buffer.writeu16(out, 26, length)
+  buffer.writestring(out, 30, name)
+
+  return buffer.tostring(out)
+end
+
+local function centralHeader(name: string, size: number, crc: number, offset: number, executable: boolean): string
+  local length = #name
+  local out = buffer.create(46 + length)
+  buffer.writeu32(out, 0, CentralRecord)
+  buffer.writeu16(out, 4, MadeOnUnix)
+  buffer.writeu16(out, 6, Version)
+  buffer.writeu16(out, 8, Utf8Names)
+  buffer.writeu16(out, 14, Epoch)
+  buffer.writeu32(out, 16, plain(crc))
+  buffer.writeu32(out, 20, plain(size))
+  buffer.writeu32(out, 24, plain(size))
+  buffer.writeu16(out, 28, length)
+  buffer.writeu32(out, 38, bit32.lshift(if executable then Executable else Regular, 16))
+  buffer.writeu32(out, 42, plain(offset))
+  buffer.writestring(out, 46, name)
+
+  return buffer.tostring(out)
+end
+
+local function endRecord(count: number, size: number, offset: number): string
+  local out = buffer.create(22)
+  buffer.writeu32(out, 0, EndRecord)
+  buffer.writeu16(out, 8, count)
+  buffer.writeu16(out, 10, count)
+  buffer.writeu32(out, 12, plain(size))
+  buffer.writeu32(out, 16, plain(offset))
+
+  return buffer.tostring(out)
+end
+
+function archive.crc32(data: buffer | string): number return bytes.crc32(data) end
+
+--- The size and checksum of what `entry` holds: its content, or its source file read through.
+local function contentInfo(entry: Entry): (number, number)
+  local content = entry.content
+  -- Empty content is content: only an entry with none is read from its source.
+  if content ~= nil then return #content, bytes.crc32(content) end
+
+  local source = entry.source
+  if type(source) ~= 'string' then
+    error(`archive entry {tostring(entry.path)} has neither content nor source`, 0)
+  end
+
+  local stat = vfs.host.stat(source)
+  if not stat or not stat.isFile then error(`archive source is not a file: {source}`, 0) end
+
+  local reader = vfs.host.open(source)
+  local crc, total = 0, 0
+
+  while true do
+    local count = reader:readInto(Scratch, 0, Chunk)
+    if count == 0 then break end
+
+    if count == Chunk then
+      crc = bytes.crc32(Scratch, crc)
+    else
+      local tail = buffer.create(count)
+      buffer.copy(tail, 0, Scratch, 0, count)
+      crc = bytes.crc32(tail, crc)
+    end
+
+    total += count
+  end
+
+  reader:close()
+  if total ~= stat.size then error(`archive source changed while hashing: {source}`, 0) end
+
+  return total, crc
+end
+
+local function pathOrder(left: Entry, right: Entry): boolean return left.path < right.path end
+
+--- Sorts `entries` by path where they stand. Paths that are all strings and all different are
+--- sorted as plain strings, with no call per comparison, and name their entries in turn. Any
+--- other list goes through the comparison, which orders or refuses it as it always has, leaving
+--- a list it refuses as far sorted as it got; so does what is no table, and a table with a
+--- metatable, whose own entries are all `table.sort` reads.
+local function sortByPath(entries: { Entry })
+  if type(entries) ~= 'table' or getmetatable(entries) then
+    table.sort(entries, pathOrder)
+    return
+  end
+
+  local count = #entries
+  local paths = table.create(count) :: { string }
+  local byPath: { [string]: Entry } = {}
+
+  for index = 1, count do
+    local entry = entries[index]
+    -- A gap, or an entry that is no table, is the comparison's to refuse, where the sort meets it.
+    local path = if type(entry) == 'table' then entry.path else nil
+
+    if type(path) ~= 'string' or byPath[path] then
+      table.sort(entries, pathOrder)
+      return
+    end
+
+    paths[index] = path
+    byPath[path] = entry
+  end
+
+  table.sort(paths)
+
+  for index, path in paths do
+    entries[index] = byPath[path]
+  end
+end
+
+--- `entries` sorted by path where they stand, and a row for each with its header and where it
+--- starts; then the offset the last one ends at. A path named twice is an error.
+local function prepared(entries: { Entry }): ({ Row }, number)
+  sortByPath(entries)
+
+  local seen: { [string]: boolean } = {}
+  local rows: { Row } = {}
+  local offset = 0
+
+  for _, entry in ipairs(entries) do
+    if seen[entry.path] then error(`duplicate archive path {entry.path}`, 0) end
+
+    seen[entry.path] = true
+
+    local size, crc = contentInfo(entry)
+    local header = localHeader(entry.path, size, crc)
+
+    table.insert(rows, {
+      path = entry.path,
+      content = entry.content,
+      source = entry.source,
+      executable = entry.executable == true,
+      size = size,
+      crc = crc,
+      offset = offset,
+      header = header,
+    })
+
+    offset += #header + size
+  end
+
+  return rows, offset
+end
+
+--- The archive of `entries` as one string. A build writes with `write`, which streams; this
+--- holds every source file in memory at once.
+function archive.bytes(entries: { Entry }): string
+  local rows, offset = prepared(entries)
+  local chunks: { string } = {}
+
+  for _, row in rows do
+    table.insert(chunks, row.header)
+
+    if row.content ~= nil then
+      table.insert(chunks, row.content)
+      continue
+    end
+
+    local reader = vfs.host.open(row.source :: string)
+
+    while true do
+      local chunk = reader:read(Chunk)
+      if buffer.len(chunk) == 0 then break end
+
+      table.insert(chunks, buffer.tostring(chunk))
+    end
+
+    reader:close()
+  end
+
+  local centralOffset = offset
+
+  for _, row in rows do
+    local header = centralHeader(row.path, row.size, row.crc, row.offset, row.executable)
+    table.insert(chunks, header)
+    offset += #header
+  end
+
+  table.insert(chunks, endRecord(#rows, offset - centralOffset, centralOffset))
+
+  return table.concat(chunks)
+end
+
+--- Writes the archive of `entries` to `path`, making its folder, and says what it wrote.
+function archive.write(path: string, entries: { Entry }): Written
+  local rows = prepared(entries)
+  local done, problem = fs.mkdir(fs.parent(path) :: string, { recursive = true })
+  if not done then error(problem, 0) end
+
+  local writer = vfs.host.openWrite(path, { truncate = true })
+  local sha = bytes.hasher 'sha256'
+  local written, held = 0, 0
+  local pending: { string } = {}
+
+  local function put(data: string)
+    local count = writer:write(data)
+    if count ~= #data then error(`short write to {path}`, 0) end
+
+    sha:update(data)
+  end
+
+  local function flush()
+    if #pending == 0 then return end
+
+    put(table.concat(pending))
+    table.clear(pending)
+    held = 0
+  end
+
+  --- Small pieces (headers, the files of a script mod) are held and handed over a batch at a
+  --- time: the file and the digest are fed the same bytes in the same order, in far fewer calls.
+  local function emit(data: string)
+    written += #data
+
+    if #data >= Batch then
+      flush()
+      put(data)
+      return
+    end
+
+    table.insert(pending, data)
+    held += #data
+    if held >= Batch then flush() end
+  end
+
+  local function emitScratch(length: number)
+    flush()
+
+    local count = writer:write(Scratch, 0, length)
+    if count ~= length then error(`short write to {path}`, 0) end
+
+    if length == Chunk then
+      sha:update(Scratch)
+    else
+      local tail = buffer.create(length)
+      buffer.copy(tail, 0, Scratch, 0, length)
+      sha:update(tail)
+    end
+
+    written += length
+  end
+
+  for _, row in rows do
+    emit(row.header)
+
+    if row.content ~= nil then
+      emit(row.content)
+      continue
+    end
+
+    local reader = vfs.host.open(row.source :: string)
+    local copied = 0
+
+    while true do
+      local count = reader:readInto(Scratch, 0, Chunk)
+      if count == 0 then break end
+
+      emitScratch(count)
+      copied += count
+    end
+
+    reader:close()
+    if copied ~= row.size then error(`archive source changed while writing: {row.source}`, 0) end
+  end
+
+  local centralOffset = written
+
+  for _, row in rows do
+    emit(centralHeader(row.path, row.size, row.crc, row.offset, row.executable))
+  end
+
+  emit(endRecord(#rows, written - centralOffset, centralOffset))
+  flush()
+  writer:close()
+
+  return { path = path, size = written, sha256 = sha:finish(), entries = #rows }
+end
+
+return archive

@@ -1,0 +1,13 @@
+{
+  links = 0
+  pages = 7
+  problems = {
+    [1] = "c.html: unbalanced HTML, </div> closes nothing"
+    [2] = "c.html: unbalanced HTML, </ul> closes nothing"
+    [3] = "d.html: unbalanced HTML, never closed: ol, nav, dl"
+    [4] = "deep/index.html: unbalanced HTML, </table> closes div"
+    [5] = "deep/index.html: unbalanced HTML, never closed: table, div"
+    [6] = "e.html: unbalanced HTML, </ol> closes ul"
+    [7] = "f.HTML: unbalanced HTML, never closed: div"
+  }
+}
