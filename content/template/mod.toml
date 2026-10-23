@@ -18,6 +18,13 @@ format = "jpk"
 jess = "org.dreamweave.mod-template"
 
 [[releases]]
+version = "0.4.0"
+date = 2026-10-23
+summary = "Every protocol document is written at schema_version 4, and a Jess package can release an application: a packed workspace and an executable per platform, which jess install installs."
+breaking = ["Sites are written at protocol schema_version 4, which jess reads from 0.2.0 on: an older jess can't sync packages from a site built with this release."]
+added = ["`[package] application` in mod.toml releases a jpk project as an application too: CI packs it into dist/application with the jess image, named by StroggForge's jess_application input, and the release records the .jsw as a jsw artifact with its jess_workspace block and each platform's executable as a zipped binary artifact."]
+
+[[releases]]
 version = "0.3.2"
 date = 2026-10-21
 summary = "Magick is taken from 0.1.2 within 0.1 rather than exactly 0.1.2, so a site can build with Magick's newer releases."
