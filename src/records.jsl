@@ -23,9 +23,11 @@ export type Artifact = {
   layout: unknown,
   --- For a jpk artifact: the package inside, its API, its content digest and its dependencies.
   jess: Document?,
+  --- For a jsw artifact: the application inside, what it runs and every package it pins.
+  jess_workspace: Document?,
 }
 
-local records = { SCHEMA_VERSION = '3', GENERATOR = 'DreamWeave Mod Template 0.3.0' }
+local records = { SCHEMA_VERSION = '4', GENERATOR = 'DreamWeave Mod Template 0.3.0' }
 
 -- What a release document says of a release, in the order it says it.
 local Semantics = {
@@ -447,7 +449,7 @@ function records.developmentRelease(
 
   if artifact then
     local document = object(
-      { 'id', 'format', 'filename', 'media_type', 'size', 'digests', 'jess', 'layout', 'sources', 'signatures' },
+      { 'id', 'format', 'filename', 'media_type', 'size', 'digests', 'jess', 'jess_workspace', 'layout', 'sources', 'signatures' },
       {
         id = artifact.id,
         format = artifact.format,
@@ -456,6 +458,7 @@ function records.developmentRelease(
         size = artifact.size,
         digests = object({ 'sha256' }, { sha256 = artifact.digests.sha256 }),
         jess = artifact.jess,
+        jess_workspace = artifact.jess_workspace,
         layout = artifact.layout,
       }
     )
@@ -592,15 +595,17 @@ local ArrayNames: { [string]: boolean } = {
   sources = true,
   signatures = true,
   tags = true,
+  targets = true,
 }
 
 --- The key order each object a lock holds is written in, by the name it sits under: what the
 --- template wrote it with, so a lock read and written again keeps its bytes. Items of a list take
 --- the list's name. Keys not named sort after these.
 local KeyOrders: { [string]: { string } } = {
-  artifacts = { 'id', 'format', 'filename', 'media_type', 'size', 'digests', 'platform', 'jess', 'layout' },
+  artifacts = { 'id', 'format', 'filename', 'media_type', 'size', 'digests', 'platform', 'jess', 'jess_workspace', 'layout' },
   digests = { 'sha256' },
   jess = { 'package', 'jess_api', 'content_digest', 'dependencies' },
+  jess_workspace = { 'package', 'builtin', 'default', 'targets', 'commands', 'packages' },
   layout = { 'release_document', 'documentation', 'installer' },
   platform = { 'os', 'arch', 'variant' },
   platforms = { 'os', 'arch', 'variant' },
@@ -679,7 +684,7 @@ function records.lockDocument(locked: model.Locked): Document
   local artifacts = json.array()
 
   for _, artifact in ipairs(locked.artifacts) do
-    local ordered = object({ 'id', 'format', 'filename', 'media_type', 'size', 'digests', 'platform', 'jess', 'layout' })
+    local ordered = object({ 'id', 'format', 'filename', 'media_type', 'size', 'digests', 'platform', 'jess', 'jess_workspace', 'layout' })
     for key, item in artifact do
       ordered[key] = remarked(item, key)
     end
@@ -794,7 +799,7 @@ function records.releaseDocument(
   local artifacts: { Document } = json.array({} :: { Document })
 
   for _, artifact in ipairs(release.locked.artifacts) do
-    local entry = object({ 'id', 'format', 'filename', 'media_type', 'size', 'digests', 'platform', 'jess', 'layout', 'sources', 'signatures' })
+    local entry = object({ 'id', 'format', 'filename', 'media_type', 'size', 'digests', 'platform', 'jess', 'jess_workspace', 'layout', 'sources', 'signatures' })
 
     for _, key in ArtifactKeys do
       entry[key] = remarked(artifact[key], key)
@@ -802,6 +807,7 @@ function records.releaseDocument(
 
     if artifact.platform ~= nil then entry.platform = remarked(artifact.platform, 'platform') end
     if artifact.jess ~= nil then entry.jess = remarked(artifact.jess, 'jess') end
+    if artifact.jess_workspace ~= nil then entry.jess_workspace = remarked(artifact.jess_workspace, 'jess_workspace') end
     if artifact.layout ~= nil then entry.layout = remarked(artifact.layout, 'layout') end
 
     entry.sources = records.artifactSources(project, site, releaseName, artifact)

@@ -13,6 +13,7 @@ local commands = require '@dreamweave/mod-template/commands'
 local bytes = require '@dream/bytes'
 local fs = require '@dream/fs'
 local gitIndex = require '@dreamweave/mod-template/git-index'
+local jessJpk = require '@jess/jpk'
 local jessJson = require '@jess/json'
 local jessPackage = require '@jess/package'
 local model = require '@dreamweave/mod-template/model'
@@ -728,7 +729,7 @@ suite.describe('records', function()
   end
 
   suite.it('names its schema and its generator', function()
-    expect(records.SCHEMA_VERSION).toBe '3'
+    expect(records.SCHEMA_VERSION).toBe '4'
     expect(records.GENERATOR).toBe 'DreamWeave Mod Template 0.3.0'
   end)
 
@@ -1263,13 +1264,14 @@ suite.describe('locks and release state', function()
     expect(model.releaseState(repo, beta).published).toEqual {}
   end)
 
-  suite.it('writes a lock back the way CI wrote it', function()
+  suite.it('writes a lock back the way CI wrote it, at the schema_version it writes now', function()
     local root = support.repository(support.emptied(scratch, 'lock-write'))
     local before = support.read(`{root}/content/alpha/mod.lock`)
     local repo = model.load(root)
     local alpha = assert(model.projectBySlug(repo, 'alpha'))
     records.writeLock(alpha, root, repo.locks[alpha.id])
-    expect(support.read(`{root}/content/alpha/mod.lock`)).toBe(before)
+    local current = string.gsub(before, '"schema_version": "3"', '"schema_version": "4"', 1)
+    expect(support.read(`{root}/content/alpha/mod.lock`)).toBe(current)
   end)
 end)
 
@@ -1357,10 +1359,10 @@ suite.describe('release and record', function()
     expect(artifact.digests).toEqual { sha256 = bytes.sha256(archive) }
     expect((artifact.jess :: { [string]: unknown }).content_digest).toBe(opened.digest)
 
-    -- Recorded, the lock says schema_version 3 and reads back as it was written.
+    -- Recorded, the lock says schema_version 4 and reads back as it was written.
     expect(build.record(root, `{dist}/release.json`)).toBe(`{root}/content/zeta/mod.lock`)
     local lockText = support.read(`{root}/content/zeta/mod.lock`)
-    expect((string.find(lockText, '"schema_version": "3"', 1, true)) ~= nil).toBe(true)
+    expect((string.find(lockText, '"schema_version": "4"', 1, true)) ~= nil).toBe(true)
     expect((string.find(lockText, `"content_digest": "{opened.digest}"`, 1, true)) ~= nil).toBe(true)
     local recorded = model.load(root)
     expect(recorded.errors).toEqual {}
@@ -1374,7 +1376,7 @@ suite.describe('release and record', function()
     local dist2 = support.emptied(scratch, 'release-jpk-dist-2')
     build.build(root, { workspace = work, dist = dist2, date = '2026-01-01', buildNumber = 3 })
     local manifest = jessJson.decode(support.read(`{root}/static/dreamweave/projects/zeta-id.json`)) :: { [string]: unknown }
-    expect(manifest.schema_version).toBe '3'
+    expect(manifest.schema_version).toBe '4'
     local releases = manifest.releases :: { { [string]: unknown } }
     expect([for entry in releases => entry.version]).toEqual { '0.1.1-dev.3', '0.1.0' }
     local development = (releases[1].artifacts :: { { [string]: unknown } })[1]
@@ -1410,6 +1412,114 @@ suite.describe('release and record', function()
     expect(missing.errors).toEqual {
       `content/zeta/mod.toml: jess = "org.fixture.zeta" names no Package Source of this repository's jess workspace: there is no jess-workspace.toml and no jess.toml at the root`,
     }
+  end)
+
+  suite.it("records a Jess package's application from what CI packed into dist/application", function()
+    local root = support.repository(support.emptied(scratch, 'release-application'))
+    local work, dist = support.emptied(scratch, 'release-application-work'), support.emptied(scratch, 'release-application-dist')
+    support.write(`{root}/.git/packed-refs`, '0123456789abcdef0123456789abcdef01234567 refs/tags/zeta-0.1.0\n')
+    local manifest = support.read(`{root}/content/zeta/mod.toml`)
+    local declared = string.gsub(
+      manifest,
+      'jess = "org.fixture.zeta"\n',
+      'jess = "org.fixture.zeta"\napplication = "zeta"\n\n[[platforms]]\nos = "linux"\narch = "x86_64"\n\n[[platforms]]\nos = "windows"\narch = "x86_64"\n',
+      1
+    )
+    support.write(`{root}/content/zeta/mod.toml`, declared)
+
+    -- What `jess workspace pack --runtimes` leaves: the packed workspace, and an executable per
+    -- runtime. The template reads the packed workspace's index and its packages' manifests.
+    local inner = jessJpk.write {
+      {
+        path = 'jess.toml',
+        data = buffer.fromstring '[package]\nid = "org.fixture.zeta"\n\n[targets.hello]\ncommand = "zeta"\n',
+      },
+    }
+
+    local index = table.concat({
+      'format = "jess-packed-workspace"',
+      'format_version = 1',
+      'builtin = "0.1.0"',
+      'default = "org.fixture.zeta:hello"',
+      '',
+      '[[target]]',
+      'package = "org.fixture.zeta"',
+      'id = "hello"',
+      '',
+      '[[package]]',
+      'id = "org.fixture.zeta"',
+      'version = "0.1.0"',
+      `digest = "{string.rep('a', 64)}"`,
+    }, '\n')
+
+    local packed = jessJpk.write {
+      { path = 'jsw.toml', data = buffer.fromstring(`{index}\n`), store = true },
+      { path = 'packages/org.fixture.zeta-0.1.0.jpk', data = inner, store = true },
+    }
+    support.write(`{dist}/application/zeta.jsw`, buffer.tostring(packed))
+    support.write(`{dist}/application/zeta-Linux-X64`, 'a linux executable')
+
+    expect(function() build.release(root, 'zeta-0.1.0', { workspace = work, dist = dist }) end).toThrow 'missing from dist/application/: zeta-Windows-X64.exe'
+
+    support.write(`{dist}/application/zeta-Windows-X64.exe`, 'a windows executable')
+    local released = build.release(root, 'zeta-0.1.0', { workspace = work, dist = dist })
+    expect([for artifact in released.artifacts => artifact.filename]).toEqual {
+      'org.fixture.zeta-0.1.0.jpk',
+      'zeta-0.1.0.jsw',
+      'zeta-Linux-X64.zip',
+      'zeta-Windows-X64.zip',
+    }
+
+    local application = released.artifacts[2]
+    expect(application.format).toBe 'jsw'
+    expect(application.media_type).toBe 'application/vnd.jess.jsw'
+    expect(application.digests).toEqual { sha256 = bytes.sha256(packed) }
+    expect(support.read(`{dist}/zeta-0.1.0.jsw`)).toBe(buffer.tostring(packed))
+    local block = application.jess_workspace :: { [string]: unknown }
+    expect(block.package).toBe 'org.fixture.zeta'
+    expect(block.builtin).toBe '0.1.0'
+    expect(block.default).toBe 'org.fixture.zeta:hello'
+    expect(block.targets).toEqual { 'org.fixture.zeta:hello' }
+    expect(block.commands).toEqual { zeta = 'org.fixture.zeta:hello' }
+    expect(block.packages).toEqual { ['org.fixture.zeta'] = { version = '0.1.0', content_digest = string.rep('a', 64) } }
+
+    -- Each executable ships zipped as the program it is, under the application's name.
+    local windows = released.artifacts[4]
+    expect(windows.format).toBe 'binary'
+    expect((windows :: { [string]: unknown }).platform).toEqual { os = 'windows', arch = 'x86_64' }
+    local zipped = jessJpk.open(buffer.fromstring(support.read(`{dist}/zeta-Windows-X64.zip`)))
+    expect([for entry in zipped.entries => entry.path]).toEqual { 'zeta.exe' }
+    expect(buffer.tostring(zipped.read 'zeta.exe')).toBe 'a windows executable'
+
+    -- Recorded, the lock keeps the block, and the manifest publishes it.
+    build.record(root, `{dist}/release.json`)
+    expect((string.find(support.read(`{root}/content/zeta/mod.lock`), '"jess_workspace"', 1, true)) ~= nil).toBe(true)
+    build.build(root, { workspace = work, dist = support.emptied(scratch, 'release-application-build'), date = '2026-01-01', buildNumber = 3 })
+    local published = jessJson.decode(support.read(`{root}/static/dreamweave/projects/zeta-id.json`)) :: { [string]: unknown }
+    local releases = published.releases :: { { [string]: unknown } }
+    local formats = [for artifact in releases[2].artifacts :: { { [string]: unknown } } => artifact.format]
+    expect(formats).toEqual { 'jpk', 'jsw', 'binary', 'binary' }
+  end)
+
+  suite.it('gives an application only to a jpk project, under a file name, on platforms jess runs on', function()
+    local root = support.repository(support.emptied(scratch, 'application-model'))
+    local manifest = support.read(`{root}/content/zeta/mod.toml`)
+    support.write(
+      `{root}/content/zeta/mod.toml`,
+      string.gsub(manifest, 'jess = "org.fixture.zeta"\n', 'jess = "org.fixture.zeta"\napplication = "../zeta"\n', 1)
+    )
+    expect(model.load(root).errors).toEqual { 'content/zeta/mod.toml: application = "../zeta" must be a file name: letters, digits, \'.\', \'_\' and \'-\'' }
+
+    support.write(
+      `{root}/content/zeta/mod.toml`,
+      string.gsub(
+        manifest,
+        'jess = "org.fixture.zeta"\n',
+        'jess = "org.fixture.zeta"\napplication = "zeta"\n\n[[platforms]]\nos = "linux"\narch = "aarch64"\nvariant = "muos"\n',
+        1
+      )
+    )
+    expect(model.load(root).errors).toEqual { 'content/zeta/mod.toml: [[platforms]] linux aarch64 muos has no jess runtime to carry the application' }
   end)
 
   suite.it('names the site files that replace the theme\'s, and leaves the branding hook alone', function()

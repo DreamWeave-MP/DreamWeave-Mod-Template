@@ -100,7 +100,7 @@
           "id": "manifest",
           "label": "Manifest",
           "state": "pass",
-          "detail": "schema_version 3, 2 release(s) published"
+          "detail": "schema_version 4, 2 release(s) published"
         },
         {
           "id": "releases",
@@ -230,7 +230,7 @@
           "id": "manifest",
           "label": "Manifest",
           "state": "pass",
-          "detail": "schema_version 3, 1 release(s) published"
+          "detail": "schema_version 4, 1 release(s) published"
         },
         {
           "id": "releases",
@@ -475,7 +475,7 @@
           "id": "manifest",
           "label": "Manifest",
           "state": "pass",
-          "detail": "schema_version 3, 1 release(s) published"
+          "detail": "schema_version 4, 1 release(s) published"
         },
         {
           "id": "releases",
@@ -553,7 +553,7 @@
           "id": "manifest",
           "label": "Manifest",
           "state": "pass",
-          "detail": "schema_version 3, 0 release(s) published"
+          "detail": "schema_version 4, 0 release(s) published"
         },
         {
           "id": "releases",
@@ -625,7 +625,7 @@
           "id": "manifest",
           "label": "Manifest",
           "state": "pass",
-          "detail": "schema_version 3, 0 release(s) published"
+          "detail": "schema_version 4, 0 release(s) published"
         },
         {
           "id": "releases",
@@ -748,7 +748,7 @@
           "id": "manifest",
           "label": "Manifest",
           "state": "pass",
-          "detail": "schema_version 3, 1 release(s) published"
+          "detail": "schema_version 4, 1 release(s) published"
         },
         {
           "id": "releases",

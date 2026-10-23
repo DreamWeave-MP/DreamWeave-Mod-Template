@@ -8,6 +8,7 @@ local bytes = require '@dream/bytes'
 local fs = require '@dream/fs'
 local gitIndex = require './git_index'
 local jessJson = require '@jess/json'
+local jessJpk = require '@jess/jpk'
 local jessPackage = require '@jess/package'
 local json = require '@dreamweave/site/json'
 local magick = require '@magick'
@@ -16,6 +17,7 @@ local offline = require './offline'
 local records = require './records'
 local process = require '@dream/process'
 local site = require '@dreamweave/site'
+local toml = require '@jess/data/toml'
 local theme = require '@dreamweave/theme'
 local util = require './util'
 local version = require './version'
@@ -809,6 +811,139 @@ local function collectBinaries(repo: model.Repository, project: model.Project, d
   return artifacts, missing
 end
 
+type Fields = { [string]: unknown }
+
+--- What the packed workspace `data` runs and holds, as its own `jsw.toml` and its packages'
+--- manifests say: the `jess_workspace` block a `jsw` artifact carries. Refused unless it is named
+--- for `package`, the Jess package the project publishes.
+local function applicationBlock(data: buffer, package: string, where: string): Document
+  local packed = jessJpk.open(data)
+
+  if not packed.find 'jsw.toml' then error(`{where} is not a packed workspace: it has no jsw.toml`, 0) end
+
+  local index = toml.decode(buffer.tostring(packed.read 'jsw.toml')) :: Fields
+  local targets, packages, commands = json.array(), object(), object()
+  local exported: { [string]: { string } } = {}
+
+  for _, row in (index.target or {}) :: { Fields } do
+    local owner, id = tostring(row.package), tostring(row.id)
+    table.insert(targets, `{owner}:{id}`)
+    exported[owner] = exported[owner] or {}
+    table.insert(exported[owner], id)
+  end
+
+  table.sort(targets)
+
+  for _, row in (index.package or {}) :: { Fields } do
+    local id, release = tostring(row.id), tostring(row.version)
+    packages[id] = object({ 'version', 'content_digest' }, { version = release, content_digest = tostring(row.digest) })
+
+    if not exported[id] then continue end
+
+    local inner = jessJpk.open(packed.source(`packages/{id}-{release}.jpk`))
+    local manifest = toml.decode(buffer.tostring(inner.read 'jess.toml')) :: Fields
+    local declared = (manifest.targets or {}) :: { [string]: Fields }
+
+    for _, target in exported[id] do
+      local entry: Fields = declared[target] or {}
+      local command = entry.command
+      if command ~= nil then commands[tostring(command)] = `{id}:{target}` end
+    end
+  end
+
+  local default = if index.default ~= nil then tostring(index.default) else nil
+  local named = if default then string.match(default, '^([^:]+):') else nil
+
+  if not named then
+    local owners: { string } = {}
+
+    for owner in exported do
+      table.insert(owners, owner)
+    end
+
+    if #owners == 1 then named = owners[1] end
+  end
+
+  if named ~= package then
+    error(`{where} is named for {tostring(named)}, not {package}, the package this project publishes`, 0)
+  end
+
+  local block = object({ 'package', 'builtin', 'default', 'targets', 'commands', 'packages' }, {
+    package = package,
+    builtin = tostring(index.builtin),
+    targets = targets,
+    commands = commands,
+    packages = packages,
+  })
+
+  if default then block.default = default end
+
+  return block
+end
+
+--- A jpk project's application, as CI packed it into `dist/application` with `jess workspace
+--- pack --runtimes`: the packed workspace as a `jsw` artifact, copied to `dist` unchanged and
+--- described as its own `jsw.toml` describes it, and each platform's executable zipped as the
+--- `binary` artifact a program's release has. Answers the artifacts and the files missing.
+local function collectApplication(project: model.Project, released: version.Version, dist: string): ({ records.Artifact }, { string })
+  local name = tostring(project.package_application)
+  local folder = fs.join(dist, 'application')
+  local artifacts: { records.Artifact }, missing: { string } = {}, {}
+  local packedName = `{name}.jsw`
+  local data = fs.readFile(fs.join(folder, packedName))
+
+  if not data then
+    table.insert(missing, packedName)
+  else
+    local bytesOf = data :: buffer
+    local filename = `{name}-{released.text}.jsw`
+    local written, problem = fs.writeFile(fs.join(dist, filename), bytesOf, { atomic = true, createParents = true })
+    if not written then error(problem, 0) end
+
+    local package = (project.package_jess :: model.JessPackage).id
+
+    table.insert(artifacts, {
+      id = 'jsw',
+      format = 'jsw',
+      filename = filename,
+      media_type = 'application/vnd.jess.jsw',
+      size = buffer.len(bytesOf),
+      digests = { sha256 = bytes.sha256(bytesOf) },
+      layout = nil,
+      jess_workspace = applicationBlock(bytesOf, package, `dist/application/{packedName}`),
+    } :: records.Artifact)
+  end
+
+  for _, platform in ipairs(project.platforms) do
+    local executable = model.applicationExecutable(project, platform) :: string
+    local source = fs.join(folder, executable)
+
+    if not fs.isFile(source) then
+      table.insert(missing, executable)
+      continue
+    end
+
+    local inside = if platform.system == 'windows' then `{name}.exe` else name
+    local filename = model.applicationArchive(project, platform)
+    local result = archive.write(fs.join(dist, filename), { { path = inside, source = source, executable = true } })
+    local document = object({ 'os', 'arch', 'variant' }, { os = platform.system, arch = platform.architecture })
+    if platform.variant then document.variant = platform.variant end
+
+    table.insert(artifacts, {
+      id = model.platformId(platform),
+      format = 'binary',
+      filename = filename,
+      media_type = 'application/zip',
+      size = result.size,
+      digests = { sha256 = result.sha256 },
+      layout = nil,
+      platform = document,
+    } :: records.Artifact)
+  end
+
+  return artifacts, missing
+end
+
 --- `dist/release-notes.md`: the GitHub Release body, from the same notes as the changelog.
 local function writeReleaseNotes(repo: model.Repository, project: model.Project, released: version.Version, artifacts: { records.Artifact }, base: string, dist: string)
   local notes = records.notesDocument(model.declaredRelease(project, released.text))
@@ -939,6 +1074,19 @@ function build.release(root: string, tag: string, options: Options?): Released
     end
 
     artifacts = { packJess(repo, project, released, dist) }
+
+    if project.package_application ~= nil then
+      local application, missing = collectApplication(project, released, dist)
+
+      if #missing > 0 then
+        error(
+          `{tag}: the packed application is missing from dist/application/: {table.concat(missing, ', ')}. CI packs it there first: jess workspace pack --output dist/application/{tostring(project.package_application)}.jsw --runtimes <a folder of jess runtimes>.`,
+          0
+        )
+      end
+
+      table.move(application, 1, #application, #artifacts + 1, artifacts)
+    end
   else
     local workspace = given.workspace or '/tmp/dreamweave-mod-template'
     local made, madeProblem = fs.mkdir(workspace, { recursive = true })
@@ -969,7 +1117,7 @@ function build.release(root: string, tag: string, options: Options?): Released
       return if identity == '' then nil else identity
     end)(),
     artifacts = [for artifact in artifacts => (function(): Document
-      local document = object({ 'id', 'format', 'filename', 'media_type', 'size', 'digests', 'platform', 'jess', 'layout' }, {
+      local document = object({ 'id', 'format', 'filename', 'media_type', 'size', 'digests', 'platform', 'jess', 'jess_workspace', 'layout' }, {
         id = artifact.id,
         format = artifact.format,
         filename = artifact.filename,
@@ -979,6 +1127,7 @@ function build.release(root: string, tag: string, options: Options?): Released
       })
       if (artifact :: Document).platform ~= nil then document.platform = (artifact :: Document).platform end
       if artifact.jess ~= nil then document.jess = artifact.jess end
+      if artifact.jess_workspace ~= nil then document.jess_workspace = artifact.jess_workspace end
       if artifact.layout ~= nil then document.layout = artifact.layout end
 
       return document

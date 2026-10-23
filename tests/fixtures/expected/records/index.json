@@ -1,5 +1,5 @@
 {
-  "schema_version": "3",
+  "schema_version": "4",
   "document": "index",
   "generator": "DreamWeave Mod Template 0.3.0",
   "site": {
@@ -15,7 +15,7 @@
       "status": "active",
       "page": "https://base.test/beta/",
       "manifest": "https://base.test/dreamweave/projects/beta-id.json",
-      "manifest_sha256": "06ea1d81ce95afb2c95c55b9a914d6e9a7208ad2ece4cf0dc10e9b0dd254efe2",
+      "manifest_sha256": "8bb6c8f7d3c9f55d82c1f474f95211ee473bbacab7fe4ecb37157d15e3dcab71",
       "updated": "2026-01-01",
       "channels": {
         "development": "0.61-dev.1",
@@ -30,7 +30,7 @@
       "status": "active",
       "page": "https://base.test/gamma/",
       "manifest": "https://base.test/dreamweave/projects/gamma-id.json",
-      "manifest_sha256": "2857b2b9338178e84c35b163dc079d5d2270c8e523dc64daf9e50fbbde147828",
+      "manifest_sha256": "1e8cef01782695adb0c4e1348952b425523d2935685913c5d337219c6d86ca3f",
       "channels": {}
     }
   ]

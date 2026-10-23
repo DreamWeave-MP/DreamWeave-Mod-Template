@@ -113,6 +113,9 @@ export type Project = {
   --- `[package] jess`, the id of the Jess package a `jpk` project publishes, as written.
   package_jess_name: unknown,
   package_jess: JessPackage?,
+  --- `[package] application`, for a `jpk` project: the name its releases' application, a packed
+  --- workspace, and its executables go by, as written.
+  package_application: unknown,
   install: Table,
   media: { Media },
   credits: { Credit },
@@ -450,6 +453,7 @@ local function readProject(root: string, directory: string): Project
     package_crate = package.crate,
     package_jess_name = package.jess,
     package_jess = nil,
+    package_application = package.application,
     install = tableOr(mod.install),
     media = media,
     credits = credits,
@@ -565,16 +569,17 @@ function model.readLock(root: string, project: Project, problems: { string }): {
   end
 
   if type(document) ~= 'table' then
-    table.insert(problems, `{where} is not a schema_version 2 or 3 lock document`)
+    table.insert(problems, `{where} is not a schema_version 2, 3 or 4 lock document`)
     return {}
   end
 
   local fields = document :: Table
+  local readable = fields.schema_version == '2' or fields.schema_version == '3' or fields.schema_version == '4'
 
-  -- A lock written under schema_version 2 reads as it was: version 3 added to artifacts and
-  -- changed nothing a lock already held.
-  if (fields.schema_version ~= '2' and fields.schema_version ~= '3') or fields.document ~= 'lock' then
-    table.insert(problems, `{where} is not a schema_version 2 or 3 lock document`)
+  -- A lock written under an older schema_version reads as it was: each version since 2 only
+  -- added to artifacts, and changed nothing a lock already held.
+  if not readable or fields.document ~= 'lock' then
+    table.insert(problems, `{where} is not a schema_version 2, 3 or 4 lock document`)
     return {}
   end
 
@@ -757,6 +762,37 @@ function model.load(root: string, options: Options?): Repository
     end
   end
 
+  -- An application is a Jess package's releases packed with everything they run, so only a jpk
+  -- project has one, and only for platforms jess itself is released for.
+  for _, project in projects do
+    local application = project.package_application
+
+    if application == nil then continue end
+
+    if project.package_format ~= 'jpk' then
+      table.insert(repo.errors, `{project.directory}/mod.toml: application needs format = "jpk": it is the package's releases, packed`)
+      continue
+    end
+
+    if type(application) ~= 'string' or not string.find(application, '^[%w][%w%._%-]*$') then
+      table.insert(
+        repo.errors,
+        `{project.directory}/mod.toml: application = "{tostring(application)}" must be a file name: letters, digits, '.', '_' and '-'`
+      )
+      continue
+    end
+
+    for _, platform in project.platforms do
+      if model.applicationExecutable(project, platform) then continue end
+
+      local variant = if platform.variant then ` {tostring(platform.variant)}` else ''
+      table.insert(
+        repo.errors,
+        `{project.directory}/mod.toml: [[platforms]] {platform.system} {platform.architecture}{variant} has no jess runtime to carry the application`
+      )
+    end
+  end
+
   for _, project in projects do
     local {directory, versioning} = project
     local channels: { [string]: { Release } } = {}
@@ -901,6 +937,38 @@ function model.binaryArchive(project: Project, platform: Platform): string
   end
 
   return `{tostring(project.package_binary)}-{systemName}-{architectures[platform.architecture] or platform.architecture}{suffix}`
+end
+
+--- What an application's files for `platform` are named after the application's name, as
+--- `jess workspace pack --runtimes` names them from jess's own release archives: `Linux-X64`,
+--- `macOS-ARM64`, `Portmaster-ARM64`. Nil for a platform no jess runtime is released for.
+local function applicationPlatform(platform: Platform): string?
+  local systems: { [string]: string } = { windows = 'Windows', macos = 'macOS', linux = 'Linux' }
+  local architectures: { [string]: string } = { x86_64 = 'X64', aarch64 = 'ARM64' }
+  local system, architecture = systems[platform.system], architectures[platform.architecture]
+
+  if platform.variant == 'portmaster' and platform.system == 'linux' then system = 'Portmaster' end
+
+  if not system or not architecture or (platform.variant and platform.variant ~= 'portmaster') then return nil end
+
+  return `{system}-{architecture}`
+end
+
+--- The executable `jess workspace pack --runtimes` writes for one platform of an application, or
+--- nil when no jess runtime is released for that platform.
+function model.applicationExecutable(project: Project, platform: Platform): string?
+  local label = applicationPlatform(platform)
+
+  if not label then return nil end
+
+  local suffix = if platform.system == 'windows' then '.exe' else ''
+
+  return `{tostring(project.package_application)}-{label}{suffix}`
+end
+
+--- The archive an application's executable for one platform is released in.
+function model.applicationArchive(project: Project, platform: Platform): string
+  return `{tostring(project.package_application)}-{applicationPlatform(platform) or ''}.zip`
 end
 
 --- A token for a platform's artifact id: linux-x64, macos-arm64, linux-arm64-portmaster.
