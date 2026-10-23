@@ -14,7 +14,7 @@ The JSON Schemas are normative for structure; this page is normative for meaning
 
 ```json
 {
-  "schema_version": "3",
+  "schema_version": "4",
   "document": "project",
   "generator": "DreamWeave Mod Template 5.0.0",
   "project": { ... },
@@ -100,7 +100,7 @@ unresolvable targets are client policy.
 
 ```json
 {
-  "schema_version": "3",
+  "schema_version": "4",
   "document": "index",
   "generator": "…",
   "site": { "name": "Cool Mods", "url": "https://you.github.io/cool-mods/" },

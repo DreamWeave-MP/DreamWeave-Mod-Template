@@ -9,8 +9,8 @@ kind = "reference"
 
 ## The core is frozen per major version
 
-`schema_version` is a major version. Within `"3"`, the fields and meanings on these pages do not
-change. A new core field or a changed meaning is `"4"`.
+`schema_version` is a major version. Within `"4"`, the fields and meanings on these pages do not
+change. A new core field or a changed meaning is `"5"`.
 
 That makes validation strict without making evolution painful: an unknown field in the core is
 always an error (a typo, a buggy generator, or a document from the future), never something to guess
@@ -47,9 +47,19 @@ Clients never infer a version from which fields happen to be present.
 ## Deprecation
 
 A field is deprecated by saying so on these pages for at least one major version before it is
-removed. Its meaning does not change while it is deprecated. Version `"2"` is superseded by this
-version, and the V4 template's per-release `.modManifest` (`schema_version: "1"`) before it; their
-schemas stay published at their original URLs for tools that read old sites and old release assets.
+removed. Its meaning does not change while it is deprecated. Versions `"3"` and `"2"` are superseded
+by this version, and the V4 template's per-release `.modManifest` (`schema_version: "1"`) before
+them; their schemas stay published at their original URLs for tools that read old sites and old release assets.
+
+## What version 4 added
+
+One thing: a release's artifact may be a Jess application, `format: "jsw"`, a packed Jess workspace
+with a `jess_workspace` block saying which package names it, the Jess it runs on, the targets and
+commands it exports, and every package it holds, pinned. Its executables are `binary` artifacts as
+any program's are. Everything a version 3 document said, a version 4 document says the same way; a
+version 3 reader that is taught the one addition reads version 4. A site writes every document at
+the version it publishes under, so a reader that only knows version 3 stops at a version 4 site
+and says so, as it must. See [Jess applications](@/guide/protocol/artifacts.md#jess-applications).
 
 ## What version 3 added
 

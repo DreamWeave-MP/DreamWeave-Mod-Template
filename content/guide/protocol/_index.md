@@ -1,6 +1,6 @@
 +++
 title = "Protocol"
-description = "The DreamWeave mod distribution protocol, schema_version 3, for people implementing clients, indexes and mirrors."
+description = "The DreamWeave mod distribution protocol, schema_version 4, for people implementing clients, indexes and mirrors."
 sort_by = "weight"
 weight = 200
 template = "docs/section.html"
@@ -19,7 +19,7 @@ says they mean.
 
 ## The model
 
-A **project** is a mod, library, tool or Jess package with a permanent **id**, a UUID chosen by its
+A **project** is a mod, library, tool, Jess package or Jess application with a permanent **id**, a UUID chosen by its
 author. A project has **releases**, each identified by a **version** within that project. A release
 has **artifacts**, files identified by their SHA-256 digest and available from one or more
 **sources**. A project's **manifest** says all of this; a site's **index** lists the manifests the
@@ -37,11 +37,11 @@ Project identity, release identity and artifact identity are three different thi
 
 | Document | Where | Schema |
 |---|---|---|
-| Site index | `<site>/dreamweave.json` | [dreamweave-index-3.schema.json](../../schemas/dreamweave-index-3.schema.json) |
-| Project manifest | wherever the index or a page's `<link>` says; conventionally `<site>/dreamweave/projects/<id>.json` | [modManifest-3.schema.json](../../schemas/modManifest-3.schema.json) |
-| Release payload | `dreamweave.release.json` at an archive's root | [dreamweave-release-payload-3.schema.json](../../schemas/dreamweave-release-payload-3.schema.json) |
+| Site index | `<site>/dreamweave.json` | [dreamweave-index-4.schema.json](../../schemas/dreamweave-index-4.schema.json) |
+| Project manifest | wherever the index or a page's `<link>` says; conventionally `<site>/dreamweave/projects/<id>.json` | [modManifest-4.schema.json](../../schemas/modManifest-4.schema.json) |
+| Release payload | `dreamweave.release.json` at an archive's root | [dreamweave-release-payload-4.schema.json](../../schemas/dreamweave-release-payload-4.schema.json) |
 
-All three are UTF-8 JSON with `"schema_version": "3"` and a `document` field naming which one it is.
+All three are UTF-8 JSON with `"schema_version": "4"` and a `document` field naming which one it is.
 A client MUST check both before reading anything else.
 
 The pages in this section cover [discovery](@/guide/protocol/discovery.md), the

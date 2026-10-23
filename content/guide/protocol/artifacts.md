@@ -1,6 +1,6 @@
 +++
 title = "Artifacts"
-description = "Digests, sources, verification, signatures, what is inside an archive, and Jess packages."
+description = "Digests, sources, verification, signatures, what is inside an archive, and Jess packages and applications."
 weight = 40
 
 [extra]
@@ -12,13 +12,14 @@ kind = "reference"
 | Field | Meaning |
 |---|---|
 | `id` | Token, unique within the release. |
-| `format` | `flat`, `bain` or `fomod`: game data, laid out as [Installation](@/guide/protocol/installation.md) describes. `binary`: a program built for one platform. `crate`: a Rust crate, as crates.io serves it. `jpk`: a Jess package archive. See [Jess packages](#jess-packages). |
+| `format` | `flat`, `bain` or `fomod`: game data, laid out as [Installation](@/guide/protocol/installation.md) describes. `binary`: a program built for one platform. `crate`: a Rust crate, as crates.io serves it. `jpk`: a Jess package archive. See [Jess packages](#jess-packages). `jsw`: a packed Jess workspace, an application. See [Jess applications](#jess-applications). |
 | `filename` | A suggested file name. Not identity. |
-| `media_type` | `application/zip`; `application/gzip` for `crate`; `application/vnd.jess.jpk` for `jpk`. |
+| `media_type` | `application/zip`; `application/gzip` for `crate`; `application/vnd.jess.jpk` for `jpk`; `application/vnd.jess.jsw` for `jsw`. |
 | `size` | Bytes. |
 | `digests` | `{ "sha256": "<64 lowercase hex>" }`. Further algorithms MAY be added; `sha256` is always present. |
 | `platform` | `{ os, arch, variant? }`, required when `format` is `binary`: the one platform the program runs on. See [Programs](#programs). |
 | `jess` | `{ package, jess_api, content_digest, dependencies }`, required when `format` is `jpk` and not allowed otherwise: what the Jess package inside is. See [Jess packages](#jess-packages). |
+| `jess_workspace` | `{ package, builtin, default?, targets, commands, packages }`, required when `format` is `jsw` and not allowed otherwise: what the application inside runs and holds. See [Jess applications](#jess-applications). |
 | `layout` | *Optional.* Paths inside the archive: `release_document`, `documentation` (the offline docs' entry page), `installer` (`fomod/ModuleConfig.xml`). |
 | `sources` | At least one `{ url, kind, name? }`. `kind` is `publisher` for locations the project operates, `mirror` otherwise. |
 | `signatures` | `[{ format, url, issuer?, identity? }]`. May be empty. |
@@ -129,3 +130,31 @@ manifest's.
 
 Everything else about the release is as for any project: its date, channel, notes, `yanked` and
 `deprecated` state, sources, mirrors and signatures mean what they mean on the other pages.
+
+## Jess applications
+
+A Jess application's release has one `jsw` artifact: a packed Jess workspace, the application's
+targets and every package they run, each pinned to its content digest, in one file that runs
+offline wherever Jess does. It is packed from the release's commit and is byte-reproducible: the
+same workspace packs to the same bytes, so anyone can repack the tag and compare digests. The
+artifact's `jess_workspace` block says what is inside, as the file's own `jsw.toml` does:
+
+| Field | Meaning |
+|---|---|
+| `package` | The package that names the application: the one holding its default target, or the one package whose targets it exports. The project's index entry repeats it as `jess_package`, and a release may carry this package's `jpk` beside the `jsw`. |
+| `builtin` | The version of Jess's built-in package it was packed against. A Jess whose built-in package is compatible runs it; a client installing it picks the newest release its Jess can run. |
+| `default` | *Optional.* The target it runs when none is named, `<package>:<target>`. |
+| `targets` | Every target it exports, `<package>:<target>`. |
+| `commands` | The command names those targets declare, each with the target it runs: what installing it puts on a PATH, `"greet": "org.example.greeter:greet"`. |
+| `packages` | Every package it holds, by id, with the exact `version` and `content_digest` it pins: `"org.example.words": { "version": "1.2.0", "content_digest": "…" }`. |
+
+A client checks `digests.sha256` before opening the file, and Jess then holds every package inside
+to the digest `jsw.toml` pins; the block must say the same as `jsw.toml`, or the artifact is
+refused. `packages` is a frozen set, not requirements: an index shows it, and resolves nothing from
+it. A `jsw` is not game data, and a DreamWeave client MUST NOT install or run it; `jess install`
+does.
+
+The same release usually carries the application as programs too: one `binary` artifact per
+platform, each the Jess runtime for that platform carrying this exact `jsw`, zipped like any other
+program's archive and chosen as [Programs](#programs) describes. They are for people without Jess;
+a client that has Jess installs the `jsw`, which its own Jess then carries.
