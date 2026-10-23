@@ -179,8 +179,16 @@ arch = "x86_64"
 ```
 
 `application` is the name the files go by. The template doesn't pack them: as with a Rust program,
-CI builds and the template records. Before the release is built, CI runs jess from the jess image
-over the repository's workspace:
+CI builds and the template records. The site's workflow names the application to StroggForge too:
+
+```yaml
+    uses: DreamWeave-MP/StroggForge/.github/workflows/modGlobalBuild.yml@v66
+    with:
+      jess_application: tool
+```
+
+and before a tag's release is built, CI runs jess from the jess image over the repository's
+workspace:
 
 ```sh
 jess workspace pack --output dist/application/tool.jsw --runtimes /opt/jess/runtimes
