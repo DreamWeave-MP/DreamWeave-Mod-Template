@@ -142,6 +142,8 @@ Each component has an `[components.openmw]` table with the install keys:
 | `binary` | | `binary` only: the Cargo binary. Its archives are `<binary>-<OS>-<ARCH>.zip`, one per `[[platforms]]` entry. |
 | `include` | `[]` | `binary` only: files and directories packed beside the program: `["README.md", "LICENSE", "resources"]`. Paths start where StroggForge builds it: the directory named after the binary when the repository has one, as a workspace member, else the repository root. A name matches in any case. |
 | `crate` | | `crate` and `binary`: the package's name on crates.io, as in its `Cargo.toml`. Required for a `crate`; for a `binary`, it adds `cargo install` to the page. |
+| `jess` | | `jpk` only: the id of the Jess package the project publishes. |
+| `application` | | `jpk` only: release the package as an application too, a packed workspace and an executable per `[[platforms]]` entry, named after this. CI packs them into `dist/application/` first. See [Applications](@/guide/packages.md#applications). |
 
 A Rust project's build settings, such as dependents to notify, benchmarks or extra targets, are
 inputs of StroggForge's workflow in the repository, not keys here.

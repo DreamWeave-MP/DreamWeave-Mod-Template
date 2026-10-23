@@ -157,6 +157,49 @@ manifest declares. See [Jess packages](@/guide/protocol/artifacts.md#jess-packag
 A JPK has no documentation inside: a package's docs are its page. It is not game data and not a
 program; nothing but jess installs it.
 
+### Applications
+
+A package with targets to run can ship as an application too: the same release carries a packed
+workspace, the package and everything it runs frozen into one `.jsw`, and an executable per
+platform, each one a jess carrying that `.jsw`, which runs without jess installed.
+
+```toml
+[package]
+format = "jpk"
+jess = "org.example.tool"
+application = "tool"
+
+[[platforms]]
+os = "windows"
+arch = "x86_64"
+
+[[platforms]]
+os = "linux"
+arch = "x86_64"
+```
+
+`application` is the name the files go by. The template doesn't pack them: as with a Rust program,
+CI builds and the template records. Before the release is built, CI runs jess from the jess image
+over the repository's workspace:
+
+```sh
+jess workspace pack --output dist/application/tool.jsw --runtimes /opt/jess/runtimes
+```
+
+which leaves `tool.jsw` and an executable for every platform jess is released for. The tag's
+release takes `tool.jsw` as its `jsw` artifact, `tool-<version>.jsw`, with a `jess_workspace` block
+read from the file's own index: the package it is named for, the jess it was packed for, its
+targets, the commands they declare, and every package it pins. Each `[[platforms]]` entry's
+executable, `tool-Windows-X64.exe`, `tool-Linux-X64` and so on, ships zipped as
+`tool-Windows-X64.zip` with the program inside named `tool.exe`, a `binary` artifact like any
+program's. A file missing from `dist/application/` fails the release and says which. Only the
+platforms jess itself is released for can carry an application: Windows, macOS and Linux, and
+Linux ARM64 for PortMaster.
+
+`jess install org.example.tool` installs the `.jsw`, packed into the installer's own jess; the
+zips are for people without jess. Development builds stay JPKs. See
+[Jess applications](@/guide/protocol/artifacts.md#jess-applications) in the protocol.
+
 ## Components
 
 A `bain` or `fomod` project declares its components:
