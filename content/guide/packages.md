@@ -208,6 +208,17 @@ Linux ARM64 for PortMaster.
 zips are for people without jess. Development builds stay JPKs. See
 [Jess applications](@/guide/protocol/artifacts.md#jess-applications) in the protocol.
 
+On Nexus Mods an application is a program, as a Rust project's binary is: each platform's zip goes
+to a file group of its own, not to the one `[nexusmods] file_group_id` names for a mod, which an
+application can't set. The repository's `NEXUS_GROUP_IDS` secret maps each platform to its group,
+under the keys StroggForge's Rust workflow uses, beside the `NEXUS_API_KEY` secret:
+
+```json
+{ "windows-x64-stable": "123", "macos-arm64-stable": "124", "macos-x64-stable": "125", "linux-x64-stable": "126" }
+```
+
+A tag's release uploads each zip whose platform has a group, and leaves the rest on GitHub.
+
 ## Components
 
 A `bain` or `fomod` project declares its components:

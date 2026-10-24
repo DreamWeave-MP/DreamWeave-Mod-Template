@@ -136,7 +136,8 @@ recording step (see [Programs](@/guide/packages.md#programs) and
    stops here.
 5. Creates the GitHub release for the tag as a draft, attaches the archive and signature, and
    publishes it, with the release's own notes and the archive's digest as its description.
-6. Uploads to Nexus Mods if `[nexusmods] file_group_id` is set.
+6. Uploads to Nexus Mods: a mod's archive if `[nexusmods] file_group_id` is set, and an
+   application's zips to the file groups the `NEXUS_GROUP_IDS` secret names for their platforms.
 7. Starts a run on the default branch, which rebuilds the development build and the site from a
    commit that includes the record, and deploys them.
 

@@ -167,7 +167,7 @@ Markdown shown in the Install section: `notes`, `post_install`, `upgrade`, `unin
 | Key | Meaning |
 |---|---|
 | `nexusmods.mod_id` | The Nexus Mods page. A location, not an identity. |
-| `nexusmods.file_group_id` | Enables the workflow's Nexus upload on tagged releases. |
+| `nexusmods.file_group_id` | Enables the workflow's Nexus upload on tagged releases: a mod's one file group. A program (`binary`, or a `jpk` with `application`) can't set it: each platform's archive goes to the group the `NEXUS_GROUP_IDS` secret names. |
 | `mirrors.url` | An extra download location with `{slug}`, `{version}`, `{tag}`, `{filename}` or `{sha256}`. See [Distribution](@/guide/distribution.md). |
 | `mirrors.name` | Optional. |
 | `provenance.sigstore` | `true` signs each archive in CI. See [Provenance](@/guide/provenance.md). |

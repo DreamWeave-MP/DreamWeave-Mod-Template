@@ -71,7 +71,9 @@ file_group_id = "abc123"
 
 `mod_id` puts a Nexus Mods link on the page and an `integrations.nexusmods` entry in the manifest.
 It is a location, like any other: the project's identity is its id, and moving off Nexus changes
-nothing about it. `file_group_id` makes the workflow upload each tagged release to Nexus too.
+nothing about it. `file_group_id` makes the workflow upload each tagged release to Nexus too. That
+is a mod's one archive: a program, a `binary` or an [application](@/guide/packages.md#applications), has
+one per platform, and each goes to the file group its repository's `NEXUS_GROUP_IDS` secret names.
 
 ## Moving hosts
 
