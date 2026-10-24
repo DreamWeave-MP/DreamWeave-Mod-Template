@@ -793,6 +793,24 @@ function model.load(root: string, options: Options?): Repository
     end
   end
 
+  -- A mod is one archive, uploaded to the one file group its mod.toml names. A program, a Rust
+  -- binary's or a Jess application's, is an archive per platform, each uploaded by StroggForge to
+  -- the file group its NEXUS_GROUP_IDS secret names for that platform, and a crate goes to
+  -- crates.io: neither names a file group here.
+  for _, project in projects do
+    if project.nexusmods_file_group_id == nil then continue end
+
+    local where = `{project.directory}/mod.toml`
+    if project.package_format == 'binary' or project.package_application ~= nil then
+      table.insert(
+        repo.errors,
+        `{where}: a program has one archive per platform, and StroggForge uploads each to the file group its NEXUS_GROUP_IDS secret names for that platform; [nexusmods] file_group_id is a mod's one file group`
+      )
+    elseif project.package_format == 'crate' then
+      table.insert(repo.errors, `{where}: a crate package is published to crates.io, not uploaded to Nexus Mods`)
+    end
+  end
+
   for _, project in projects do
     local {directory, versioning} = project
     local channels: { [string]: { Release } } = {}

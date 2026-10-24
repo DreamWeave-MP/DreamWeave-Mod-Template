@@ -1520,6 +1520,16 @@ suite.describe('release and record', function()
       )
     )
     expect(model.load(root).errors).toEqual { 'content/zeta/mod.toml: [[platforms]] linux aarch64 muos has no jess runtime to carry the application' }
+
+    -- A program's Nexus Mods uploads are StroggForge's, one file group per platform.
+    support.write(
+      `{root}/content/zeta/mod.toml`,
+      string.gsub(manifest, 'jess = "org.fixture.zeta"\n', 'jess = "org.fixture.zeta"\napplication = "zeta"\n', 1)
+        .. '\n[nexusmods]\nfile_group_id = "123"\n'
+    )
+    expect(model.load(root).errors).toEqual {
+      'content/zeta/mod.toml: a program has one archive per platform, and StroggForge uploads each to the file group its NEXUS_GROUP_IDS secret names for that platform; [nexusmods] file_group_id is a mod\'s one file group',
+    }
   end)
 
   suite.it('names the site files that replace the theme\'s, and leaves the branding hook alone', function()
