@@ -18,6 +18,14 @@ format = "jpk"
 jess = "org.dreamweave.mod-template"
 
 [[releases]]
+version = "0.4.1"
+date = 2026-10-24
+summary = "A Jess application goes to Nexus Mods as a program does, each platform's zip to its own file group, and a program can't name a mod's one file group."
+fixed = [
+    "A project with `application`, or a `binary`, is refused `[nexusmods] file_group_id`, as the Python template refused a binary: its archives go to Nexus one file group per platform, from the `NEXUS_GROUP_IDS` secret, and StroggForge v68 uploads an application's that way. A crate is refused it too.",
+]
+
+[[releases]]
 version = "0.4.0"
 date = 2026-10-23
 summary = "Every protocol document is written at schema_version 4, and a Jess package can release an application: a packed workspace and an executable per platform, which jess install installs."
