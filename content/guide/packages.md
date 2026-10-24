@@ -182,7 +182,7 @@ arch = "x86_64"
 CI builds and the template records. The site's workflow names the application to StroggForge too:
 
 ```yaml
-    uses: DreamWeave-MP/StroggForge/.github/workflows/modGlobalBuild.yml@v66
+    uses: DreamWeave-MP/StroggForge/.github/workflows/modGlobalBuild.yml@v68
     with:
       jess_application: tool
 ```
