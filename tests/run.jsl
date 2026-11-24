@@ -782,6 +782,52 @@ suite.describe('records', function()
     expect(index.projects).toBe(entries)
     support.samePinned(siteJson.encode(index, true), 'records/index.json')
   end)
+
+  suite.it('names the same highest release of each channel in the index as in the manifest', function()
+    local repo, beta, gamma = loaded 'records-channel-heads'
+
+    --- The version each channel is on, as the manifest and as the index of `releases` say it.
+    local function heads(project: model.Project, releases: { records.Document }): ({ [string]: string }, { [string]: string })
+      local manifest = records.projectManifest(project, repo.site, 'https://base.test', releases)
+      local entry = records.indexEntry(project, 'https://base.test', siteJson.encode(manifest, true), releases)
+      local fromManifest: { [string]: string } = {}
+
+      for channel, head in manifest.channels :: { [string]: { version: string } } do
+        fromManifest[channel] = head.version
+      end
+
+      return fromManifest, entry.channels :: { [string]: string }
+    end
+
+    -- Neither the first nor the last of a channel is its head. A decimal `0.5` sorts above `0.45`,
+    -- a prerelease below its release, and a yanked release heads nothing.
+    local decimal = siteJson.array({
+      { status = 'available', channel = 'stable', version = '0.45', date = '2025-01-02' },
+      { status = 'available', channel = 'beta', version = '0.6-rc.1', date = '2025-03-01' },
+      { status = 'available', channel = 'stable', version = '0.5', date = '2025-01-01' },
+      { status = 'yanked', channel = 'stable', version = '0.7', date = '2025-04-01' },
+      { status = 'available', channel = 'beta', version = '0.6-rc.2', date = '2025-03-02' },
+      { status = 'available', channel = 'stable', version = '0.41', date = '2025-01-03' },
+      { status = 'available', channel = 'beta', version = '0.6-beta.9', date = '2025-03-03' },
+    } :: { records.Document })
+
+    local manifest, index = heads(beta, decimal)
+    expect(manifest).toEqual { stable = '0.5', beta = '0.6-rc.2' }
+    expect(index).toEqual(manifest)
+
+    local numeric = siteJson.array({
+      { status = 'available', channel = 'stable', version = '0.2.0', date = '2025-02-01' },
+      { status = 'available', channel = 'stable', version = '0.10.0', date = '2025-03-01' },
+      { status = 'available', channel = 'stable', version = '0.1.0', date = '2025-01-01' },
+      { status = 'available', channel = 'development', version = '0.10.1-dev.3', date = '2025-03-02' },
+      { status = 'available', channel = 'development', version = '0.10.1-dev.12', date = '2025-03-03' },
+      { status = 'available', channel = 'development', version = '0.10.1-dev.4', date = '2025-03-04' },
+    } :: { records.Document })
+
+    manifest, index = heads(gamma, numeric)
+    expect(manifest).toEqual { stable = '0.10.0', development = '0.10.1-dev.12' }
+    expect(index).toEqual(manifest)
+  end)
 end)
 
 suite.describe('offline', function()

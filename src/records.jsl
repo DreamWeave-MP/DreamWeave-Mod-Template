@@ -297,8 +297,34 @@ local function mediaDocuments(project: model.Project, base: string): { Document 
   return documents
 end
 
+--- The version each channel of `releases` is on: its highest available release under `project`'s
+--- scheme, whatever order the releases were given in. The manifest and the index both name these.
+local function channelHeads(project: model.Project, releases: { Document }?): { [string]: string }
+  local heads: { [string]: version.Version } = {}
+
+  for _, release in ipairs(releases or {}) do
+    if release.status ~= 'available' then continue end
+
+    local channel = release.channel :: string
+    local parsed = version.parse(release.version, project.versioning)
+    if not parsed then continue end
+
+    local current = heads[channel]
+    if not current or version.compare(parsed :: version.Version, current) > 0 then
+      heads[channel] = parsed :: version.Version
+    end
+  end
+
+  local texts: { [string]: string } = {}
+  for channel, head in heads do
+    texts[channel] = head.text
+  end
+
+  return texts
+end
+
 --- The manifest of `project` on a site served from `base`, with the `releases` it has
---- published: each channel names the last of them that is available.
+--- published: each channel names the highest of them that is available.
 function records.projectManifest(
   project: model.Project,
   site: model.Site,
@@ -369,22 +395,9 @@ function records.projectManifest(
 
   described.credits = credits
 
-  -- Each channel's head is its highest available release under the project's scheme, whatever
-  -- order the releases were given in.
   local channels = object()
-  local heads: { [string]: version.Version } = {}
-  for _, release in ipairs(releases or {}) do
-    if release.status ~= 'available' then continue end
-
-    local channel = release.channel :: string
-    local parsed = version.parse(release.version, project.versioning)
-    if not parsed then continue end
-
-    local current = heads[channel]
-    if not current or version.compare(parsed :: version.Version, current) > 0 then
-      heads[channel] = parsed :: version.Version
-      channels[channel] = object({ 'version' }, { version = release.version })
-    end
+  for channel, head in channelHeads(project, releases) do
+    channels[channel] = object({ 'version' }, { version = head })
   end
 
   return object({ 'schema_version', 'document', 'generator', 'project', 'channels', 'releases' }, {
@@ -857,8 +870,8 @@ function records.indexEntry(
   releases: { Document }?
 ): Document
   local channels = object()
-  for _, release in ipairs(releases or {}) do
-    if release.status == 'available' then channels[release.channel :: string] = release.version end
+  for channel, head in channelHeads(project, releases) do
+    channels[channel] = head
   end
 
   local entry = object(
