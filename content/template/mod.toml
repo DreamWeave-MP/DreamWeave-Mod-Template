@@ -18,6 +18,15 @@ format = "jpk"
 jess = "org.dreamweave.mod-template"
 
 [[releases]]
+version = "0.4.2"
+date = 2026-11-27
+summary = "Sites list releases of one date in the order mod.toml declares them, and link their stable release where its entry is shown; the site index names each channel's highest available release."
+fixed = [
+    "A project declaring several releases on one date had them listed in any order, and its landing page linked Stable to an entry it did not show, which failed the link check. The DreamWeave Theme 0.2.1 orders them as declared and links Stable to the changelog when the landing leaves it out.",
+    "The site index named the last release listed for a channel rather than its highest available one, as the project manifest does.",
+]
+
+[[releases]]
 version = "0.4.1"
 date = 2026-10-24
 summary = "A Jess application goes to Nexus Mods as a program does, each platform's zip to its own file group, and a program can't name a mod's one file group."
