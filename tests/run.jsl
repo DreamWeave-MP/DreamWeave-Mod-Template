@@ -1804,6 +1804,56 @@ suite.describe('site', function()
     -- The theme's stylesheet compiles over the fixture's static copy, as Zola's would.
     expect((string.find(support.read(`{public}/site.css`), '--dw-accent', 1, true)) ~= nil).toBe(true)
   end)
+
+  suite.it('lists releases of one date as mod.toml declares them, and links a stable release the landing leaves out to the changelog', function()
+    -- Each release as its version and date, in the order mod.toml declares them.
+    local function releases(declared: { string }): string
+      return table.concat([for release in declared => (string.gsub(release, '^(%S+) (%S+)$', '[[releases]]\nversion = "%1"\ndate = %2\n'))], '\n')
+    end
+
+    local function lock(id: string, release: string): string
+      return `\{"schema_version": "3", "document": "lock", "project": "{id}", "releases": [\{"version": "{release}", "locked_from": "0123456789abcdef0123456789abcdef01234567", "artifacts": [\{"id": "flat", "format": "flat", "filename": "{id}.zip", "media_type": "application/zip", "size": 1, "digests": \{"sha256": "{string.rep('1', 64)}"}}]}]}`
+    end
+
+    -- Oldest first, as most projects write it, and newest first, as the template's own does.
+    local root = smallRepository('release-order', {
+      ['content/_index.md'] = '+++\ntitle = "Mods"\n+++\n',
+      ['content/eta/index.md'] = '+++\ntitle = "Eta"\n+++\n',
+      ['content/eta/mod.toml'] = 'id = "eta-id"\nslug = "eta"\n\n'
+        .. releases { '0.1.0 2025-01-01', '0.2.0 2025-02-02', '0.3.0 2025-02-02', '0.4.0 2025-02-02', '0.5.0 2025-02-02' },
+      ['content/eta/mod.lock'] = lock('eta-id', '0.1.0'),
+      ['content/theta/index.md'] = '+++\ntitle = "Theta"\n+++\n',
+      ['content/theta/mod.toml'] = 'id = "theta-id"\nslug = "theta"\n\n'
+        .. releases { '0.4.0 2025-03-03', '0.3.0 2025-02-02', '0.2.0 2025-02-02', '0.1.0 2025-01-01' },
+      ['content/theta/mod.lock'] = lock('theta-id', '0.3.0'),
+    })
+
+    support.write(`{root}/config.toml`, 'base_url = "https://order.test"\ntitle = "Order"\n\n[extra]\ngithub_username = "Owner"\ngithub_project = "Order"\n')
+    build.writeChangelogStubs(model.load(root))
+    local public = support.emptied(scratch, 'release-order-public')
+    build.site(root, public, { baseUrl = 'https://order.test' })
+
+    local function listed(path: string): { string }
+      local anchors: { string } = {}
+      for anchor in string.gmatch(support.read(`{public}/{path}`), 'class="dw%-release[^"]*" id="(v[^"]*)"') do
+        table.insert(anchors, anchor)
+      end
+
+      return anchors
+    end
+
+    local function stable(path: string): string?
+      return string.match(support.read(`{public}/{path}`), '<dt>Stable</dt><dd><a href="([^"]*)"')
+    end
+
+    expect(listed 'eta/index.html').toEqual { 'v0.5.0', 'v0.4.0', 'v0.3.0' }
+    expect(listed 'eta/changelog/index.html').toEqual { 'v0.5.0', 'v0.4.0', 'v0.3.0', 'v0.2.0', 'v0.1.0' }
+    expect(stable 'eta/index.html').toBe 'https://order.test/eta/changelog/#v0.1.0'
+    expect(listed 'theta/index.html').toEqual { 'v0.4.0', 'v0.3.0', 'v0.2.0' }
+    expect(listed 'theta/changelog/index.html').toEqual { 'v0.4.0', 'v0.3.0', 'v0.2.0', 'v0.1.0' }
+    expect(stable 'theta/index.html').toBe '#v0.3.0'
+    expect([for problem in sitecheck.check(public, 'https://order.test').problems if string.find(problem, 'anchor', 1, true) => problem]).toEqual {}
+  end)
 end)
 
 suite.describe('build', function()
