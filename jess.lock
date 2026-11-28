@@ -13,11 +13,11 @@ dependencies = []
 
 [[package]]
 id = "org.dreamweave.magick"
-version = "0.1.2"
-digest = "9fe109d661f8251021f1fe8ae7a7b1c3f4ae4cb09ac00b4143e412e5199220c5"
+version = "0.5.0"
+digest = "3693ab3e11661137ddf318d675a9f17648780f42ad093178cd83e4d32180fa35"
 source = "publisher"
 manifest = "https://dreamweave-mp.github.io/magick/dreamweave/projects/4aefcc8f-913f-48f5-8980-2326173a7288.json"
-artifact_sha256 = "5abad13ac9fbd5f1982363cc7645af0bcef4a276ed0d8bd0b69839a9ee4a136c"
+artifact_sha256 = "a2e67acc0e3cca1e557bf628a0969b9575d898635cc76112abd48287832c5f7c"
 dependencies = []
 
 [[package]]
