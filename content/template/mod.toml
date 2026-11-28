@@ -18,6 +18,15 @@ format = "jpk"
 jess = "org.dreamweave.mod-template"
 
 [[releases]]
+version = "0.4.3"
+date = 2026-11-28
+summary = "The template builds with magick 0.5, the vector and painting release, whose 0.1 API it uses unchanged and whose images it writes byte for byte as before."
+changed = [
+    "Requires `org.dreamweave.magick` 0.5 instead of 0.1. The template's image pipeline reads, resizes and writes the same bytes under both.",
+    "Sites build with StroggForge v74 and jess 0.4.1.",
+]
+
+[[releases]]
 version = "0.4.2"
 date = 2026-11-27
 summary = "Sites list releases of one date in the order mod.toml declares them, and link their stable release where its entry is shown; the site index names each channel's highest available release."
